@@ -1,3 +1,5 @@
+//WORKS ON TEENSY 4.1, as of 12/1/22
+
 #include <Arduino.h>
 
 void setup() {
