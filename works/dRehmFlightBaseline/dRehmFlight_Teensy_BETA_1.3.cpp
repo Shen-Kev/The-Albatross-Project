@@ -1,10 +1,40 @@
-// dRhemFlight Code- edited down to basics needed for the Albatross Project. All credit for this code goes to Nichlosas Rhem, and this code will be kept separate from other code in this project.
+#include <Arduino.h>
+// Arduino/Teensy Flight Controller - dRehmFlight
+// Author: Nicholas Rehm
+// Project Start: 1/6/2020
+// Last Updated: 7/29/2022
+// Version: Beta 1.3
+
+//========================================================================================================================//
+
+// CREDITS + SPECIAL THANKS
+/*
+Some elements inspired by:
+http://www.brokking.net/ymfc-32_main.html
+
+Madgwick filter function adapted from:
+https://github.com/arduino-libraries/MadgwickAHRS
+
+MPU9250 implementation based on MPU9250 library by:
+brian.taylor@bolderflight.com
+http://www.bolderflight.com
+
+Thank you to:
+RcGroups 'jihlein' - IMU implementation overhaul + SBUS implementation.
+Everyone that sends me pictures and videos of your flying creations! -Nick
+
+*/
+
+//========================================================================================================================//
+//                                                 USER-SPECIFIED DEFINES                                                 //
+//========================================================================================================================//
 
 // Uncomment only one receiver type
 #define USE_PWM_RX
 //#define USE_PPM_RX
 //#define USE_SBUS_RX
 //#define USE_DSM_RX
+static const uint8_t num_DSM_channels = 6; // If using DSM RX, change this to match the number of transmitter channels you have
 
 // Uncomment only one IMU
 #define USE_MPU6050_I2C // Default
@@ -304,7 +334,7 @@ void getCh5();
 void getCh6();
 
 
-void dRehmFlightSetup()
+void setup()
 {
   Serial.begin(500000); // USB serial
   delay(500);
@@ -379,7 +409,7 @@ void dRehmFlightSetup()
   // calibrateMagnetometer(); //Generates magentometer error and scale factors to be pasted in user-specified variables section
 }
 
-void dRehmFlightLoop()
+void loop()
 {
   // Keep track of what time it is and how much time has elapsed since the last loop
   prev_time = current_time;
@@ -526,6 +556,74 @@ void IMUinit()
 #endif
 }
 
+void getIMUdata()
+{
+  // DESCRIPTION: Request full dataset from IMU and LP filter gyro, accelerometer, and magnetometer data
+  /*
+   * Reads accelerometer, gyro, and magnetometer data from IMU as AccX, AccY, AccZ, GyroX, GyroY, GyroZ, MagX, MagY, MagZ.
+   * These values are scaled according to the IMU datasheet to put them into correct units of g's, deg/sec, and uT. A simple first-order
+   * low-pass filter is used to get rid of high frequency noise in these raw signals. Generally you want to cut
+   * off everything past 80Hz, but if your loop rate is not fast enough, the low pass filter will cause a lag in
+   * the readings. The filter parameters B_gyro and B_accel are set to be good for a 2kHz loop rate. Finally,
+   * the constant errors found in calculate_IMU_error() on startup are subtracted from the accelerometer and gyro readings.
+   */
+  int16_t AcX, AcY, AcZ, GyX, GyY, GyZ, MgX, MgY, MgZ;
+
+#if defined USE_MPU6050_I2C
+  mpu6050.getMotion6(&AcX, &AcY, &AcZ, &GyX, &GyY, &GyZ);
+#elif defined USE_MPU9250_SPI
+  mpu9250.getMotion9(&AcX, &AcY, &AcZ, &GyX, &GyY, &GyZ, &MgX, &MgY, &MgZ);
+#endif
+
+  // Accelerometer
+  AccX = AcX / ACCEL_SCALE_FACTOR; // G's
+  AccY = AcY / ACCEL_SCALE_FACTOR;
+  AccZ = AcZ / ACCEL_SCALE_FACTOR;
+  // Correct the outputs with the calculated error values
+  AccX = AccX - AccErrorX;
+  AccY = AccY - AccErrorY;
+  AccZ = AccZ - AccErrorZ;
+  // LP filter accelerometer data
+  AccX = (1.0 - B_accel) * AccX_prev + B_accel * AccX;
+  AccY = (1.0 - B_accel) * AccY_prev + B_accel * AccY;
+  AccZ = (1.0 - B_accel) * AccZ_prev + B_accel * AccZ;
+  AccX_prev = AccX;
+  AccY_prev = AccY;
+  AccZ_prev = AccZ;
+
+  // Gyro
+  GyroX = GyX / GYRO_SCALE_FACTOR; // deg/sec
+  GyroY = GyY / GYRO_SCALE_FACTOR;
+  GyroZ = GyZ / GYRO_SCALE_FACTOR;
+  // Correct the outputs with the calculated error values
+  GyroX = GyroX - GyroErrorX;
+  GyroY = GyroY - GyroErrorY;
+  GyroZ = GyroZ - GyroErrorZ;
+  // LP filter gyro data
+  GyroX = (1.0 - B_gyro) * GyroX_prev + B_gyro * GyroX;
+  GyroY = (1.0 - B_gyro) * GyroY_prev + B_gyro * GyroY;
+  GyroZ = (1.0 - B_gyro) * GyroZ_prev + B_gyro * GyroZ;
+  GyroX_prev = GyroX;
+  GyroY_prev = GyroY;
+  GyroZ_prev = GyroZ;
+
+  // Magnetometer
+  MagX = MgX / 6.0; // uT
+  MagY = MgY / 6.0;
+  MagZ = MgZ / 6.0;
+  // Correct the outputs with the calculated error values
+  MagX = (MagX - MagErrorX) * MagScaleX;
+  MagY = (MagY - MagErrorY) * MagScaleY;
+  MagZ = (MagZ - MagErrorZ) * MagScaleZ;
+  // LP filter magnetometer data
+  MagX = (1.0 - B_mag) * MagX_prev + B_mag * MagX;
+  MagY = (1.0 - B_mag) * MagY_prev + B_mag * MagY;
+  MagZ = (1.0 - B_mag) * MagZ_prev + B_mag * MagZ;
+  MagX_prev = MagX;
+  MagY_prev = MagY;
+  MagZ_prev = MagZ;
+}
+
 void calculate_IMU_error()
 {
   // DESCRIPTION: Computes IMU accelerometer and gyro error on startup. Note: vehicle should be powered up on flat surface
@@ -598,74 +696,6 @@ void calculate_IMU_error()
 
   Serial.println("Paste these values in user specified variables section and comment out calculate_IMU_error() in void setup.");
 }
-void getIMUdata()
-{
-  // DESCRIPTION: Request full dataset from IMU and LP filter gyro, accelerometer, and magnetometer data
-  /*
-   * Reads accelerometer, gyro, and magnetometer data from IMU as AccX, AccY, AccZ, GyroX, GyroY, GyroZ, MagX, MagY, MagZ.
-   * These values are scaled according to the IMU datasheet to put them into correct units of g's, deg/sec, and uT. A simple first-order
-   * low-pass filter is used to get rid of high frequency noise in these raw signals. Generally you want to cut
-   * off everything past 80Hz, but if your loop rate is not fast enough, the low pass filter will cause a lag in
-   * the readings. The filter parameters B_gyro and B_accel are set to be good for a 2kHz loop rate. Finally,
-   * the constant errors found in calculate_IMU_error() on startup are subtracted from the accelerometer and gyro readings.
-   */
-  int16_t AcX, AcY, AcZ, GyX, GyY, GyZ, MgX, MgY, MgZ;
-
-#if defined USE_MPU6050_I2C
-  mpu6050.getMotion6(&AcX, &AcY, &AcZ, &GyX, &GyY, &GyZ);
-#elif defined USE_MPU9250_SPI
-  mpu9250.getMotion9(&AcX, &AcY, &AcZ, &GyX, &GyY, &GyZ, &MgX, &MgY, &MgZ);
-#endif
-
-  // Accelerometer
-  AccX = AcX / ACCEL_SCALE_FACTOR; // G's
-  AccY = AcY / ACCEL_SCALE_FACTOR;
-  AccZ = AcZ / ACCEL_SCALE_FACTOR;
-  // Correct the outputs with the calculated error values
-  AccX = AccX - AccErrorX;
-  AccY = AccY - AccErrorY;
-  AccZ = AccZ - AccErrorZ;
-  // LP filter accelerometer data
-  AccX = (1.0 - B_accel) * AccX_prev + B_accel * AccX;
-  AccY = (1.0 - B_accel) * AccY_prev + B_accel * AccY;
-  AccZ = (1.0 - B_accel) * AccZ_prev + B_accel * AccZ;
-  AccX_prev = AccX;
-  AccY_prev = AccY;
-  AccZ_prev = AccZ;
-
-  // Gyro
-  GyroX = GyX / GYRO_SCALE_FACTOR; // deg/sec
-  GyroY = GyY / GYRO_SCALE_FACTOR;
-  GyroZ = GyZ / GYRO_SCALE_FACTOR;
-  // Correct the outputs with the calculated error values
-  GyroX = GyroX - GyroErrorX;
-  GyroY = GyroY - GyroErrorY;
-  GyroZ = GyroZ - GyroErrorZ;
-  // LP filter gyro data
-  GyroX = (1.0 - B_gyro) * GyroX_prev + B_gyro * GyroX;
-  GyroY = (1.0 - B_gyro) * GyroY_prev + B_gyro * GyroY;
-  GyroZ = (1.0 - B_gyro) * GyroZ_prev + B_gyro * GyroZ;
-  GyroX_prev = GyroX;
-  GyroY_prev = GyroY;
-  GyroZ_prev = GyroZ;
-
-  // Magnetometer
-  MagX = MgX / 6.0; // uT
-  MagY = MgY / 6.0;
-  MagZ = MgZ / 6.0;
-  // Correct the outputs with the calculated error values
-  MagX = (MagX - MagErrorX) * MagScaleX;
-  MagY = (MagY - MagErrorY) * MagScaleY;
-  MagZ = (MagZ - MagErrorZ) * MagScaleZ;
-  // LP filter magnetometer data
-  MagX = (1.0 - B_mag) * MagX_prev + B_mag * MagX;
-  MagY = (1.0 - B_mag) * MagY_prev + B_mag * MagY;
-  MagZ = (1.0 - B_mag) * MagZ_prev + B_mag * MagZ;
-  MagX_prev = MagX;
-  MagY_prev = MagY;
-  MagZ_prev = MagZ;
-}
-
 
 void calibrateAttitude()
 {
