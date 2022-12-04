@@ -69,7 +69,7 @@ static const uint8_t num_DSM_channels = 6; // If using DSM RX, change this to ma
 #endif
 
 #if defined USE_MPU6050_I2C
-#include "src/MPU6050/MPU6050.h"
+#include "MPU6050/MPU6050.h"
 MPU6050 mpu6050;
 #elif defined USE_MPU9250_SPI
 #include "src/MPU9250/MPU9250.h"
