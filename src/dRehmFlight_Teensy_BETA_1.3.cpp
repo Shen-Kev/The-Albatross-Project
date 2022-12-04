@@ -258,6 +258,7 @@ float s1_command_scaled, s2_command_scaled, s3_command_scaled, s4_command_scaled
 int s1_command_PWM, s2_command_PWM, s3_command_PWM, s4_command_PWM, s5_command_PWM, s6_command_PWM, s7_command_PWM;
 
 //function prototypes https://forum.arduino.cc/t/functions-at-the-end-or-beggining/530377/5
+
 void controlMixer();
 void IMUinit();
 void getIMUdata();
