@@ -167,28 +167,28 @@ float Kd_yaw = 0.00015; // Yaw D-gain (be careful when increasing too high, moto
 // NOTE: Pin 13 is reserved for onboard LED, pins 18 and 19 are reserved for the MPU6050 IMU for default setup
 // Radio:
 // Note: If using SBUS, connect to pin 21 (RX5), if using DSM, connect to pin 15 (RX3)
-const int ch1Pin = 15; // throttle
-const int ch2Pin = 16; // ail
-const int ch3Pin = 17; // ele
-const int ch4Pin = 20; // rudd
-const int ch5Pin = 21; // gear (throttle cut)
-const int ch6Pin = 22; // aux1 (free aux channel)
+const int ch1Pin = 2; // throttle
+const int ch2Pin = 3; // ail
+const int ch3Pin = 4; // ele
+const int ch4Pin = 5; // rudd
+const int ch5Pin = 6; // gear (throttle cut)
+const int ch6Pin = 7; // aux1 (free aux channel)
 const int PPM_Pin = 23;
-// OneShot125 ESC pin outputs:
-const int m1Pin = 0;
-const int m2Pin = 1;
-const int m3Pin = 2;
-const int m4Pin = 3;
-const int m5Pin = 4;
-const int m6Pin = 5;
+//OneShot125 ESC pin outputs: NOT USED
+const int m1Pin = 100;
+const int m2Pin = 1100;
+const int m3Pin = 2100;
+const int m4Pin = 3100;
+const int m5Pin = 4100;
+const int m6Pin = 5100;
 // PWM servo or ESC outputs:
-const int servo1Pin = 6;
-const int servo2Pin = 7;
-const int servo3Pin = 8;
-const int servo4Pin = 9;
-const int servo5Pin = 10;
-const int servo6Pin = 11;
-const int servo7Pin = 12;
+const int servo1Pin = 14;
+const int servo2Pin = 15;
+const int servo3Pin = 18;
+const int servo4Pin = 19;
+const int servo5Pin = 22;
+const int servo6Pin = 23;
+const int servo7Pin = 29;
 PWMServo servo1; // Create servo objects to control a servo or ESC with PWM
 PWMServo servo2;
 PWMServo servo3;

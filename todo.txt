@@ -1,11 +1,7 @@
-learn how to use debug
+learn how to use debug feature
 
 figure out airspeed sensor
 
 test all features (PWM in, servos, motors, IMU, PID) of dRehmFlight
 
-integrate microSD card code and other code into main code
-
-Figure out LIDAR
-
-Somehow this fixed the SD card thing https://community.platformio.org/t/spi-h-no-such-file-or-directory/12050/3, by editing the platformio.ini file 
+Figure out LIDAR, and how to chain multiple on one I2C line
