@@ -5,3 +5,5 @@ figure out airspeed sensor
 test all features (PWM in, servos, motors, IMU, PID) of dRehmFlight
 
 Figure out LIDAR, and how to chain multiple on one I2C line
+
+maybe learn how to use python and java in VS code to do data interpretation and stuff like that
