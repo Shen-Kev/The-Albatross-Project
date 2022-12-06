@@ -9,3 +9,6 @@ Figure out LIDAR, and how to chain multiple on one I2C line
 maybe learn how to use python and java in VS code to do data interpretation and stuff like that
 
 add header files and functions for the other sensors, implement into src_group
+
+calibrate IMU and ESC in drhemflight setup code, uncomment those lines 
+
