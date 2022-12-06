@@ -417,7 +417,7 @@ void dRehmFlightLoop()
   scaleCommands(); // Scales motor commands to 125 to 250 range (oneshot125 protocol) and servo PWM commands to 0 to 180 (for servo library)
 
   // Throttle cut check
-  throttleCut(); // Directly sets motor commands to low based on state of ch5
+  //throttleCut(); // Directly sets motor commands to low based on state of ch5
 
   // Command actuators
   commandMotors();              // Sends command pulses to each motor pin using OneShot125 protocol
