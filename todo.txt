@@ -12,3 +12,8 @@ add header files and functions for the other sensors, implement into src_group
 
 calibrate IMU and ESC in drhemflight setup code, uncomment those lines 
 
+add a way for an LED to blink or something if the SD card can't be opened
+
+come up with a procedure to get the SD card written to without USB reuploading code
+
+document final code really well, how to use, etc, like the readme

@@ -2,7 +2,7 @@
 
 #include <Arduino.h>
 
-#include "sdreadwrite.h"
+#include "sdreadwrite_int.h"
 
 int i = 0; 
 
