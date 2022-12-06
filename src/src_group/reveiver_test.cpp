@@ -1,3 +1,5 @@
+//WORKS AS OF 12/5/22
+
 #include <Arduino.h>
 
 #include "src_group/dRehmFlight.h"
@@ -19,5 +21,5 @@ void loop()
     loopBlink(); // Indicate we are in main loop with short blink every 1.5 seconds
     getCommands();
     loopRate(2000); // Do not exceed 2000Hz, all filter parameters tuned to 2000Hz by default
-    Serial.println(channel_1_pwm);
+    Serial.println(channel_2_pwm);
 }
