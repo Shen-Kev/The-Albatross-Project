@@ -2,8 +2,6 @@ learn how to use debug feature
 
 figure out airspeed sensor
 
-test all features (PWM in, servos, motors, IMU, PID) of dRehmFlight
-
 Figure out LIDAR, and how to chain multiple on one I2C line
 
 maybe learn how to use python and java in VS code to do data interpretation and stuff like that
@@ -11,9 +9,16 @@ maybe learn how to use python and java in VS code to do data interpretation and 
 add header files and functions for the other sensors, implement into src_group
 
 calibrate IMU and ESC in drhemflight setup code, uncomment those lines 
+test ESC
 
 add a way for an LED to blink or something if the SD card can't be opened
 
 come up with a procedure to get the SD card written to without USB reuploading code
 
 document final code really well, how to use, etc, like the readme
+
+learn to use forks on github
+
+battery voltage reading and recording, might have to get creative with this, maybe directly plug balance port (only like 4v) into teensy analog pin and read that way?
+
+Test and tune PID loops

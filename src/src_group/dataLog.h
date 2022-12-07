@@ -12,8 +12,10 @@ void logData(int a, float b, double c, char d, String e); //can add as many para
 
 void setupSD()
 {
-  SD.begin(BUILTIN_SDCARD);
-  // add some warning system or something if it doesn't work 
+  while(!SD.begin(BUILTIN_SDCARD)) {
+    delay(1000); 
+  }
+  // won't proceed until it detects an SD card, avoids flying with no datalog
 }
 
 void logData(int a, float b, double c, char d, String e)

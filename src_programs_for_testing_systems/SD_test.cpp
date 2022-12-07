@@ -9,7 +9,7 @@ void setup()
 {
     Serial.begin(500000); // USB serial
     delay(500);
-    setupSD();
+    setupSD(); //needs to be at the start of the setup, to stop setup if SD isn't inserted
 }
 
 void loop()
@@ -22,4 +22,3 @@ void loop()
     // Get vehicle state
     logData(1, 3.2, 3241.234234, 'W', "This is a String");
 }
-*/
