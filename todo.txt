@@ -1,24 +1,42 @@
-learn how to use debug feature
+URGENT:
 
-figure out airspeed sensor
+get airspeed sensor working
 
-Figure out LIDAR
+get compass working
 
-maybe learn how to use python and java in VS code to do data interpretation and stuff like that
+get barometer working
 
-add header files and functions for the other sensors, implement into src_group
+add servos to gimbal the LIDAR
 
-calibrate IMU and ESC in drhemflight setup code, uncomment those lines 
-test ESC
+document all the pin numbers 
+
+
+NESSESARY:
+
+Test and tune PID loops
+
+document final code really well, how to use, etc, like the readme
+
+calibrate IMU and ESC in drhemflight setup code, uncomment those lines, test ESC
 
 add a way for an LED to blink or something if the SD card can't be opened
 
 come up with a procedure to get the SD card written to without USB reuploading code
 
-document final code really well, how to use, etc, like the readme
+maybe can make a test rig to test if the lidar points forwards to detect ground faster, like make a variable for tilt bias? and a function to account for taht??? this'll be a cool innovative part of the project
+
+
+THINK ABOUT LATER:
+
+learn how to use debug feature
+
+maybe learn how to use python and java in VS code to do data interpretation and stuff like that
 
 learn to use forks on github
 
-battery voltage reading and recording, might have to get creative with this, maybe directly plug balance port (only like 4v) into teensy analog pin and read that way?
 
-Test and tune PID loops
+
+
+
+
+
