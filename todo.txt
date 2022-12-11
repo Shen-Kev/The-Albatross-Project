@@ -2,7 +2,7 @@ learn how to use debug feature
 
 figure out airspeed sensor
 
-Figure out LIDAR, and how to chain multiple on one I2C line
+Figure out LIDAR
 
 maybe learn how to use python and java in VS code to do data interpretation and stuff like that
 

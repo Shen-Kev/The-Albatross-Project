@@ -20,7 +20,7 @@
 #define ADAFRUIT_VL53L1X_H
 
 #include "Wire.h"
-#include "ToF/vl53l1x_class.h"
+#include "vl53l1x_class.h"
 
 #define VL53L1X_I2C_ADDR 0x29 ///< Default sensor I2C address
 
