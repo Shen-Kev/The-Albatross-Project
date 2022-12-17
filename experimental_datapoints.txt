@@ -1,0 +1,7 @@
+real speed in mph - real speed in m/s - measured speed (adjusted but not scaled) in m/s
+35mph - 15.6464m/s - 9.5m/s
+30mph - 13.4112m/s - 7.5m/s
+25mph - 11.176m/s - 6.3m/s
+20mph - 8.9408m/s - 4.3m/s
+
+function: real speed in m/s = 1.4 x measured speed in m/s + 2.4 m/s

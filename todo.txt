@@ -1,23 +1,21 @@
 URGENT:
 
-get airspeed sensor working
-
 get compass working
 
-get barometer working
+get state varaibles all working, THEN DESIGN PCB AND MOUNTS FOR GLIDER
+
+
+NESSESARY:
 
 add servos to gimbal the LIDAR
 
 document all the pin numbers 
 
-
-NESSESARY:
-
 Test and tune PID loops
 
 document final code really well, how to use, etc, like the readme
 
-calibrate IMU and ESC in drhemflight setup code, uncomment those lines, test ESC
+calibrate IMU and ESC in drhemflight setup code, uncomment those lines, test ESC, also retune pitot maybe?
 
 add a way for an LED to blink or something if the SD card can't be opened
 

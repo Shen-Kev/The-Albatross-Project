@@ -8,7 +8,7 @@ attitude  (IMU orientation and compass heading)
 rotation rate of change (IMU gyroscope)
 lateral movement (IMU acceleration)
 altitude (IMU, ToF, baro)
-airspeed (?? probably barometer... will have to do more testing)
+airspeed
 */
 //code also needs to calibrate the sensors, and point them in the right direction using servos
 
