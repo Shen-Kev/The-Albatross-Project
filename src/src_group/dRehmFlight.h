@@ -187,7 +187,7 @@ const int servo2Pin = 15;
 const int servo3Pin = 18;
 const int servo4Pin = 19;
 const int servo5Pin = 22;
-const int servo6Pin = 23;
+const int servo6Pin = 28;
 const int servo7Pin = 29;
 PWMServo servo1; // Create servo objects to control a servo or ESC with PWM
 PWMServo servo2;

@@ -2,7 +2,7 @@ URGENT:
 
 get compass working
 
-get state varaibles all working, THEN DESIGN PCB AND MOUNTS FOR GLIDER
+get state varaibles all working
 
 
 NESSESARY:
