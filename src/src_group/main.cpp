@@ -45,12 +45,19 @@ float DS_heading; // the yaw heading of the overall DS flight path
 Adafruit_BMP085 bmp; // altitude sensor object
 File dataFile;       // SD data output object
 
-// Altitude estimator
+// Altitude estimators
 static AltitudeEstimator altitudeLPbaro = AltitudeEstimator(0.001002176158, // sigma Accel
-                                                      0.01942384099, // sigma Gyro
-                                                      0.1674466677,  // sigma Baro
-                                                      0.5,    // ca
-                                                      0.1);   // accelThreshold
+                                                            0.01942384099,  // sigma Gyro
+                                                            0.1674466677,   // sigma Baro
+                                                            0.5,            // ca
+                                                            0.1);           // accelThreshold
+
+static AltitudeEstimator altitude_LP_ToF = AltitudeEstimator(0.001002176158, // sigma Accel
+                                                             0.01942384099,  // sigma Gyro
+                                                             0.001162911139, // sigma LP ToF
+                                                             0.5,            // ca
+                                                             0.1);           // accelThreshold
+
 // list all the functions
 void estimateAltitude();
 void estimateHorizonatalPosition();
@@ -69,66 +76,63 @@ void setup()
 
     BMP180setup();
 
-    /*
     VL53L1Xsetup();
+    /*
+       setupSD();
 
-    setupSD();
 
-
-    pitotSetup();
-*/
+       pitotSetup();
+   */
 }
 
 void loop()
 {
     // runs a modified version of dRehmFlight's loop.
     dRehmFlightLoop();
-    
+
     BMP180loop();
+    VL35L1Xloop();
 
     float accelData[3] = {AccX, AccY, AccZ};
-    float gyroData[3] = {GyroX/57.2958, GyroY/57.2958, GyroZ/57.2958};
-    
-//WORKS LETSOOOOOOOO
+    float gyroData[3] = {GyroX / 57.2958, GyroY / 57.2958, GyroZ / 57.2958};
+
     altitudeLPbaro.estimate(accelData, gyroData, altitudeMeasured, dt);
+    altitude_LP_ToF.estimate(accelData, gyroData, (distance_LP / 1000.0), dt);
 
-    Serial.println(altitudeLPbaro.getAltitude());
+    // might need to somehow smooth/interpolate between the two...
+    if (!(0.0 < distance_LP < 4000.0))
+    {
+        estimated_altitude = altitude_LP_ToF.getAltitude();
+    }
+    else
+    {
+        estimated_altitude = altitudeLPbaro.getAltitude();
+    }
 
-   
-   
-   
-   
-   
-   // Serial.print(",");
-    //Serial.print(altitude.getVerticalVelocity());
-    //Serial.print(",");
-   // Serial.println(altitude.getVerticalAcceleration());
+    Serial.println(estimated_altitude);
+
     /*
-        VL35L1Xloop();
-
-        // loop runs 2000 times a second.
-        // if the loop goes over 2000/50 times, it will log data
-        if (loopCounter > (2000 / datalogRate))
-        {
-            logData();
-            loopCounter = 0;
-        }
-        else
-        {
-            loopCounter++;
-        }
+            // loop runs 2000 times a second.
+            // if the loop goes over 2000/50 times, it will log data
+            if (loopCounter > (2000 / datalogRate))
+            {
+                logData();
+                loopCounter = 0;
+            }
+            else
+            {
+                loopCounter++;
+            }
 
 
-        pitotLoop();
-    */
+            pitotLoop();
+        */
 }
 
 // takes in the IMU, baro, and ToF sensors
 // If ToF sensor in range, just use this sensor and IMU
 // If ToF sensor out of range, use baro and IMU
 // IMU mostly just to smooth out the data, since it drifts over time
-
-
 
 // OTHER FUNCTIONS
 
