@@ -133,6 +133,7 @@ float AccErrorZ = 0.0;
 float GyroErrorX = 0.0;
 float GyroErrorY = 0.0;
 float GyroErrorZ = 0.0;
+//set this up so that it atuomatically calibrates each time
 
 // Controller parameters (take note of defaults before modifying!):
 float i_limit = 25.0;  // Integrator saturation level, mostly for safety (default 25.0)
@@ -182,13 +183,13 @@ const int m4Pin = 3100;
 const int m5Pin = 4100;
 const int m6Pin = 5100;
 // PWM servo or ESC outputs:
-const int servo1Pin = 14;
-const int servo2Pin = 15;
-const int servo3Pin = 18;
-const int servo4Pin = 19;
-const int servo5Pin = 22;
-const int servo6Pin = 28;
-const int servo7Pin = 29;
+const int servo1Pin = 8; //ESC
+const int servo2Pin = 9; //ailerons
+const int servo3Pin = 24; //rudder
+const int servo4Pin = 25; //elevator
+const int servo5Pin = 28; //gimbal 
+const int servo6Pin = 100;
+const int servo7Pin = 100;
 PWMServo servo1; // Create servo objects to control a servo or ESC with PWM
 PWMServo servo2;
 PWMServo servo3;
@@ -347,8 +348,8 @@ void dRehmFlightSetup()
   delay(5);
 
   // Get IMU error to zero accelerometer and gyro readings, assuming vehicle is level when powered up
-  // calculate_IMU_error(); //Calibration parameters printed to serial monitor. Paste these in the user specified variables section, then comment this out forever.
-
+  calculate_IMU_error(); //Calibration parameters printed to serial monitor. Paste these in the user specified variables section, then comment this out forever.
+  delay(10000);
   // Arm servo channels
   servo1.write(0); // Command servo angle from 0-180 degrees (1000 to 2000 PWM)
   servo2.write(0); // Set these to 90 for servos if you do not want them to briefly max out on startup
@@ -379,7 +380,7 @@ void dRehmFlightSetup()
   // calibrateMagnetometer(); //Generates magentometer error and scale factors to be pasted in user-specified variables section
 }
 
-void dRehmFlightLoop()
+void dRehmFlightLoop() //for the setup and loop, ill prob just use this as the start for the actual setup and
 {
   // Keep track of what time it is and how much time has elapsed since the last loop
   prev_time = current_time;

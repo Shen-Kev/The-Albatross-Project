@@ -1,11 +1,11 @@
-
+/*//havent gotten to work really yet, but its getting to time consuming to do all this in separate files, im gonna just make the final cpp file now and then just edit the header files.
 #include <Arduino.h>
 #include "src_group/dRehmFlight.h" // modified dRehmFlight has stabilization code and actuation and IMU communication and reciever communication.
 #include "src_group/dataLog.h"
 #include "src_group/ToF/VL53L1X.h"
 #include "BMP180.h"
 #include "ASPD4525.h"
-#include "stateVariable.h" //calculates the state variables of the UAV
+#include "altitude.h"
 
 float gimbalServoGain = 2;
 
@@ -16,7 +16,9 @@ void setup()
   servo6.attach(servo6Pin, 900, 2100);
   IMUinit();
   VL53L1Xsetup();
+  BMP180setup();
   setupBlink(3, 160, 70); // numBlinks, upTime (ms), downTime (ms)
+  calculate_IMU_error();
 }
 
 void loop()
@@ -29,8 +31,9 @@ void loop()
   Madgwick(GyroX, -GyroY, -GyroZ, -AccX, AccY, AccZ, MagY, -MagX, MagZ, dt); // Updates roll_IMU, pitch_IMU, and yaw_IMU angle estimates (degrees)
   servo6.write(roll_IMU * gimbalServoGain + 90);
   VL35L1Xloop();
-  Serial.print(distance);
-  Serial.println(" mm");
+  BMP180loop();
+  calculateAltitude();
   loopRate(2000); // Do not exceed 2000Hz, all filter parameters tuned to 2000Hz by default
                   // Get vehicle state
 }
+*/
