@@ -32,6 +32,8 @@ float altitudeMeasured;
 float estimated_altitude;
 float estimated_wingtip_altitude;
 
+float estimated_altitude_ToF;
+
 float IMU_vertical_accel, IMU_vertical_vel, IMU_vertical_pos;
 float IMU_horizontal_accel, IMU_horizontal_vel, IMU_horizontal_pos;
 
@@ -104,7 +106,9 @@ void estimateAltitude()
     float gyroData[3] = {GyroX / 57.2958, GyroY / 57.2958, GyroZ / 57.2958};
 
     altitudeLPbaro.estimate(accelData, gyroData, altitudeMeasured, dt);
-    altitude_LP_ToF.estimate(accelData, gyroData, (distance_LP / 1000.0), dt); // divide by 1000 bc in meters
+
+    estimated_altitude_ToF = (distance_LP/1000.0)*cos(pitch_IMU/57.2958);
+    altitude_LP_ToF.estimate(accelData, gyroData, estimated_altitude_ToF, dt); // divide by 1000 bc in meters
 
     // might need to somehow smooth/interpolate between the two...
     // also need to figure out how to get the range of the ToF sensor to 4m
