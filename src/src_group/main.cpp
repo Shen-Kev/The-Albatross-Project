@@ -72,74 +72,54 @@ void logData(); // can add as many parameters as needed for flight data
 void setup()
 {
     // runs a modified version of dRehmFlight's setup. Don't forget to calibrate the ESCs and IMU
-    dRehmFlightSetup();
     // note, acceleration is in g's
+    dRehmFlightSetup();
 
     BMP180setup();
-
     VL53L1Xsetup();
-    /*
-       setupSD();
-
-
-       pitotSetup();
-   */
+    setupSD();
+    pitotSetup();
 }
 
 void loop()
 {
     // runs a modified version of dRehmFlight's loop.
-    dRehmFlightLoop(); //might want to try figuring out how to use OneShot125 protocol for the ESC if the servo output is jittery
+    dRehmFlightLoop(); // might want to try figuring out how to use OneShot125 protocol for the ESC if the servo output is jittery
 
     BMP180loop();
     VL35L1Xloop();
-
-    float accelData[3] = {AccX, AccY, AccZ};
-    float gyroData[3] = {GyroX / 57.2958, GyroY / 57.2958, GyroZ / 57.2958};
-
-    altitudeLPbaro.estimate(accelData, gyroData, altitudeMeasured, dt);
-    altitude_LP_ToF.estimate(accelData, gyroData, (distance_LP / 1000.0), dt); //divide by 1000 bc in meters
-
-    // might need to somehow smooth/interpolate between the two...
-    //also need to figure out how to get the range of the ToF sensor to 4m
-    if (!(0.0 < distance_LP < 4000.0))
-    {
-        estimated_altitude = altitude_LP_ToF.getAltitude();
-        //experimental: estimate the distance the wingtip is to the ground
-        //wingspan of 1.5m, half wingspan of .75m
-        estimated_wingtip_altitude = estimated_altitude-(sin(roll_IMU/57.2958)*0.75);
-    }
-    else
-    {
-        estimated_altitude = altitudeLPbaro.getAltitude();
-    }
-
-    Serial.println(estimated_altitude);
-
-    /*
-            // loop runs 2000 times a second.
-            // if the loop goes over 2000/50 times, it will log data
-            if (loopCounter > (2000 / datalogRate))
-            {
-                logData();
-                loopCounter = 0;
-            }
-            else
-            {
-                loopCounter++;
-            }
-
-
-            pitotLoop();
-        */
+    logData();
+    pitotLoop();
 }
+
+// OTHER FUNCTIONS
 
 // takes in the IMU, baro, and ToF sensors
 // If ToF sensor in range, just use this sensor and IMU
 // If ToF sensor out of range, use baro and IMU
 // IMU mostly just to smooth out the data, since it drifts over time
+void estimateAltitude()
+{
+    float accelData[3] = {AccX, AccY, AccZ};
+    float gyroData[3] = {GyroX / 57.2958, GyroY / 57.2958, GyroZ / 57.2958};
 
-// OTHER FUNCTIONS
+    altitudeLPbaro.estimate(accelData, gyroData, altitudeMeasured, dt);
+    altitude_LP_ToF.estimate(accelData, gyroData, (distance_LP / 1000.0), dt); // divide by 1000 bc in meters
+
+    // might need to somehow smooth/interpolate between the two...
+    // also need to figure out how to get the range of the ToF sensor to 4m
+    if (!(0.0 < distance_LP < 4000.0))
+    {
+        estimated_altitude = altitude_LP_ToF.getAltitude();
+        // experimental: estimate the distance the wingtip is to the ground
+        // wingspan of 1.5m, half wingspan of .75m
+        estimated_wingtip_altitude = estimated_altitude - (sin(roll_IMU / 57.2958) * 0.75);
+    }
+    else
+    {
+        estimated_altitude = altitudeLPbaro.getAltitude();
+    }
+}
 
 void pitotSetup()
 {
@@ -220,6 +200,21 @@ A16,B16,C16,D16,E16,F16
 //  time,
 
 void logData()
+{
+    // loop runs 2000 times a second.
+    // if the loop goes over 2000/50 times, it will log data
+    if (loopCounter > (2000 / datalogRate))
+    {
+        writeDataToSD();
+        loopCounter = 0;
+    }
+    else
+    {
+        loopCounter++;
+    }
+}
+
+void writeDataToSD()
 {
     dataFile = SD.open("flightData.txt", FILE_WRITE);
 
