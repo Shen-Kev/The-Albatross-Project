@@ -30,6 +30,7 @@ float altitude_LP_param = 0.05;
 float altitudeMeasured;
 
 float estimated_altitude;
+float estimated_wingtip_altitude;
 
 float IMU_vertical_accel, IMU_vertical_vel, IMU_vertical_pos;
 float IMU_horizontal_accel, IMU_horizontal_vel, IMU_horizontal_pos;
@@ -88,7 +89,7 @@ void setup()
 void loop()
 {
     // runs a modified version of dRehmFlight's loop.
-    dRehmFlightLoop();
+    dRehmFlightLoop(); //might want to try figuring out how to use OneShot125 protocol for the ESC if the servo output is jittery
 
     BMP180loop();
     VL35L1Xloop();
@@ -97,12 +98,16 @@ void loop()
     float gyroData[3] = {GyroX / 57.2958, GyroY / 57.2958, GyroZ / 57.2958};
 
     altitudeLPbaro.estimate(accelData, gyroData, altitudeMeasured, dt);
-    altitude_LP_ToF.estimate(accelData, gyroData, (distance_LP / 1000.0), dt);
+    altitude_LP_ToF.estimate(accelData, gyroData, (distance_LP / 1000.0), dt); //divide by 1000 bc in meters
 
     // might need to somehow smooth/interpolate between the two...
+    //also need to figure out how to get the range of the ToF sensor to 4m
     if (!(0.0 < distance_LP < 4000.0))
     {
         estimated_altitude = altitude_LP_ToF.getAltitude();
+        //experimental: estimate the distance the wingtip is to the ground
+        //wingspan of 1.5m, half wingspan of .75m
+        estimated_wingtip_altitude = estimated_altitude-(sin(roll_IMU/57.2958)*0.75);
     }
     else
     {
