@@ -9,6 +9,7 @@
 #include "ASPD4525.h"
 #include <SPI.h>
 #include <SD.h>
+#include "AltitudeEstimation/altitude.h"
 
 // PROGRAM VARIABLES
 float gimbalServoGain = 2;
@@ -23,9 +24,9 @@ float airspeed_scalar = 1.8; // the scaled airspeed, tuned to be most accurate a
 float altitude_offset;
 int altitude_offset_num = 10;
 float altitude_offset_sum = 0;
-float altitude;
+float altitude_baro;
 float altitude_prev;
-float altitude_LP_param = 0.2;
+float altitude_LP_param = 0.05;
 float altitudeMeasured;
 
 float estimated_altitude;
@@ -44,6 +45,12 @@ float DS_heading; // the yaw heading of the overall DS flight path
 Adafruit_BMP085 bmp; // altitude sensor object
 File dataFile;       // SD data output object
 
+// Altitude estimator
+static AltitudeEstimator altitudeLPbaro = AltitudeEstimator(0.001002176158, // sigma Accel
+                                                      0.01942384099, // sigma Gyro
+                                                      0.1674466677,  // sigma Baro
+                                                      0.5,    // ca
+                                                      0.1);   // accelThreshold
 // list all the functions
 void estimateAltitude();
 void estimateHorizonatalPosition();
@@ -60,33 +67,13 @@ void setup()
     dRehmFlightSetup();
     // note, acceleration is in g's
 
-
-    /* NAW this is kinda sucky system theres gotta b something betr
-//run the IMU for a lil bit to wait for it to stabilize for some reason
-for(int i = 0; i < 2000; i++) {
-        dRehmFlightLoop();
-    Serial.println(roll_IMU);
-    Serial.println("IN CALIBRATION LOOP THINGY NO1");
-}
-while (roll_IMU < -0.01 or roll_IMU > 0.01) {
-    dRehmFlightLoop();
-    Serial.println(roll_IMU);
-    Serial.println("IN CALIBRATION LOOP THINGY NO2");
-}
-Serial.println("OUT OF CALIBRATION LOOP THINGY SOMEHOW");
-IMU_vertical_vel=0;
-IMU_vertical_pos=0;
-delay(1000);
-
-*/
-
+    BMP180setup();
 
     /*
     VL53L1Xsetup();
 
     setupSD();
 
-    BMP180setup();
 
     pitotSetup();
 */
@@ -96,21 +83,26 @@ void loop()
 {
     // runs a modified version of dRehmFlight's loop.
     dRehmFlightLoop();
-    estimateAltitude();
-    Serial.print(GyroErrorX);
-    Serial.print(" ");
-    Serial.print(roll_IMU);
-    Serial.print(" ");
-    Serial.print(cos(roll_IMU / 57.29577951));
-    Serial.print(" ");
-    Serial.print(cos(pitch_IMU / 57.29577951));
-    Serial.print(" ");
-    Serial.print(IMU_vertical_accel);
-    Serial.print(" ");
-    Serial.print(IMU_vertical_vel);
-    Serial.print(" ");
-    Serial.print(IMU_vertical_pos);
-    Serial.println();
+    
+    BMP180loop();
+
+    float accelData[3] = {AccX, AccY, AccZ};
+    float gyroData[3] = {GyroX/57.2958, GyroY/57.2958, GyroZ/57.2958};
+    
+//WORKS LETSOOOOOOOO
+    altitudeLPbaro.estimate(accelData, gyroData, altitudeMeasured, dt);
+
+    Serial.println(altitudeLPbaro.getAltitude());
+
+   
+   
+   
+   
+   
+   // Serial.print(",");
+    //Serial.print(altitude.getVerticalVelocity());
+    //Serial.print(",");
+   // Serial.println(altitude.getVerticalAcceleration());
     /*
         VL35L1Xloop();
 
@@ -126,34 +118,19 @@ void loop()
             loopCounter++;
         }
 
-        BMP180loop();
 
         pitotLoop();
     */
 }
 
-// OTHER FUNCTIONS
-
 // takes in the IMU, baro, and ToF sensors
 // If ToF sensor in range, just use this sensor and IMU
 // If ToF sensor out of range, use baro and IMU
 // IMU mostly just to smooth out the data, since it drifts over time
-void estimateAltitude()
-{
-    // first estimate IMU vertical velocity
-    IMU_vertical_accel = (cos(roll_IMU / 57.29577951) * cos(pitch_IMU / 57.29577951) * AccZ) - 1.0;
-    IMU_vertical_vel += (IMU_vertical_accel)*dt;
-    IMU_vertical_pos += (IMU_vertical_vel)*dt;
-    //this is not working
-}
 
-// estimates horizontal position relative to the straight dynamic soaring line set by using the IMU only
-void estimateHorizontalPosition()
-{
-    IMU_horizontal_accel = cos(roll_IMU / 57.29577951) * cos(DS_heading / 57.29577951) * AccY;
-    IMU_horizontal_vel += (IMU_horizontal_accel) / dt;
-    IMU_horizontal_pos += IMU_horizontal_vel / dt;
-}
+
+
+// OTHER FUNCTIONS
 
 void pitotSetup()
 {
@@ -197,8 +174,8 @@ void BMP180setup()
 void BMP180loop()
 {
     altitudeMeasured = bmp.readAltitude() - altitude_offset;
-    altitude = (1.0 - altitude_LP_param) * altitude_prev + altitude_LP_param * altitudeMeasured;
-    altitude_prev = altitude;
+    altitude_baro = (1.0 - altitude_LP_param) * altitude_prev + altitude_LP_param * altitudeMeasured;
+    altitude_prev = altitude_baro;
 }
 
 void setupSD()
