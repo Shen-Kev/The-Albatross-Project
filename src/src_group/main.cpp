@@ -29,10 +29,7 @@ float altitude_prev;
 float altitude_LP_param = 0.05;
 float altitudeMeasured;
 
-float estimated_altitude;
-float estimated_wingtip_altitude;
-
-float estimated_altitude_ToF;
+float estimated_altitude; //the actual altitude used in the controller
 
 float IMU_vertical_accel, IMU_vertical_vel, IMU_vertical_pos;
 float IMU_horizontal_accel, IMU_horizontal_vel, IMU_horizontal_pos;
@@ -42,7 +39,25 @@ int loopCounter = 0;
 int datalogRate = 50; // log data at 50Hz
 
 // dynamic soaring variables
-float DS_heading; // the yaw heading of the overall DS flight path
+float wind_heading;        // can be set manually set, but for now, assumed that it is 0 degrees relative to the yaw IMU (without compass for now)
+float DS_heading;          // the yaw heading of the overall DS flight path, perpendicular to the wind, so 90 degrees (will be flying to the right)
+float DS_horizontal_accel; // acceleration perpendicular to the heading
+enum DS_phase              // uses different sensors and different setpoints in different phases. Each phase should have constant acceleration
+{
+    DS_approach_and_setup_phase = 0, // turn perpendicular to the wind, descend until terrain following, and turn into the wind for about half the time of DS_phase_1, to get the sine wave started
+    DS_phase_1 = 1,                  // climb into the wind, accelerating away from the wind
+    DS_phase_2 = 2,                  // descent out of the wind, accelerating away from the wind, should take similar time to DS_phase_1
+    DS_phase_3 = 3,                  // terrain following, accelerating towards the wind, should take the same time as DS_phase_1 and DS_phase_2 combined. Resets the IMU and barometer measurements
+};
+//each phase in the DS cycle takes a slightly different amount of time (in seconds), manually tuned, to adjust for leeway
+float DS_approach_and_setup_phase_time = 2.0; //time for the first turn into the wind
+float DS_phase_1_time = 2.0; //time for phase 1
+float DS_phase_2_time = 2.0; //time for phase 2
+float DS_phase_3_time = 4.0; //time for phase 3
+
+// phase 1: terrain following, accelerating towards the
+float DS_altitude_setpoint;         // altitude setpoint
+float DS_horizontal_accel_setpoint; // horizontal accelration setpoint
 
 // PROGRAM OBJECTS
 Adafruit_BMP085 bmp; // altitude sensor object
@@ -54,12 +69,6 @@ static AltitudeEstimator altitudeLPbaro = AltitudeEstimator(0.001002176158, // s
                                                             0.1674466677,   // sigma Baro
                                                             0.5,            // ca
                                                             0.1);           // accelThreshold
-
-static AltitudeEstimator altitude_LP_ToF = AltitudeEstimator(0.001002176158, // sigma Accel
-                                                             0.01942384099,  // sigma Gyro
-                                                             0.001162911139, // sigma LP ToF
-                                                             0.5,            // ca
-                                                             0.1);           // accelThreshold
 
 // list all the functions
 void estimateAltitude();
@@ -96,6 +105,15 @@ void loop()
 
 // OTHER FUNCTIONS
 
+// generates the horizontal and vertical setpoints
+void dynamicSoarSetpointGeneration()
+{
+}
+
+void horizontalAccel()
+{
+}
+
 // takes in the IMU, baro, and ToF sensors
 // If ToF sensor in range, just use this sensor and IMU
 // If ToF sensor out of range, use baro and IMU
@@ -107,17 +125,15 @@ void estimateAltitude()
 
     altitudeLPbaro.estimate(accelData, gyroData, altitudeMeasured, dt);
 
-    estimated_altitude_ToF = (distance_LP/1000.0)*cos(pitch_IMU/57.2958);
-    altitude_LP_ToF.estimate(accelData, gyroData, estimated_altitude_ToF, dt); // divide by 1000 bc in meters
-
     // might need to somehow smooth/interpolate between the two...
     // also need to figure out how to get the range of the ToF sensor to 4m
     if (!(0.0 < distance_LP < 4000.0))
     {
-        estimated_altitude = altitude_LP_ToF.getAltitude();
+        estimated_altitude = (distance_LP / 1000.0) * cos(pitch_IMU / 57.2958); //altitude in meters from the ToF sensor
         // experimental: estimate the distance the wingtip is to the ground
         // wingspan of 1.5m, half wingspan of .75m
-        estimated_wingtip_altitude = estimated_altitude - (sin(roll_IMU / 57.2958) * 0.75);
+        estimated_altitude = estimated_altitude - (sin(roll_IMU / 57.2958) * 0.75);
+        // somehow "zero" the IMU and barometer based on this reading
     }
     else
     {
