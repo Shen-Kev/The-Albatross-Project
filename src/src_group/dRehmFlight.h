@@ -12,13 +12,13 @@
 
 // Uncomment only one full scale gyro range (deg/sec)
 #define GYRO_250DPS // Default
-// #define GYRO_500DPS
-// #define GYRO_1000DPS
-// #define GYRO_2000DPS
+                    // #define GYRO_500DPS
+                    // #define GYRO_1000DPS
+                    // #define GYRO_2000DPS
 
 // Uncomment only one full scale accelerometer range (G's)
-//#define ACCEL_2G // Default
- #define ACCEL_4G
+// #define ACCEL_2G // Default
+#define ACCEL_4G
 // #define ACCEL_8G
 // #define ACCEL_16G
 
@@ -627,6 +627,12 @@ void getIMUdata()
   AccX = AccX - AccErrorX;
   AccY = AccY - AccErrorY;
   AccZ = AccZ - AccErrorZ;
+
+  // negative since board is flipped over
+  AccX = AccX;
+  AccY = -AccY;
+  AccZ = -AccZ;
+
   // LP filter accelerometer data
   AccX = (1.0 - B_accel) * AccX_prev + B_accel * AccX;
   AccY = (1.0 - B_accel) * AccY_prev + B_accel * AccY;

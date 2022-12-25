@@ -13,6 +13,12 @@
 
 // PROGRAM VARIABLES
 float gimbalServoGain = 2;
+float gimbalServoTrim = 12;            // degrees counterclockwise to get the servo pointed straight down.
+float gimbalServoBound = 45;           // 45 degrees either side
+float halfWingspan = 0.75;             // in meters
+float gimbalDistanceFromCenter = 0.14; // distance left of center in meters
+float gimbalRightBoundAngle;
+float gimbalLeftBoundAngle;
 
 float airspeed;
 float airspeed_prev;
@@ -30,6 +36,8 @@ float altitude_LP_param = 0.05;
 float altitudeMeasured;
 
 float estimated_altitude; // the actual altitude used in the controller
+float leftWingtipAltitude;
+float rightWingtipAltitude;
 
 float IMU_vertical_accel, IMU_vertical_vel, IMU_vertical_pos;
 float IMU_horizontal_accel, IMU_horizontal_vel, IMU_horizontal_pos;
@@ -60,8 +68,8 @@ float DS_altitude_terrain_following = 0.3; // altitude in meters to NEVER GO BEL
 float DS_altitude_in_wind = 5.5;           // altitude in meters to try and achieve when wanting to be influcenced by the wind
 float DS_horizontal_accel_setpoint;        // horizontal accelration setpoint
 float DS_horizontal_accel_phase_1_2 = 2.0; // g's pulled while accelerating in the wind
-float DS_horizontal_accel_phase_3 = 1.5; 
-  // horizontal g's pulled while turning back
+float DS_horizontal_accel_phase_3 = 1.5;
+// horizontal g's pulled while turning back
 
 // PROGRAM OBJECTS
 Adafruit_BMP085 bmp; // altitude sensor object
@@ -98,8 +106,6 @@ void setup()
     servo3.attach(servo3Pin, 900, 2100);
     servo4.attach(servo4Pin, 900, 2100);
     servo5.attach(servo5Pin, 900, 2100);
-    servo6.attach(servo6Pin, 900, 2100);
-    servo7.attach(servo7Pin, 900, 2100);
 
     delay(500);
 
@@ -126,6 +132,8 @@ void setup()
     // DS setup
     wind_heading = 0.0;
     DS_heading = wind_heading + 90.0;
+    gimbalRightBoundAngle = (0 - gimbalServoBound) + (gimbalServoTrim / gimbalServoGain);
+    gimbalLeftBoundAngle = (0 + gimbalServoBound) + (gimbalServoTrim / gimbalServoGain);
 
     delay(100);
 
@@ -134,8 +142,6 @@ void setup()
     servo3.write(90);
     servo4.write(90);
     servo5.write(90);
-    servo6.write(90);
-    servo7.write(90);
 
     delay(100);
 
@@ -184,19 +190,17 @@ void loop()
         anglePID();
         controlANGLE();
         s1_command_scaled = thro_des;
-        s2_command_scaled = roll_PID; 
+        s2_command_scaled = roll_PID;
         s3_command_scaled = pitch_PID;
         s4_command_scaled = yaw_PID;
     }
 
     scaleCommands();
-    servo1.write(s1_command_PWM); // Writes PWM value to servo object
-    servo2.write(s2_command_PWM);
-    servo3.write(s3_command_PWM);
-    servo4.write(s4_command_PWM);
-    servo5.write(s5_command_PWM);
-    servo6.write(s6_command_PWM);
-    servo7.write(s7_command_PWM);
+    servo1.write(s1_command_PWM); // ESC
+    servo2.write(s2_command_PWM); // aileron
+    servo3.write(s3_command_PWM); // elevator
+    servo4.write(s4_command_PWM); // rudder
+    servo5.write(s5_command_PWM); // gimbal
 
     getCommands(); // Pulls current available radio commands
     failSafe();    // Prevent failures in event of bad receiver connection, defaults to failsafe values assigned in setup
@@ -205,17 +209,16 @@ void loop()
     loopRate(2000); // Do not exceed 2000Hz, all filter parameters tuned to 2000Hz by default
 }
 
-// OTHER FUNCTIONS 
+// OTHER FUNCTIONS
 
 // generates the setpoint altitude and horizontal accel and the error for each phase of DS flight
 void dynamicSoar()
 {
-
 }
 
-//generates the angle requred to reach the setpoint vertical and horizontal setpoints
-void anglePID() {
-
+// generates the angle requred to reach the setpoint vertical and horizontal setpoints
+void anglePID()
+{
 }
 
 void horizontalAccel()
@@ -229,7 +232,7 @@ void horizontalAccel()
 void estimateAltitude()
 {
     float accelData[3] = {AccX, AccY, AccZ};
-    float gyroData[3] = {GyroX / 57.2958, GyroY / 57.2958, GyroZ / 57.2958};
+    float gyroData[3] = {GyroX * DEG_TO_RAD, GyroY * DEG_TO_RAD, GyroZ * DEG_TO_RAD};
 
     altitudeLPbaro.estimate(accelData, gyroData, altitudeMeasured, dt);
 
@@ -237,11 +240,33 @@ void estimateAltitude()
     // also need to figure out how to get the range of the ToF sensor to 4m
     if (!(0.0 < distance_LP < 4000.0))
     {
-        estimated_altitude = (distance_LP / 1000.0) * cos(pitch_IMU / 57.2958); // altitude in meters from the ToF sensor
+        s5_command_PWM = roll_IMU * gimbalServoGain; // servo should have the same rotational angle as the UAV roll, but this servo only goes +- 45 degrees, so scaled up 2x
+
+        // somehow "zero" the IMU and barometer based on this reading
+        estimated_altitude = (distance_LP / 1000.0) * cos(pitch_IMU * DEG_TO_RAD); // altitude in meters from the ToF sensor
+
         // experimental: estimate the distance the wingtip is to the ground
         // wingspan of 1.5m, half wingspan of .75m
-        estimated_altitude = estimated_altitude - (sin(roll_IMU / 57.2958) * 0.75);
-        // somehow "zero" the IMU and barometer based on this reading
+        // sensor is located on the left wing .14m from the center
+        // these two equations only work when bank angle within servo range of motion
+        if (roll_IMU > gimbalRightBoundAngle && roll_IMU < gimbalLeftBoundAngle)
+        {
+            leftWingtipAltitude = estimated_altitude - sin(roll_IMU * DEG_TO_RAD) * (halfWingspan - gimbalDistanceFromCenter);
+            rightWingtipAltitude = estimated_altitude + sin(roll_IMU * DEG_TO_RAD) * (halfWingspan + gimbalDistanceFromCenter);
+            estimated_altitude = leftWingtipAltitude < rightWingtipAltitude ? leftWingtipAltitude : rightWingtipAltitude; // gets lesser of two values
+        }
+        else
+        {
+            if (roll_IMU > gimbalLeftBoundAngle) //banking far to the left 
+            {
+                estimated_altitude = estimated_altitude*cos((roll_IMU-gimbalLeftBoundAngle)*DEG_TO_RAD)-sin(roll_IMU*DEG_TO_RAD)*(halfWingspan-gimbalDistanceFromCenter);
+            }
+            else //banking far to the right
+            {
+                estimated_altitude = estimated_altitude*cos((roll_IMU-gimbalLeftBoundAngle)*DEG_TO_RAD)-sin(roll_IMU*DEG_TO_RAD)*(halfWingspan+gimbalDistanceFromCenter);
+            }
+        }
+        estimated_altitude = estimated_altitude - (sin(roll_IMU * DEG_TO_RAD) * halfWingspan);
     }
     else
     {
