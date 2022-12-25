@@ -60,7 +60,8 @@ float DS_altitude_terrain_following = 0.3; // altitude in meters to NEVER GO BEL
 float DS_altitude_in_wind = 5.5;           // altitude in meters to try and achieve when wanting to be influcenced by the wind
 float DS_horizontal_accel_setpoint;        // horizontal accelration setpoint
 float DS_horizontal_accel_phase_1_2 = 2.0; // g's pulled while accelerating in the wind
-float DS_horizontal_accel_phase_3 = 1.5;   // horizontal g's pulled while turning back
+float DS_horizontal_accel_phase_3 = 1.5; 
+  // horizontal g's pulled while turning back
 
 // PROGRAM OBJECTS
 Adafruit_BMP085 bmp; // altitude sensor object
@@ -183,7 +184,7 @@ void loop()
         anglePID();
         controlANGLE();
         s1_command_scaled = thro_des;
-        s2_command_scaled = roll_PID;
+        s2_command_scaled = roll_PID; 
         s3_command_scaled = pitch_PID;
         s4_command_scaled = yaw_PID;
     }
@@ -204,7 +205,7 @@ void loop()
     loopRate(2000); // Do not exceed 2000Hz, all filter parameters tuned to 2000Hz by default
 }
 
-// OTHER FUNCTIONS
+// OTHER FUNCTIONS 
 
 // generates the setpoint altitude and horizontal accel and the error for each phase of DS flight
 void dynamicSoar()

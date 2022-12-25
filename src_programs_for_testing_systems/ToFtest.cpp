@@ -1,9 +1,8 @@
 //MAIN CODE, waiting to run some functions oh yeah
 //works as of 12/10/22
-/*
+
 #include <Arduino.h>
 #include "src_group/dRehmFlight.h"
-#include "src_group/dataLog.h"
 #include "src_group/ToF/VL53L1X.h"
 //add other libraries when they come in
 
@@ -30,4 +29,3 @@ void loop()
     Serial.println(" mm");
     //will need to make some code for when distance returns -1, that the kalman filter or whatever completely ignores it and just uses IMU and barometer
 }
-*/

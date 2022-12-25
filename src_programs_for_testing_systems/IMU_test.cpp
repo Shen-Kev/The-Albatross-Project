@@ -1,12 +1,12 @@
 // WORKS AS OF 12/5/22!
-//note, as the IMU passes 90 degrees rotation, it starts counting back down to 0
-//note the yaw drift is pretty signinficant, I could tune it but I might need compass
-//note when yaw goes around all the way it suddenly snaps from -180 to 180, might need to deal with that
-/*
+// note, as the IMU passes 90 degrees rotation, it starts counting back down to 0
+// note the yaw drift is pretty signinficant, I could tune it but I might need compass
+// note when yaw goes around all the way it suddenly snaps from -180 to 180, might need to deal with that
+
 #include <Arduino.h>
 
 #include "src_group/dRehmFlight.h"
-#include "sdreadwrite.h"
+//#include "sdreadwrite.h"
 
 void setup()
 {
@@ -15,7 +15,7 @@ void setup()
 
     // Initialize IMU communication
     IMUinit();
-
+    calculate_IMU_error();
     delay(5);
 
     setupBlink(3, 160, 70); // numBlinks, upTime (ms), downTime (ms)
@@ -32,6 +32,9 @@ void loop()
     getIMUdata();                                                              // Pulls raw gyro, accelerometer, and magnetometer data from IMU and LP filters to remove noise
     Madgwick(GyroX, -GyroY, -GyroZ, -AccX, AccY, AccZ, MagY, -MagX, MagZ, dt); // Updates roll_IMU, pitch_IMU, and yaw_IMU angle estimates (degrees)
 
-    Serial.println(yaw_IMU);
+    Serial.print(AccX);
+    Serial.print(" ");
+    Serial.print(AccY);
+    Serial.print(" ");
+    Serial.println(AccZ);
 }
-*/
