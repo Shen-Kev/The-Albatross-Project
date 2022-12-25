@@ -29,7 +29,7 @@ float altitude_prev;
 float altitude_LP_param = 0.05;
 float altitudeMeasured;
 
-float estimated_altitude; //the actual altitude used in the controller
+float estimated_altitude; // the actual altitude used in the controller
 
 float IMU_vertical_accel, IMU_vertical_vel, IMU_vertical_pos;
 float IMU_horizontal_accel, IMU_horizontal_vel, IMU_horizontal_pos;
@@ -49,15 +49,18 @@ enum DS_phase              // uses different sensors and different setpoints in 
     DS_phase_2 = 2,                  // descent out of the wind, accelerating away from the wind, should take similar time to DS_phase_1
     DS_phase_3 = 3,                  // terrain following, accelerating towards the wind, should take the same time as DS_phase_1 and DS_phase_2 combined. Resets the IMU and barometer measurements
 };
-//each phase in the DS cycle takes a slightly different amount of time (in seconds), manually tuned, to adjust for leeway
-float DS_approach_and_setup_phase_time = 2.0; //time for the first turn into the wind
-float DS_phase_1_time = 2.0; //time for phase 1
-float DS_phase_2_time = 2.0; //time for phase 2
-float DS_phase_3_time = 4.0; //time for phase 3
+// each phase in the DS cycle takes a slightly different amount of time (in seconds), manually tuned, to adjust for leeway
+float DS_approach_and_setup_phase_time = 2.0; // time for the first turn into the wind
+float DS_phase_1_time = 2.0;                  // time for phase 1
+float DS_phase_2_time = 2.0;                  // time for phase 2
+float DS_phase_3_time = 5.0;                  // time for phase 3
 
-// phase 1: terrain following, accelerating towards the
-float DS_altitude_setpoint;         // altitude setpoint
-float DS_horizontal_accel_setpoint; // horizontal accelration setpoint
+float DS_altitude_setpoint;                // altitude setpoint
+float DS_altitude_terrain_following = 0.3; // altitude in meters to NEVER GO BELOW (somehow tell the PID loops that this is realy bad)
+float DS_altitude_in_wind = 5.5;           // altitude in meters to try and achieve when wanting to be influcenced by the wind
+float DS_horizontal_accel_setpoint;        // horizontal accelration setpoint
+float DS_horizontal_accel_phase_1_2 = 2.0; // g's pulled while accelerating in the wind
+float DS_horizontal_accel_phase_3 = 1.5;   // horizontal g's pulled while turning back
 
 // PROGRAM OBJECTS
 Adafruit_BMP085 bmp; // altitude sensor object
@@ -78,36 +81,140 @@ void pitotLoop();
 void BMP180setup();
 void BMP180loop();
 void setupSD();
-void logData(); // can add as many parameters as needed for flight data
+void logData();
+void flightMode();
+void dynamicSoar();
+void horizontalAccel();
 
 void setup()
 {
-    // runs a modified version of dRehmFlight's setup. Don't forget to calibrate the ESCs and IMU
-    // note, acceleration is in g's
-    dRehmFlightSetup();
+    Serial.begin(500000);
+    delay(500);
 
+    pinMode(13, OUTPUT);
+    servo1.attach(servo1Pin, 900, 2100);
+    servo2.attach(servo2Pin, 900, 2100);
+    servo3.attach(servo3Pin, 900, 2100);
+    servo4.attach(servo4Pin, 900, 2100);
+    servo5.attach(servo5Pin, 900, 2100);
+    servo6.attach(servo6Pin, 900, 2100);
+    servo7.attach(servo7Pin, 900, 2100);
+
+    delay(500);
+
+    radioSetup();
+    IMUinit();
     BMP180setup();
     VL53L1Xsetup();
     setupSD();
     pitotSetup();
+
+    // Set radio channels to default (safe) values before entering main loop
+    channel_1_pwm = channel_1_fs;
+    channel_2_pwm = channel_2_fs;
+    channel_3_pwm = channel_3_fs;
+    channel_4_pwm = channel_4_fs;
+    channel_5_pwm = channel_5_fs;
+    channel_6_pwm = channel_6_fs;
+
+    delay(100);
+
+    // Get IMU error to zero accelerometer and gyro readings, assuming vehicle is level when powered up
+    calculate_IMU_error(); // Calibration parameters printed to serial monitor. Paste these in the user specified variables section, then comment this out forever.
+
+    // DS setup
+    wind_heading = 0.0;
+    DS_heading = wind_heading + 90.0;
+
+    delay(100);
+
+    servo1.write(0); // ESC set to 0
+    servo2.write(90);
+    servo3.write(90);
+    servo4.write(90);
+    servo5.write(90);
+    servo6.write(90);
+    servo7.write(90);
+
+    delay(100);
+
+    // calibrateESCs(); //PROPS OFF. Uncomment this to calibrate your ESCs by setting throttle stick to max, powering on, and lowering throttle to zero after the beeps
+    // Code will not proceed past here if this function is uncommented!
 }
 
 void loop()
 {
-    // runs a modified version of dRehmFlight's loop.
-    dRehmFlightLoop(); // might want to try figuring out how to use OneShot125 protocol for the ESC if the servo output is jittery
+    prev_time = current_time;
+    current_time = micros();
+    dt = (current_time - prev_time) / 1000000.0;
+    loopBlink();                                                               // Indicate we are in main loop with short blink every 1.5 seconds
+    getIMUdata();                                                              // Pulls raw gyro, accelerometer, and magnetometer data from IMU and LP filters to remove noise
+    Madgwick(GyroX, -GyroY, -GyroZ, -AccX, AccY, AccZ, MagY, -MagX, MagZ, dt); // Updates roll_IMU, pitch_IMU, and yaw_IMU angle estimates (degrees)
 
     BMP180loop();
     VL35L1Xloop();
     logData();
     pitotLoop();
+
+    getDesState();
+
+    if (channel_5_pwm < 1400.0)
+    {
+        // flight mode 1, manual flight
+        s1_command_scaled = thro_des;
+        s2_command_scaled = roll_passthru;
+        s3_command_scaled = pitch_passthru;
+        s4_command_scaled = yaw_passthru;
+    }
+    else if (channel_5_pwm < 1600.0)
+    {
+        // flight mode 2, stabilized flight (or other tests)
+        controlANGLE();
+        s1_command_scaled = thro_des;
+        s2_command_scaled = roll_PID;
+        s3_command_scaled = pitch_PID;
+        s4_command_scaled = yaw_PID;
+    }
+    else
+    {
+        // flight mode 3, dynamic soaring
+        horizontalAccel();
+        dynamicSoar();
+        anglePID();
+        controlANGLE();
+        s1_command_scaled = thro_des;
+        s2_command_scaled = roll_PID;
+        s3_command_scaled = pitch_PID;
+        s4_command_scaled = yaw_PID;
+    }
+
+    scaleCommands();
+    servo1.write(s1_command_PWM); // Writes PWM value to servo object
+    servo2.write(s2_command_PWM);
+    servo3.write(s3_command_PWM);
+    servo4.write(s4_command_PWM);
+    servo5.write(s5_command_PWM);
+    servo6.write(s6_command_PWM);
+    servo7.write(s7_command_PWM);
+
+    getCommands(); // Pulls current available radio commands
+    failSafe();    // Prevent failures in event of bad receiver connection, defaults to failsafe values assigned in setup
+
+    // Regulate loop rate
+    loopRate(2000); // Do not exceed 2000Hz, all filter parameters tuned to 2000Hz by default
 }
 
 // OTHER FUNCTIONS
 
-// generates the horizontal and vertical setpoints
-void dynamicSoarSetpointGeneration()
+// generates the setpoint altitude and horizontal accel and the error for each phase of DS flight
+void dynamicSoar()
 {
+
+}
+
+//generates the angle requred to reach the setpoint vertical and horizontal setpoints
+void anglePID() {
+
 }
 
 void horizontalAccel()
@@ -129,7 +236,7 @@ void estimateAltitude()
     // also need to figure out how to get the range of the ToF sensor to 4m
     if (!(0.0 < distance_LP < 4000.0))
     {
-        estimated_altitude = (distance_LP / 1000.0) * cos(pitch_IMU / 57.2958); //altitude in meters from the ToF sensor
+        estimated_altitude = (distance_LP / 1000.0) * cos(pitch_IMU / 57.2958); // altitude in meters from the ToF sensor
         // experimental: estimate the distance the wingtip is to the ground
         // wingspan of 1.5m, half wingspan of .75m
         estimated_altitude = estimated_altitude - (sin(roll_IMU / 57.2958) * 0.75);

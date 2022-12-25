@@ -2,25 +2,25 @@
 
 // Uncomment only one receiver type
 #define USE_PWM_RX
-//#define USE_PPM_RX
-//#define USE_SBUS_RX
-//#define USE_DSM_RX
+// #define USE_PPM_RX
+// #define USE_SBUS_RX
+// #define USE_DSM_RX
 
 // Uncomment only one IMU
 #define USE_MPU6050_I2C // Default
-//#define USE_MPU9250_SPI
+// #define USE_MPU9250_SPI
 
 // Uncomment only one full scale gyro range (deg/sec)
 #define GYRO_250DPS // Default
-//#define GYRO_500DPS
-//#define GYRO_1000DPS
-//#define GYRO_2000DPS
+// #define GYRO_500DPS
+// #define GYRO_1000DPS
+// #define GYRO_2000DPS
 
 // Uncomment only one full scale accelerometer range (G's)
 #define ACCEL_2G // Default
-//#define ACCEL_4G
-//#define ACCEL_8G
-//#define ACCEL_16G
+// #define ACCEL_4G
+// #define ACCEL_8G
+// #define ACCEL_16G
 
 //========================================================================================================================//
 
@@ -109,8 +109,8 @@ unsigned long channel_1_fs = 1000; // thro
 unsigned long channel_2_fs = 1500; // ail
 unsigned long channel_3_fs = 1500; // elev
 unsigned long channel_4_fs = 1500; // rudd
-unsigned long channel_5_fs = 2000; // gear, greater than 1500 = throttle cut
-unsigned long channel_6_fs = 2000; // aux1
+unsigned long channel_5_fs = 1000; //  mode: position 1: full manual: position 2: stabilized flight : position 3: dynamic soar activated
+unsigned long channel_6_fs = 2000; //
 
 // Filter parameters - Defaults tuned for 2kHz loop rate; Do not touch unless you know what you are doing:
 float B_madgwick = 0.04; // Madgwick filter parameter
@@ -133,7 +133,7 @@ float AccErrorZ = 0.0;
 float GyroErrorX = 0.0;
 float GyroErrorY = 0.0;
 float GyroErrorZ = 0.0;
-//set this up so that it atuomatically calibrates each time
+// set this up so that it atuomatically calibrates each time
 
 // Controller parameters (take note of defaults before modifying!):
 float i_limit = 25.0;  // Integrator saturation level, mostly for safety (default 25.0)
@@ -172,10 +172,10 @@ const int ch1Pin = 2; // throttle
 const int ch2Pin = 3; // ail
 const int ch3Pin = 4; // ele
 const int ch4Pin = 5; // rudd
-const int ch5Pin = 6; // gear (throttle cut)
-const int ch6Pin = 7; // aux1 (free aux channel)
+const int ch5Pin = 6; // mode: position 1: full manual: position 2: stabilized flight : position 3: dynamic soar activate
+const int ch6Pin = 7; //
 const int PPM_Pin = 23;
-//OneShot125 ESC pin outputs: NOT USED
+// OneShot125 ESC pin outputs: NOT USED
 const int m1Pin = 100;
 const int m2Pin = 1100;
 const int m3Pin = 2100;
@@ -183,11 +183,11 @@ const int m4Pin = 3100;
 const int m5Pin = 4100;
 const int m6Pin = 5100;
 // PWM servo or ESC outputs:
-const int servo1Pin = 8; //ESC
-const int servo2Pin = 9; //ailerons
-const int servo3Pin = 24; //rudder
-const int servo4Pin = 25; //elevator
-const int servo5Pin = 28; //gimbal 
+const int servo1Pin = 8;  // ESC
+const int servo2Pin = 9;  // ailerons
+const int servo3Pin = 24; // rudder
+const int servo4Pin = 25; // elevator
+const int servo5Pin = 28; // gimbal
 const int servo6Pin = 100;
 const int servo7Pin = 100;
 PWMServo servo1; // Create servo objects to control a servo or ESC with PWM
@@ -258,7 +258,7 @@ int m1_command_PWM, m2_command_PWM, m3_command_PWM, m4_command_PWM, m5_command_P
 float s1_command_scaled, s2_command_scaled, s3_command_scaled, s4_command_scaled, s5_command_scaled, s6_command_scaled, s7_command_scaled;
 int s1_command_PWM, s2_command_PWM, s3_command_PWM, s4_command_PWM, s5_command_PWM, s6_command_PWM, s7_command_PWM;
 
-//function prototypes https://forum.arduino.cc/t/functions-at-the-end-or-beggining/530377/5
+// function prototypes https://forum.arduino.cc/t/functions-at-the-end-or-beggining/530377/5
 
 void controlMixer();
 void IMUinit();
@@ -348,7 +348,7 @@ void dRehmFlightSetup()
   delay(5);
 
   // Get IMU error to zero accelerometer and gyro readings, assuming vehicle is level when powered up
-  calculate_IMU_error(); //Calibration parameters printed to serial monitor. Paste these in the user specified variables section, then comment this out forever.
+  calculate_IMU_error(); // Calibration parameters printed to serial monitor. Paste these in the user specified variables section, then comment this out forever.
   delay(10000);
   // Arm servo channels
   servo1.write(0); // Command servo angle from 0-180 degrees (1000 to 2000 PWM)
@@ -380,7 +380,7 @@ void dRehmFlightSetup()
   // calibrateMagnetometer(); //Generates magentometer error and scale factors to be pasted in user-specified variables section
 }
 
-void dRehmFlightLoop() //for the setup and loop, ill prob just use this as the start for the actual setup and
+void dRehmFlightLoop() // for the setup and loop, ill prob just use this as the start for the actual setup and
 {
   // Keep track of what time it is and how much time has elapsed since the last loop
   prev_time = current_time;
@@ -418,7 +418,7 @@ void dRehmFlightLoop() //for the setup and loop, ill prob just use this as the s
   scaleCommands(); // Scales motor commands to 125 to 250 range (oneshot125 protocol) and servo PWM commands to 0 to 180 (for servo library)
 
   // Throttle cut check
-  //throttleCut(); // Directly sets motor commands to low based on state of ch5
+  // throttleCut(); // Directly sets motor commands to low based on state of ch5
 
   // Command actuators
   commandMotors();              // Sends command pulses to each motor pin using OneShot125 protocol
@@ -454,7 +454,7 @@ void controlMixer()
    *roll_PID, pitch_PID, yaw_PID - stabilized axis variables
    *roll_passthru, pitch_passthru, yaw_passthru - direct unstabilized command passthrough
    *channel_6_pwm - free auxillary channel, can be used to toggle things with an 'if' statement
-   */
+
 
   // Quad mixing - EXAMPLE
   m1_command_scaled = thro_des - pitch_PID + roll_PID + yaw_PID; // Front Left
@@ -463,7 +463,7 @@ void controlMixer()
   m4_command_scaled = thro_des + pitch_PID + roll_PID - yaw_PID; // Back Left
   m5_command_scaled = 0;
   m6_command_scaled = 0;
-
+*/
   // 0.5 is centered servo, 0.0 is zero throttle if connecting to ESC for conventional PWM, 1.0 is max throttle
   s1_command_scaled = 0;
   s2_command_scaled = 0;
@@ -1132,6 +1132,7 @@ void scaleCommands()
    * which are used to command the servos.
    */
   // Scaled to 125us - 250us for oneshot125 protocol
+  /*
   m1_command_PWM = m1_command_scaled * 125 + 125;
   m2_command_PWM = m2_command_scaled * 125 + 125;
   m3_command_PWM = m3_command_scaled * 125 + 125;
@@ -1145,7 +1146,7 @@ void scaleCommands()
   m4_command_PWM = constrain(m4_command_PWM, 125, 250);
   m5_command_PWM = constrain(m5_command_PWM, 125, 250);
   m6_command_PWM = constrain(m6_command_PWM, 125, 250);
-
+*/
   // Scaled to 0-180 for servo library
   s1_command_PWM = s1_command_scaled * 180;
   s2_command_PWM = s2_command_scaled * 180;
