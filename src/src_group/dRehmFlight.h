@@ -17,8 +17,8 @@
 // #define GYRO_2000DPS
 
 // Uncomment only one full scale accelerometer range (G's)
-#define ACCEL_2G // Default
-// #define ACCEL_4G
+//#define ACCEL_2G // Default
+ #define ACCEL_4G
 // #define ACCEL_8G
 // #define ACCEL_16G
 
