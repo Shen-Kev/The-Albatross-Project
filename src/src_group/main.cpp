@@ -67,7 +67,6 @@ double DS_horizontal_accel_phase_2_3 = 2.0; // g's pulled while accelerating in 
 double DS_horizontal_accel_phase_1_4 = 1.5; // horizontal g's pulled while turning back
 double DS_horizontal_vel;
 double DS_horizontal_pos;
-double DS_horizontal_pos;
 
 boolean DSifFirstRun = true;
 boolean readyToDS = false;
