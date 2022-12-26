@@ -311,13 +311,13 @@ void dRehmFlightSetup()
   delay(500);
 
   // Initialize all pins
-  pinMode(13, OUTPUT); // Pin 13 LED blinker on board, do not modify
-  pinMode(m1Pin, OUTPUT);
-  pinMode(m2Pin, OUTPUT);
-  pinMode(m3Pin, OUTPUT);
-  pinMode(m4Pin, OUTPUT);
-  pinMode(m5Pin, OUTPUT);
-  pinMode(m6Pin, OUTPUT);
+  // pinMode(13, OUTPUT); // Pin 13 LED blinker on board, do not modify
+  // pinMode(m1Pin, OUTPUT);
+  // pinMode(m2Pin, OUTPUT);
+  // pinMode(m3Pin, OUTPUT);
+  // pinMode(m4Pin, OUTPUT);
+  // pinMode(m5Pin, OUTPUT);
+  // pinMode(m6Pin, OUTPUT);
   servo1.attach(servo1Pin, 900, 2100); // Pin, min PWM value, max PWM value
   servo2.attach(servo2Pin, 900, 2100);
   servo3.attach(servo3Pin, 900, 2100);
@@ -535,7 +535,7 @@ void calculate_IMU_error()
    * accelerometer values AccX, AccY, AccZ, GyroX, GyroY, GyroZ in getIMUdata(). This eliminates drift in the
    * measurement.
    */
-  int16_t AcX, AcY, AcZ, GyX, GyY, GyZ, MgX, MgY, MgZ;
+  int16_t AcX, AcY, AcZ, GyX, GyY, GyZ; //, MgX, MgY, MgZ;
   AccErrorX = 0.0;
   AccErrorY = 0.0;
   AccErrorZ = 0.0;
@@ -611,7 +611,7 @@ void getIMUdata()
    * the readings. The filter parameters B_gyro and B_accel are set to be good for a 2kHz loop rate. Finally,
    * the constant errors found in calculate_IMU_error() on startup are subtracted from the accelerometer and gyro readings.
    */
-  int16_t AcX, AcY, AcZ, GyX, GyY, GyZ, MgX, MgY, MgZ;
+  int16_t AcX, AcY, AcZ, GyX, GyY, GyZ;//, MgX, MgY, MgZ;
 
 #if defined USE_MPU6050_I2C
   mpu6050.getMotion6(&AcX, &AcY, &AcZ, &GyX, &GyY, &GyZ);
@@ -656,7 +656,7 @@ void getIMUdata()
   GyroX_prev = GyroX;
   GyroY_prev = GyroY;
   GyroZ_prev = GyroZ;
-
+/*
   // Magnetometer
   MagX = MgX / 6.0; // uT
   MagY = MgY / 6.0;
@@ -672,6 +672,7 @@ void getIMUdata()
   MagX_prev = MagX;
   MagY_prev = MagY;
   MagZ_prev = MagZ;
+*/
 }
 
 void calibrateAttitude()
@@ -1278,14 +1279,14 @@ void failSafe()
     channel_6_pwm = channel_6_fs;
   }
 }
-
+/*
 void commandMotors()
 {
   // DESCRIPTION: Send pulses to motor pins, oneshot125 protocol
-  /*
+
    * My crude implimentation of OneShot125 protocol which sends 125 - 250us pulses to the ESCs (mXPin). The pulselengths being
    * sent are mX_command_PWM, computed in scaleCommands(). This may be replaced by something more efficient in the future.
-   */
+   
   int wentLow = 0;
   int pulseStart, timer;
   int flagM1 = 0;
@@ -1345,7 +1346,7 @@ void commandMotors()
       flagM6 = 1;
     }
   }
-}
+}*/
 
 void armMotors()
 {

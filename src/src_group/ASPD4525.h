@@ -11,7 +11,7 @@ float VV;
 
 byte fetch_airspeed(unsigned int *p_P_dat)
 {
-    byte address, Press_H, Press_L, _status;
+    byte address, Press_H, Press_L;
     unsigned int P_dat;
 
     address = 0x28;

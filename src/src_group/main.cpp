@@ -12,63 +12,67 @@
 #include "AltitudeEstimation/altitude.h"
 
 // PROGRAM VARIABLES
-float gimbalServoGain = 2;
-float gimbalServoTrim = 12;            // degrees counterclockwise to get the servo pointed straight down.
-float gimbalServoBound = 45;           // 45 degrees either side
-float halfWingspan = 0.75;             // in meters
-float gimbalDistanceFromCenter = 0.14; // distance left of center in meters
-float gimbalRightBoundAngle;
-float gimbalLeftBoundAngle;
+double gimbalServoGain = 2;
+double gimbalServoTrim = 12;            // degrees counterclockwise to get the servo pointed straight down.
+double gimbalServoBound = 45;           // 45 degrees either side
+double halfWingspan = 0.75;             // in meters
+double gimbalDistanceFromCenter = 0.14; // distance left of center in meters
+double gimbalRightBoundAngle;
+double gimbalLeftBoundAngle;
 
-float airspeed;
-float airspeed_prev;
-float airspeed_LP_param = 0.05;
-float airspeed_zero = 0; // the calibrated airspeed to be 0m/s at startup to account for different pressrues
-float airspeed_adjusted;
-float airspeed_scalar = 1.8; // the scaled airspeed, tuned to be most accurate at about 10-15 m/s
+double airspeed;
+double airspeed_prev;
+double airspeed_LP_param = 0.05;
+double airspeed_zero = 0; // the calibrated airspeed to be 0m/s at startup to account for different pressrues
+double airspeed_adjusted;
+double airspeed_scalar = 1.8; // the scaled airspeed, tuned to be most accurate at about 10-15 m/s
 
-float altitude_offset;
+double altitude_offset;
 int altitude_offset_num = 10;
-float altitude_offset_sum = 0;
-float altitude_baro;
-float altitude_prev;
-float altitude_LP_param = 0.05;
-float altitudeMeasured;
+double altitude_offset_sum = 0;
+double altitude_baro;
+double altitude_prev;
+double altitude_LP_param = 0.05;
+double altitudeMeasured;
 
-float ToFaltitude;
-float estimated_altitude; // the actual altitude used in the controller
-float leftWingtipAltitude;
-float rightWingtipAltitude;
+double ToFaltitude;
+double estimated_altitude; // the actual altitude used in the controller
+double leftWingtipAltitude;
+double rightWingtipAltitude;
 int altitudeTypeDataLog; // 0 is ToF within gimbal range, 1 is ToF too far left, 2 is ToF too far right, and 3 is using IMU and barometer
 
-float IMU_vertical_accel, IMU_vertical_vel, IMU_vertical_pos;
-float IMU_horizontal_accel, IMU_horizontal_vel, IMU_horizontal_pos;
+double IMU_vertical_accel, IMU_vertical_vel, IMU_vertical_pos;
+double IMU_horizontal_accel, IMU_horizontal_vel, IMU_horizontal_pos;
 
 double timeInMillis;
 int loopCounter = 0;
 int datalogRate = 50; // log data at 50Hz
 
 // dynamic soaring variables
-float wind_heading;                                // can be set manually set, but for now, assumed that it is 0 degrees relative to the yaw IMU (without compass for now)
-float DS_heading;                                  // the yaw heading of the overall DS flight path, perpendicular to the wind, so 90 degrees (will be flying to the right)
-float DS_horizontal_accel;                         // acceleration perpendicular to the heading
-float heading_setup_tolerance = 5;                 // within 5 degrees
-float heading_rate_of_change_setup_tolerance = 10; // must be less than 10 degrees
-float pitch_rate_of_change_setup_tolerance = 10;   // must be less than 10 degrees
+double wind_heading;                                // can be set manually set, but for now, assumed that it is 0 degrees relative to the yaw IMU (without compass for now)
+double DS_heading;                                  // the yaw heading of the overall DS flight path, perpendicular to the wind, so 90 degrees (will be flying to the right)
+double heading_setup_tolerance = 5;                 // within 5 degrees
+double heading_rate_of_change_setup_tolerance = 10; // must be less than 10 degrees
+double pitch_rate_of_change_setup_tolerance = 10;   // must be less than 10 degrees
 
-float DS_altitude_setpoint; // altitude setpoint
-float DS_altitude_error;
-float DS_altitude_terrain_following = 0.3; // altitude in meters to NEVER GO BELOW (somehow tell the PID loops that this is realy bad)
-float DS_altitude_in_wind = 5.5;           // altitude in meters to try and achieve when wanting to be influcenced by the wind
+double DS_altitude_setpoint; // altitude setpoint
+double DS_altitude_error;
+double DS_altitude_terrain_following = 0.3; // altitude in meters to NEVER GO BELOW (somehow tell the PID loops that this is realy bad)
+double DS_altitude_in_wind = 5.5;           // altitude in meters to try and achieve when wanting to be influcenced by the wind
 
-//NOTE: MIGHT WANT TO CHANGE TO HORIZONTAL VELOICTY, BC ACCELERATION MIGHT RESULT IN LARGE DRIFT
-float DS_horizontal_accel_setpoint;        // horizontal accelration setpoint
-float DS_horizontal_accel_error;
-float DS_horizontal_accel_phase_2_3 = 2.0; // g's pulled while accelerating in the wind
-float DS_horizontal_accel_phase_1_4 = 1.5; // horizontal g's pulled while turning back
+double DS_horizontal_accel;          // acceleration perpendicular to the heading
+double DS_horizontal_accel_setpoint; // horizontal accelration setpoint
+double DS_horizontal_accel_error;
+double DS_horizontal_accel_phase_2_3 = 2.0; // g's pulled while accelerating in the wind
+double DS_horizontal_accel_phase_1_4 = 1.5; // horizontal g's pulled while turning back
+double DS_horizontal_vel;
+double DS_horizontal_pos;
+double DS_horizontal_pos;
 
 boolean DSifFirstRun = true;
 boolean readyToDS = false;
+
+double DSrotationMatrix[3][3]; // matrix to transform local coordinates to global (dynamic soaring line) coordinates
 
 int DS_phase;
 enum DS_phases // uses different sensors and different setpoints in different phases. Each phase should have constant acceleration
@@ -88,6 +92,21 @@ unsigned long DS_time_intervals[] = {
     2000, // time for ds phase 2
     4000  // time for ds phase 3
 };
+
+// variables for the  Runge-Kutta method
+double k1_vel;
+double k1_pos;
+double k2_vel;
+double k2_pos;
+double k3_vel;
+double k3_pos;
+double k4_vel;
+double k4_pos;
+
+// angles but in radians bc im tired of constantly converting
+double pitch_IMU_rad;
+double roll_IMU_rad;
+double yaw_IMU_rad;
 
 // PROGRAM OBJECTS
 Adafruit_BMP085 bmp; // altitude sensor object
@@ -109,9 +128,11 @@ void BMP180setup();
 void BMP180loop();
 void setupSD();
 void logData();
+void writeDataToSD();
 void flightMode();
 void dynamicSoar();
-void horizontalAccel();
+void horizontal();
+void DSattitude();
 
 void setup()
 {
@@ -177,6 +198,10 @@ void loop()
     getIMUdata();                                                              // Pulls raw gyro, accelerometer, and magnetometer data from IMU and LP filters to remove noise
     Madgwick(GyroX, -GyroY, -GyroZ, -AccX, AccY, AccZ, MagY, -MagX, MagZ, dt); // Updates roll_IMU, pitch_IMU, and yaw_IMU angle estimates (degrees)
 
+    pitch_IMU_rad = pitch_IMU * DEG_TO_RAD;
+    roll_IMU_rad = roll_IMU * DEG_TO_RAD;
+    yaw_IMU_rad = yaw_IMU * DEG_TO_RAD;
+
     BMP180loop();
     VL35L1Xloop();
     logData();
@@ -209,7 +234,7 @@ void loop()
     {
 
         // flight mode 3, dynamic soaring
-        horizontalAccel();
+        horizontal();
         dynamicSoar();
         DSattitude();
         controlANGLE();
@@ -331,12 +356,50 @@ void dynamicSoar()
 // finds the roll, pitch, and yaw required do coordinated turns and stuff to reach the angle requierd to reach the setpoint vertical and horizontal setpoints to do DS (take insp from ardupilot)
 void DSattitude()
 {
-    //NEED TO DO:  in this funciton, call the dRehmFlight stuff
+    // NEED TO DO:  in this funciton, call the dRehmFlight stuff
 }
 
-void horizontalAccel()
+void horizontal()
 {
-    //NEED TO DO: calculate this still, again, maybe horizVelocity instead
+    // NEED TO DO: calculate this still, again, maybe horizVelocity instead
+    // actually, i can do both, acceleration for DS, but to get it started have veloicty be 0
+
+    // create rotation matrix
+    double DSrotationMatrix[3][3] = {
+        {cos(pitch_IMU_rad) * cos(yaw_IMU_rad), -sin(roll_IMU_rad) * sin(pitch_IMU_rad) * cos(yaw_IMU_rad) + cos(roll_IMU_rad) * sin(yaw_IMU_rad), sin(roll_IMU_rad) * sin(yaw_IMU_rad) + cos(roll_IMU_rad) * sin(pitch_IMU_rad) * cos(yaw_IMU_rad)},
+        {cos(pitch_IMU_rad) * sin(yaw_IMU_rad), cos(roll_IMU_rad) * cos(yaw_IMU_rad) + sin(roll_IMU_rad) * sin(pitch_IMU_rad) * sin(yaw_IMU_rad), -sin(roll_IMU_rad) * cos(yaw_IMU_rad) + cos(roll_IMU_rad) * sin(pitch_IMU_rad) * sin(yaw_IMU_rad)},
+        {-sin(pitch_IMU_rad), sin(roll_IMU_rad) * cos(pitch_IMU_rad), cos(roll_IMU_rad) * cos(pitch_IMU_rad)}};
+    // convert acceleration to global frame (centered on the DS path)
+    double DSglobalAccel[3]; // Global accelerations
+    // Transform local accelerations to global coordinates
+    for (int i = 0; i < 3; i++)
+    {
+        DSglobalAccel[i] = 0;
+        for (int j = 0; j < 3; j++)
+        {
+            DSglobalAccel[i] += DSrotationMatrix[i][j] * ((i == 0) ? AccX : ((i == 1) ? AccY : AccZ));
+        }
+    }
+
+    // a_global[0] is the acceleration along the global pitch axis
+    DS_horizontal_accel = DSglobalAccel[0];
+
+    // integrate to get horizontal velocity:
+    // uncomment one at a time:
+    // DS_horizontal_vel += DS_horizontal_accel * dt; // direct
+
+    // Integrate velocity and position using the Runge-Kutta method
+
+    k1_vel = DS_horizontal_accel * dt;
+    k1_pos = DS_horizontal_vel * dt;
+    k2_vel = (DS_horizontal_accel + k1_vel / 2) * dt;
+    k2_pos = (DS_horizontal_vel + k1_pos / 2) * dt;
+    k3_vel = (DS_horizontal_accel + k2_vel / 2) * dt;
+    k3_pos = (DS_horizontal_vel + k2_pos / 2) * dt;
+    k4_vel = (DS_horizontal_accel + k3_vel) * dt;
+    k4_pos = (DS_horizontal_vel + k3_pos) * dt;
+    DS_horizontal_vel += (k1_vel + 2 * k2_vel + 2 * k3_vel + k4_vel) / 6;
+    DS_horizontal_pos += (k1_pos + 2 * k2_pos + 2 * k3_pos + k4_pos) / 6;
 }
 
 // takes in the IMU, baro, and ToF sensors
@@ -352,13 +415,13 @@ void estimateAltitude()
 
     // might need to somehow smooth/interpolate between the two...
     // also need to figure out how to get the range of the ToF sensor to 4m
-    if (!(0.0 < distance_LP < 4000.0))
+    if (!(distance_LP < 4000.0) && distance_LP > 0.0)
     {
         s5_command_PWM = roll_IMU * gimbalServoGain; // servo should have the same rotational angle as the UAV roll, but this servo only goes +- 45 degrees, so scaled up 2x
 
-        //NEED TO DO  somehow "zero" the IMU and barometer based on this reading
+        // NEED TO DO  somehow "zero" the IMU and barometer based on this reading
 
-        ToFaltitude = (distance_LP / 1000.0) * cos(pitch_IMU * DEG_TO_RAD); // altitude in meters from the ToF sensor
+        ToFaltitude = (distance_LP / 1000.0) * cos(pitch_IMU_rad); // altitude in meters from the ToF sensor
 
         // experimental: estimate the distance the wingtip is to the ground
         // wingspan of 1.5m, half wingspan of .75m
@@ -366,8 +429,8 @@ void estimateAltitude()
         // these two equations only work when bank angle within servo range of motion
         if (roll_IMU > gimbalRightBoundAngle && roll_IMU < gimbalLeftBoundAngle)
         {
-            leftWingtipAltitude = ToFaltitude - sin(roll_IMU * DEG_TO_RAD) * (halfWingspan - gimbalDistanceFromCenter);
-            rightWingtipAltitude = ToFaltitude + sin(roll_IMU * DEG_TO_RAD) * (halfWingspan + gimbalDistanceFromCenter);
+            leftWingtipAltitude = ToFaltitude - sin(roll_IMU_rad) * (halfWingspan - gimbalDistanceFromCenter);
+            rightWingtipAltitude = ToFaltitude + sin(roll_IMU_rad) * (halfWingspan + gimbalDistanceFromCenter);
             estimated_altitude = leftWingtipAltitude < rightWingtipAltitude ? leftWingtipAltitude : rightWingtipAltitude; // gets lesser of two values
             altitudeTypeDataLog = 0;                                                                                      // ToF sensor, within gimbal range
         }
@@ -375,16 +438,16 @@ void estimateAltitude()
         {
             if (roll_IMU > gimbalLeftBoundAngle) // banking far to the left
             {
-                estimated_altitude = ToFaltitude * cos((roll_IMU - gimbalLeftBoundAngle) * DEG_TO_RAD) - sin(roll_IMU * DEG_TO_RAD) * (halfWingspan - gimbalDistanceFromCenter);
+                estimated_altitude = ToFaltitude * cos(roll_IMU_rad - (gimbalLeftBoundAngle * DEG_TO_RAD)) - sin(roll_IMU_rad) * (halfWingspan - gimbalDistanceFromCenter);
                 altitudeTypeDataLog = 1; // ToF sensor, too far left
             }
             else // banking far to the right
             {
-                estimated_altitude = ToFaltitude * cos((roll_IMU - gimbalLeftBoundAngle) * DEG_TO_RAD) - sin(roll_IMU * DEG_TO_RAD) * (halfWingspan + gimbalDistanceFromCenter);
+                estimated_altitude = ToFaltitude * cos(roll_IMU_rad - (gimbalLeftBoundAngle * DEG_TO_RAD)) - sin(roll_IMU_rad) * (halfWingspan + gimbalDistanceFromCenter);
                 altitudeTypeDataLog = 2; // ToF sensor, too far right
             }
         }
-        estimated_altitude = estimated_altitude - (sin(roll_IMU * DEG_TO_RAD) * halfWingspan);
+        estimated_altitude = estimated_altitude - (sin(roll_IMU_rad) * halfWingspan);
     }
     else
     {
@@ -423,7 +486,7 @@ void BMP180setup()
         }
     }
 
-    for (size_t i = 0; i < altitude_offset_num; i++)
+    for (int i = 0; i < altitude_offset_num; i++)
     {
         altitude_offset_sum += bmp.readAltitude();
     }
