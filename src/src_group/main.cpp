@@ -54,6 +54,7 @@ double DS_heading;                                  // the yaw heading of the ov
 double heading_setup_tolerance = 5;                 // within 5 degrees
 double heading_rate_of_change_setup_tolerance = 10; // must be less than 10 degrees
 double pitch_rate_of_change_setup_tolerance = 10;   // must be less than 10 degrees
+double horizontal_vel_tolerance = 0.5;              // no more than 0.5m/s horizontal motion
 
 double DS_altitude_setpoint; // altitude setpoint
 double DS_altitude_error;
@@ -63,10 +64,12 @@ double DS_altitude_in_wind = 5.5;           // altitude in meters to try and ach
 double DS_horizontal_accel;          // acceleration perpendicular to the heading
 double DS_horizontal_accel_setpoint; // horizontal accelration setpoint
 double DS_horizontal_accel_error;
-double DS_horizontal_accel_phase_2_3 = 2.0; // g's pulled while accelerating in the wind
-double DS_horizontal_accel_phase_1_4 = 1.5; // horizontal g's pulled while turning back
+double DS_horizontal_accel_setpoint_phase_2_3 = 2.0; // g's pulled while accelerating in the wind
+double DS_horizontal_vel_setpoint_phase_1_4 = -1.5;  // horizontal velocity in m/s while turning back (to the left)
 double DS_horizontal_vel;
-double DS_horizontal_pos;
+double DS_horizontal_vel_setpoint;
+double DS_horizontal_vel_error;
+double DS_horizontal_pos; // left of the line should be negative, right of the line should be positive, the line is set to be at 0.
 
 boolean DSifFirstRun = true;
 boolean readyToDS = false;
@@ -81,15 +84,6 @@ enum DS_phases // uses different sensors and different setpoints in different ph
     DS_phase_2 = 2, // climb into the wind, accelerating away from the wind
     DS_phase_3 = 3, // descent out of the wind, accelerating away from the wind, should take similar time to DS_phase_1
     DS_phase_4 = 4  // terrain following, accelerating towards the wind, should take the same time as DS_phase_1 and DS_phase_2 combined. Resets the IMU and barometer measurements
-};
-// each phase in the DS cycle takes a slightly different amount of time (in seconds), manually tuned, to adjust for leeway
-double DS_startTime;
-unsigned long DS_time_intervals[] = {
-    // in milliseconds
-    2000, // time for ds phase 0
-    2000, // time for ds phase 1
-    2000, // time for ds phase 2
-    4000  // time for ds phase 3
 };
 
 // variables for the  Runge-Kutta method
@@ -117,6 +111,16 @@ static AltitudeEstimator altitudeLPbaro = AltitudeEstimator(0.001002176158, // s
                                                             0.1674466677,   // sigma Baro
                                                             0.5,            // ca
                                                             0.1);           // accelThreshold
+
+int horiz_setpoint_type;
+
+enum horiz_setpoint_types
+{
+    setpoint_horiz_accel = 0,
+    setpoint_horiz_vel = 1,
+    setpoint_horiz_pos = 2,
+
+};
 
 // list all the functions
 void estimateAltitude();
@@ -268,33 +272,21 @@ void dynamicSoar()
     {
         DS_phase = DS_phase_0; // ready to dynamic soar, activate phase 0
     }
-    else if (readyToDS)
-    {
-        // starts with 1, but once time for 1 is over, activate phase 2, then 3, then 4, then loop back to 2
-        if (current_time - DS_startTime > DS_time_intervals[DS_phase])
-        {
-            DS_startTime = timeInMillis;
-            DS_phase++;
-            if (DS_phase > 4)
-            {
-                DS_phase = 2;
-            }
-        }
-    }
+
     switch (DS_phase)
     {
     case DS_phase_0:
         // do phase 0, turn and descent, wait until stable(using the IMU for now, use compass later with kalman filter class)
-        if (yaw_IMU < DS_heading - heading_setup_tolerance || yaw_IMU > DS_heading + heading_setup_tolerance || abs(GyroZ) > heading_rate_of_change_setup_tolerance || estimated_altitude > DS_altitude_terrain_following || abs(GyroY) > pitch_rate_of_change_setup_tolerance)
+        if (yaw_IMU < DS_heading - heading_setup_tolerance || yaw_IMU > DS_heading + heading_setup_tolerance || abs(GyroZ) > heading_rate_of_change_setup_tolerance || estimated_altitude > DS_altitude_terrain_following || abs(GyroY) > pitch_rate_of_change_setup_tolerance || abs(DS_horizontal_vel) > horizontal_vel_tolerance)
         {
             // turn and descend somehow
 
             // ground follow
             DS_altitude_setpoint = DS_altitude_terrain_following;
             DS_altitude_error = DS_altitude_setpoint - estimated_altitude;
-            // no horiz accel, this automatically means fly parallel to the DS flight path
-            DS_horizontal_accel_setpoint = 0;
-            DS_horizontal_accel_error = DS_horizontal_accel_setpoint - DS_horizontal_accel;
+            // no horiz vel, this automatically means fly parallel to the DS flight path
+            horiz_setpoint_type = setpoint_horiz_vel;
+            DS_horizontal_vel_error = 0.0 - DS_horizontal_vel; // set horizontal velocity setpoint to 0
         }
         else
         {
@@ -302,15 +294,22 @@ void dynamicSoar()
         }
         break;
     case DS_phase_1:
-        // do phase 1, inital turn into the wind
+        // do phase 1, inital turn into the wind (turning left for this code)
+        // based on VELOCITY
 
         // ground follow
         DS_altitude_setpoint = DS_altitude_terrain_following;
         DS_altitude_error = DS_altitude_setpoint - estimated_altitude;
 
         // towards the wind
-        DS_horizontal_accel_setpoint = DS_horizontal_accel_phase_1_4;
-        DS_horizontal_accel_error = DS_horizontal_accel_setpoint - DS_horizontal_accel;
+        horiz_setpoint_type = setpoint_horiz_vel;
+        DS_horizontal_vel_error = DS_horizontal_vel_setpoint_phase_1_4 - DS_horizontal_vel;
+
+        if (abs(DS_horizontal_vel) < horizontal_vel_tolerance)
+        {
+            DS_phase = DS_phase_2; // start DS cycle
+            DS_horizontal_pos = 0; // crosses the line at the right velocity, so sets the line to be here
+        }
 
         break;
     case DS_phase_2:
@@ -321,8 +320,13 @@ void dynamicSoar()
         DS_altitude_error = DS_altitude_setpoint - estimated_altitude;
 
         // away from wind
-        DS_horizontal_accel_setpoint = DS_horizontal_accel_phase_2_3;
-        DS_horizontal_accel_error = DS_horizontal_accel_setpoint - DS_horizontal_accel;
+        horiz_setpoint_type = setpoint_horiz_accel;
+        DS_horizontal_accel_error = DS_horizontal_accel_setpoint_phase_2_3 - DS_horizontal_accel;
+
+        if (DS_horizontal_vel > 0.0)
+        { // once reached horizontal peak, go the other way and descend
+            DS_phase = DS_phase_3;
+        }
 
         break;
     case DS_phase_3:
@@ -333,20 +337,31 @@ void dynamicSoar()
         DS_altitude_error = DS_altitude_setpoint - estimated_altitude;
 
         // away from wind
-        DS_horizontal_accel_setpoint = DS_horizontal_accel_phase_2_3;
-        DS_horizontal_accel_error = DS_horizontal_accel_setpoint - DS_horizontal_accel;
+        horiz_setpoint_type = setpoint_horiz_accel;
+        DS_horizontal_accel_error = DS_horizontal_accel_setpoint_phase_2_3 - DS_horizontal_accel;
+
+        if (DS_horizontal_pos > 0.0)
+        { // passed from left to right side of the line
+            DS_phase = DS_phase_4;
+        }
 
         break;
     case DS_phase_4:
-        // do phase 4, turn back into the wind
+        // do phase 4, turn back into the wind BUT THIS TIME SETPOINT IS VELOCITY, SO THAT EACH CYCLE STARTS WITH THE SAME VELOCITY??
 
         // ground follow
         DS_altitude_setpoint = DS_altitude_terrain_following;
         DS_altitude_error = DS_altitude_setpoint - estimated_altitude;
 
         // towards the wind
-        DS_horizontal_accel_setpoint = DS_horizontal_accel_phase_1_4;
-        DS_horizontal_accel_error = DS_horizontal_accel_setpoint - DS_horizontal_accel;
+        horiz_setpoint_type = setpoint_horiz_vel;
+        DS_horizontal_vel_error = DS_horizontal_vel_setpoint_phase_1_4 - DS_horizontal_vel;
+
+        // velocity constant, and crossed the line
+        if (abs(DS_horizontal_vel_error) < horizontal_vel_tolerance && DS_horizontal_pos < 0.0)
+        {
+            DS_phase = DS_phase_2;
+        }
 
         break;
     }
@@ -355,7 +370,7 @@ void dynamicSoar()
 // finds the roll, pitch, and yaw required do coordinated turns and stuff to reach the angle requierd to reach the setpoint vertical and horizontal setpoints to do DS (take insp from ardupilot)
 void DSattitude()
 {
-    // NEED TO DO:  in this funciton, call the dRehmFlight stuff
+    // NEED TO DO:  in this funciton, call the dRehmFlight stuff, use tthe horiz_setpoint_type to see how to fly
 }
 
 void horizontal()
