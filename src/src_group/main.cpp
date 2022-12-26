@@ -211,7 +211,7 @@ void loop()
         // flight mode 3, dynamic soaring
         horizontalAccel();
         dynamicSoar();
-        anglePID();
+        DSattitude();
         controlANGLE();
         s1_command_scaled = thro_des;
         s2_command_scaled = roll_PID;
