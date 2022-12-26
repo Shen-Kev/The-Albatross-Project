@@ -35,41 +35,59 @@ float altitude_prev;
 float altitude_LP_param = 0.05;
 float altitudeMeasured;
 
+float ToFaltitude;
 float estimated_altitude; // the actual altitude used in the controller
 float leftWingtipAltitude;
 float rightWingtipAltitude;
+int altitudeTypeDataLog; // 0 is ToF within gimbal range, 1 is ToF too far left, 2 is ToF too far right, and 3 is using IMU and barometer
 
 float IMU_vertical_accel, IMU_vertical_vel, IMU_vertical_pos;
 float IMU_horizontal_accel, IMU_horizontal_vel, IMU_horizontal_pos;
 
-unsigned long timeInMillis;
+double timeInMillis;
 int loopCounter = 0;
 int datalogRate = 50; // log data at 50Hz
 
 // dynamic soaring variables
-float wind_heading;        // can be set manually set, but for now, assumed that it is 0 degrees relative to the yaw IMU (without compass for now)
-float DS_heading;          // the yaw heading of the overall DS flight path, perpendicular to the wind, so 90 degrees (will be flying to the right)
-float DS_horizontal_accel; // acceleration perpendicular to the heading
-enum DS_phase              // uses different sensors and different setpoints in different phases. Each phase should have constant acceleration
-{
-    DS_approach_and_setup_phase = 0, // turn perpendicular to the wind, descend until terrain following, and turn into the wind for about half the time of DS_phase_1, to get the sine wave started
-    DS_phase_1 = 1,                  // climb into the wind, accelerating away from the wind
-    DS_phase_2 = 2,                  // descent out of the wind, accelerating away from the wind, should take similar time to DS_phase_1
-    DS_phase_3 = 3,                  // terrain following, accelerating towards the wind, should take the same time as DS_phase_1 and DS_phase_2 combined. Resets the IMU and barometer measurements
-};
-// each phase in the DS cycle takes a slightly different amount of time (in seconds), manually tuned, to adjust for leeway
-float DS_approach_and_setup_phase_time = 2.0; // time for the first turn into the wind
-float DS_phase_1_time = 2.0;                  // time for phase 1
-float DS_phase_2_time = 2.0;                  // time for phase 2
-float DS_phase_3_time = 5.0;                  // time for phase 3
+float wind_heading;                                // can be set manually set, but for now, assumed that it is 0 degrees relative to the yaw IMU (without compass for now)
+float DS_heading;                                  // the yaw heading of the overall DS flight path, perpendicular to the wind, so 90 degrees (will be flying to the right)
+float DS_horizontal_accel;                         // acceleration perpendicular to the heading
+float heading_setup_tolerance = 5;                 // within 5 degrees
+float heading_rate_of_change_setup_tolerance = 10; // must be less than 10 degrees
+float pitch_rate_of_change_setup_tolerance = 10;   // must be less than 10 degrees
 
-float DS_altitude_setpoint;                // altitude setpoint
+float DS_altitude_setpoint; // altitude setpoint
+float DS_altitude_error;
 float DS_altitude_terrain_following = 0.3; // altitude in meters to NEVER GO BELOW (somehow tell the PID loops that this is realy bad)
 float DS_altitude_in_wind = 5.5;           // altitude in meters to try and achieve when wanting to be influcenced by the wind
+
+//NOTE: MIGHT WANT TO CHANGE TO HORIZONTAL VELOICTY, BC ACCELERATION MIGHT RESULT IN LARGE DRIFT
 float DS_horizontal_accel_setpoint;        // horizontal accelration setpoint
-float DS_horizontal_accel_phase_1_2 = 2.0; // g's pulled while accelerating in the wind
-float DS_horizontal_accel_phase_3 = 1.5;
-// horizontal g's pulled while turning back
+float DS_horizontal_accel_error;
+float DS_horizontal_accel_phase_2_3 = 2.0; // g's pulled while accelerating in the wind
+float DS_horizontal_accel_phase_1_4 = 1.5; // horizontal g's pulled while turning back
+
+boolean DSifFirstRun = true;
+boolean readyToDS = false;
+
+int DS_phase;
+enum DS_phases // uses different sensors and different setpoints in different phases. Each phase should have constant acceleration
+{
+    DS_phase_0 = 0, // turn perpendicualr to the wind and descend
+    DS_phase_1 = 1, // turn into the wind for about half the time of DS_phase_1, to get the sine wave started
+    DS_phase_2 = 2, // climb into the wind, accelerating away from the wind
+    DS_phase_3 = 3, // descent out of the wind, accelerating away from the wind, should take similar time to DS_phase_1
+    DS_phase_4 = 4  // terrain following, accelerating towards the wind, should take the same time as DS_phase_1 and DS_phase_2 combined. Resets the IMU and barometer measurements
+};
+// each phase in the DS cycle takes a slightly different amount of time (in seconds), manually tuned, to adjust for leeway
+double DS_startTime;
+unsigned long DS_time_intervals[] = {
+    // in milliseconds
+    2000, // time for ds phase 0
+    2000, // time for ds phase 1
+    2000, // time for ds phase 2
+    4000  // time for ds phase 3
+};
 
 // PROGRAM OBJECTS
 Adafruit_BMP085 bmp; // altitude sensor object
@@ -154,6 +172,7 @@ void loop()
     prev_time = current_time;
     current_time = micros();
     dt = (current_time - prev_time) / 1000000.0;
+    timeInMillis = millis();
     loopBlink();                                                               // Indicate we are in main loop with short blink every 1.5 seconds
     getIMUdata();                                                              // Pulls raw gyro, accelerometer, and magnetometer data from IMU and LP filters to remove noise
     Madgwick(GyroX, -GyroY, -GyroZ, -AccX, AccY, AccZ, MagY, -MagX, MagZ, dt); // Updates roll_IMU, pitch_IMU, and yaw_IMU angle estimates (degrees)
@@ -172,6 +191,8 @@ void loop()
         s2_command_scaled = roll_passthru;
         s3_command_scaled = pitch_passthru;
         s4_command_scaled = yaw_passthru;
+        DSifFirstRun = true;
+        readyToDS = false;
     }
     else if (channel_5_pwm < 1600.0)
     {
@@ -181,9 +202,12 @@ void loop()
         s2_command_scaled = roll_PID;
         s3_command_scaled = pitch_PID;
         s4_command_scaled = yaw_PID;
+        DSifFirstRun = true;
+        readyToDS = false;
     }
     else
     {
+
         // flight mode 3, dynamic soaring
         horizontalAccel();
         dynamicSoar();
@@ -193,6 +217,7 @@ void loop()
         s2_command_scaled = roll_PID;
         s3_command_scaled = pitch_PID;
         s4_command_scaled = yaw_PID;
+        DSifFirstRun = false;
     }
 
     scaleCommands();
@@ -214,15 +239,104 @@ void loop()
 // generates the setpoint altitude and horizontal accel and the error for each phase of DS flight
 void dynamicSoar()
 {
+    // first time swtich goes on:
+    if (DSifFirstRun)
+    {
+        DS_phase = DS_phase_0; // ready to dynamic soar, activate phase 0
+    }
+    else if (readyToDS)
+    {
+        // starts with 1, but once time for 1 is over, activate phase 2, then 3, then 4, then loop back to 2
+        if (current_time - DS_startTime > DS_time_intervals[DS_phase])
+        {
+            DS_startTime = timeInMillis;
+            DS_phase++;
+            if (DS_phase > 4)
+            {
+                DS_phase = 2;
+            }
+        }
+    }
+    switch (DS_phase)
+    {
+    case DS_phase_0:
+        // do phase 0, turn and descent, wait until stable(using the IMU for now, use compass later with kalman filter class)
+        if (yaw_IMU < DS_heading - heading_setup_tolerance || yaw_IMU > DS_heading + heading_setup_tolerance || abs(GyroZ) > heading_rate_of_change_setup_tolerance || estimated_altitude > DS_altitude_terrain_following || abs(GyroY) > pitch_rate_of_change_setup_tolerance)
+        {
+            // turn and descend somehow
+
+            // ground follow
+            DS_altitude_setpoint = DS_altitude_terrain_following;
+            DS_altitude_error = DS_altitude_setpoint - estimated_altitude;
+            // no horiz accel, this automatically means fly parallel to the DS flight path
+            DS_horizontal_accel_setpoint = 0;
+            DS_horizontal_accel_error = DS_horizontal_accel_setpoint - DS_horizontal_accel;
+        }
+        else
+        {
+            DS_phase = DS_phase_1;
+        }
+        break;
+    case DS_phase_1:
+        // do phase 1, inital turn into the wind
+
+        // ground follow
+        DS_altitude_setpoint = DS_altitude_terrain_following;
+        DS_altitude_error = DS_altitude_setpoint - estimated_altitude;
+
+        // towards the wind
+        DS_horizontal_accel_setpoint = DS_horizontal_accel_phase_1_4;
+        DS_horizontal_accel_error = DS_horizontal_accel_setpoint - DS_horizontal_accel;
+
+        break;
+    case DS_phase_2:
+        // do phase 2, climb and accelrate out of the wind
+
+        // climb into wind
+        DS_altitude_setpoint = DS_altitude_in_wind;
+        DS_altitude_error = DS_altitude_setpoint - estimated_altitude;
+
+        // away from wind
+        DS_horizontal_accel_setpoint = DS_horizontal_accel_phase_2_3;
+        DS_horizontal_accel_error = DS_horizontal_accel_setpoint - DS_horizontal_accel;
+
+        break;
+    case DS_phase_3:
+        // do phase 3, descend and accelerate out of the wind
+
+        // ground follow
+        DS_altitude_setpoint = DS_altitude_terrain_following;
+        DS_altitude_error = DS_altitude_setpoint - estimated_altitude;
+
+        // away from wind
+        DS_horizontal_accel_setpoint = DS_horizontal_accel_phase_2_3;
+        DS_horizontal_accel_error = DS_horizontal_accel_setpoint - DS_horizontal_accel;
+
+        break;
+    case DS_phase_4:
+        // do phase 4, turn back into the wind
+
+        // ground follow
+        DS_altitude_setpoint = DS_altitude_terrain_following;
+        DS_altitude_error = DS_altitude_setpoint - estimated_altitude;
+
+        // towards the wind
+        DS_horizontal_accel_setpoint = DS_horizontal_accel_phase_1_4;
+        DS_horizontal_accel_error = DS_horizontal_accel_setpoint - DS_horizontal_accel;
+
+        break;
+    }
 }
 
-// generates the angle requred to reach the setpoint vertical and horizontal setpoints
-void anglePID()
+// finds the roll, pitch, and yaw required do coordinated turns and stuff to reach the angle requierd to reach the setpoint vertical and horizontal setpoints to do DS (take insp from ardupilot)
+void DSattitude()
 {
+    //NEED TO DO:  in this funciton, call the dRehmFlight stuff
 }
 
 void horizontalAccel()
 {
+    //NEED TO DO: calculate this still, again, maybe horizVelocity instead
 }
 
 // takes in the IMU, baro, and ToF sensors
@@ -242,8 +356,9 @@ void estimateAltitude()
     {
         s5_command_PWM = roll_IMU * gimbalServoGain; // servo should have the same rotational angle as the UAV roll, but this servo only goes +- 45 degrees, so scaled up 2x
 
-        // somehow "zero" the IMU and barometer based on this reading
-        estimated_altitude = (distance_LP / 1000.0) * cos(pitch_IMU * DEG_TO_RAD); // altitude in meters from the ToF sensor
+        //NEED TO DO  somehow "zero" the IMU and barometer based on this reading
+
+        ToFaltitude = (distance_LP / 1000.0) * cos(pitch_IMU * DEG_TO_RAD); // altitude in meters from the ToF sensor
 
         // experimental: estimate the distance the wingtip is to the ground
         // wingspan of 1.5m, half wingspan of .75m
@@ -251,19 +366,22 @@ void estimateAltitude()
         // these two equations only work when bank angle within servo range of motion
         if (roll_IMU > gimbalRightBoundAngle && roll_IMU < gimbalLeftBoundAngle)
         {
-            leftWingtipAltitude = estimated_altitude - sin(roll_IMU * DEG_TO_RAD) * (halfWingspan - gimbalDistanceFromCenter);
-            rightWingtipAltitude = estimated_altitude + sin(roll_IMU * DEG_TO_RAD) * (halfWingspan + gimbalDistanceFromCenter);
+            leftWingtipAltitude = ToFaltitude - sin(roll_IMU * DEG_TO_RAD) * (halfWingspan - gimbalDistanceFromCenter);
+            rightWingtipAltitude = ToFaltitude + sin(roll_IMU * DEG_TO_RAD) * (halfWingspan + gimbalDistanceFromCenter);
             estimated_altitude = leftWingtipAltitude < rightWingtipAltitude ? leftWingtipAltitude : rightWingtipAltitude; // gets lesser of two values
+            altitudeTypeDataLog = 0;                                                                                      // ToF sensor, within gimbal range
         }
         else
         {
-            if (roll_IMU > gimbalLeftBoundAngle) //banking far to the left 
+            if (roll_IMU > gimbalLeftBoundAngle) // banking far to the left
             {
-                estimated_altitude = estimated_altitude*cos((roll_IMU-gimbalLeftBoundAngle)*DEG_TO_RAD)-sin(roll_IMU*DEG_TO_RAD)*(halfWingspan-gimbalDistanceFromCenter);
+                estimated_altitude = ToFaltitude * cos((roll_IMU - gimbalLeftBoundAngle) * DEG_TO_RAD) - sin(roll_IMU * DEG_TO_RAD) * (halfWingspan - gimbalDistanceFromCenter);
+                altitudeTypeDataLog = 1; // ToF sensor, too far left
             }
-            else //banking far to the right
+            else // banking far to the right
             {
-                estimated_altitude = estimated_altitude*cos((roll_IMU-gimbalLeftBoundAngle)*DEG_TO_RAD)-sin(roll_IMU*DEG_TO_RAD)*(halfWingspan+gimbalDistanceFromCenter);
+                estimated_altitude = ToFaltitude * cos((roll_IMU - gimbalLeftBoundAngle) * DEG_TO_RAD) - sin(roll_IMU * DEG_TO_RAD) * (halfWingspan + gimbalDistanceFromCenter);
+                altitudeTypeDataLog = 2; // ToF sensor, too far right
             }
         }
         estimated_altitude = estimated_altitude - (sin(roll_IMU * DEG_TO_RAD) * halfWingspan);
@@ -271,6 +389,7 @@ void estimateAltitude()
     else
     {
         estimated_altitude = altitudeLPbaro.getAltitude();
+        altitudeTypeDataLog = 3; // using IMU and barometer
     }
 }
 
