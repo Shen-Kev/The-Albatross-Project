@@ -12,70 +12,77 @@
 #include "AltitudeEstimation/altitude.h"
 
 // PROGRAM VARIABLES
-double gimbalServoGain = 2;
-double gimbalServoTrim = 12;            // degrees counterclockwise to get the servo pointed straight down.
-double gimbalServoBound = 45;           // 45 degrees either side
-double halfWingspan = 0.75;             // in meters
-double gimbalDistanceFromCenter = 0.14; // distance left of center in meters
-double gimbalRightBoundAngle;
-double gimbalLeftBoundAngle;
+float gimbalServoGain = 2;
+float gimbalServoTrim = 12;            // degrees counterclockwise to get the servo pointed straight down.
+float gimbalServoBound = 45;           // 45 degrees either side
+float halfWingspan = 0.75;             // in meters
+float gimbalDistanceFromCenter = 0.14; // distance left of center in meters
+float gimbalRightBoundAngle;
+float gimbalLeftBoundAngle;
 
-double airspeed;
-double airspeed_prev;
-double airspeed_LP_param = 0.05;
-double airspeed_zero = 0; // the calibrated airspeed to be 0m/s at startup to account for different pressrues
-double airspeed_adjusted;
-double airspeed_scalar = 1.8; // the scaled airspeed, tuned to be most accurate at about 10-15 m/s
+float airspeed;
+float airspeed_prev;
+float airspeed_LP_param = 0.05;
+float airspeed_zero = 0; // the calibrated airspeed to be 0m/s at startup to account for different pressrues
+float airspeed_adjusted;
+float airspeed_scalar = 1.8; // the scaled airspeed, tuned to be most accurate at about 10-15 m/s
 
-double altitude_offset;
+float auto_throttle; // throttle outputted by autopilot to maintain constant airspeed (0.0-1.0)
+float throttle_setpoint; //setpoint for throttle, it can change
+const float flight_speed = 20.0; //m/s for regular flight, will need to be tested based on rc flight 
+const float stall_speed = 10.0; //m/s to always stay above. When flying normally or in DS, treat this as a 'turn throttle off' variable
+float airspeed_error; //error between setpoint airspeed and current airspeed
+
+
+float altitude_offset;
 const int altitude_offset_num_vals = 10;
 int offset_loop_counter = 0;
-double altitude_offset_sum = 0.0;
-double altitude_baro;
-double altitude_prev;
-double altitude_LP_param = 0.05;
-double altitudeMeasured;
+float altitude_offset_sum = 0.0;
+float altitude_baro;
+float altitude_prev;
+float altitude_LP_param = 0.05;
+float altitudeMeasured;
 
-double ToFaltitude;
-double estimated_altitude; // the actual altitude used in the controller
-double leftWingtipAltitude;
-double rightWingtipAltitude;
+float ToFaltitude;
+float estimated_altitude; // the actual altitude used in the controller
+float leftWingtipAltitude;
+float rightWingtipAltitude;
 int altitudeTypeDataLog; // 0 is ToF within gimbal range, 1 is ToF too far left, 2 is ToF too far right, and 3 is using IMU and barometer
 
-double IMU_vertical_accel, IMU_vertical_vel, IMU_vertical_pos;
-double IMU_horizontal_accel, IMU_horizontal_vel, IMU_horizontal_pos;
+float IMU_vertical_accel, IMU_vertical_vel, IMU_vertical_pos;
+float IMU_horizontal_accel, IMU_horizontal_vel, IMU_horizontal_pos;
 
-double timeInMillis;
+float timeInMillis;
 int loopCounter = 0;
 int datalogRate = 50; // log data at 50Hz
 
 // dynamic soaring variables
-double wind_heading;                                // can be set manually set, but for now, assumed that it is 0 degrees relative to the yaw IMU (without compass for now)
-double DS_heading;                                  // the yaw heading of the overall DS flight path, perpendicular to the wind, so 90 degrees (will be flying to the right)
-double heading_setup_tolerance = 5;                 // within 5 degrees
-double heading_rate_of_change_setup_tolerance = 10; // must be less than 10 degrees
-double pitch_rate_of_change_setup_tolerance = 10;   // must be less than 10 degrees
-double horizontal_vel_tolerance = 0.5;              // no more than 0.5m/s horizontal motion
+float wind_heading;                                // can be set manually set, but for now, assumed that it is 0 degrees relative to the yaw IMU (without compass for now)
+float DS_heading;                                  // the yaw heading of the overall DS flight path, perpendicular to the wind, so 90 degrees (will be flying to the right)
+float heading_setup_tolerance = 5;                 // within 5 degrees
+float heading_rate_of_change_setup_tolerance = 10; // must be less than 10 degrees
+float pitch_rate_of_change_setup_tolerance = 10;   // must be less than 10 degrees
+float horizontal_vel_tolerance = 0.5;              // no more than 0.5m/s horizontal motion
 
-double DS_altitude_setpoint; // altitude setpoint
-double DS_altitude_error;
-double DS_altitude_terrain_following = 0.3; // altitude in meters to NEVER GO BELOW (somehow tell the PID loops that this is realy bad)
-double DS_altitude_in_wind = 5.5;           // altitude in meters to try and achieve when wanting to be influcenced by the wind
+float DS_altitude_setpoint; // altitude setpoint
+float DS_altitude_error;
+float DS_altitude_terrain_following = 0.3; // altitude in meters to NEVER GO BELOW (somehow tell the PID loops that this is realy bad)
+float DS_altitude_in_wind = 5.5;           // altitude in meters to try and achieve when wanting to be influcenced by the wind
 
-double DS_horizontal_accel;          // acceleration perpendicular to the heading
-double DS_horizontal_accel_setpoint; // horizontal accelration setpoint
-double DS_horizontal_accel_error;
-double DS_horizontal_accel_setpoint_phase_2_3 = 2.0; // g's pulled while accelerating in the wind
-double DS_horizontal_vel_setpoint_phase_1_4 = -1.5;  // horizontal velocity in m/s while turning back (to the left)
-double DS_horizontal_vel;
-double DS_horizontal_vel_setpoint;
-double DS_horizontal_vel_error;
-double DS_horizontal_pos; // left of the line should be negative, right of the line should be positive, the line is set to be at 0.
+float DS_horizontal_accel;          // acceleration perpendicular to the heading
+float DS_horizontal_accel_setpoint; // horizontal accelration setpoint
+float DS_horizontal_accel_error;
+float DS_horizontal_accel_setpoint_phase_2_3 = 2.0; // g's pulled while accelerating in the wind
+float DS_horizontal_vel_setpoint_phase_1_4 = -1.5;  // horizontal velocity in m/s while turning back (to the left)
+float DS_horizontal_vel;
+float DS_horizontal_vel_setpoint;
+float DS_horizontal_vel_error;
+float DS_horizontal_pos; // left of the line should be negative, right of the line should be positive, the line is set to be at 0.
 
 boolean DSifFirstRun = true;
 boolean readyToDS = false;
 
-double DSrotationMatrix[3][3]; // matrix to transform local coordinates to global (dynamic soaring line) coordinates
+float DSrotationMatrix[3][3]; // matrix to transform local coordinates to global (dynamic soaring line) coordinates
 
 int DS_phase;
 enum DS_phases // uses different sensors and different setpoints in different phases. Each phase should have constant acceleration
@@ -87,20 +94,22 @@ enum DS_phases // uses different sensors and different setpoints in different ph
     DS_phase_4 = 4  // terrain following, accelerating towards the wind, should take the same time as DS_phase_1 and DS_phase_2 combined. Resets the IMU and barometer measurements
 };
 
-// variables for the  Runge-Kutta method
-double k1_vel;
-double k1_pos;
-double k2_vel;
-double k2_pos;
-double k3_vel;
-double k3_pos;
-double k4_vel;
-double k4_pos;
-
 // angles but in radians bc im tired of constantly converting
-double pitch_IMU_rad;
-double roll_IMU_rad;
-double yaw_IMU_rad;
+float pitch_IMU_rad;
+float roll_IMU_rad;
+float yaw_IMU_rad;
+
+// variables for the  Runge-Kutta method
+float k1_vel;
+float k1_pos;
+float k2_vel;
+float k2_pos;
+float k3_vel;
+float k3_pos;
+float k4_vel;
+float k4_pos;
+
+
 
 // PROGRAM OBJECTS
 Adafruit_BMP085 bmp; // altitude sensor object
@@ -137,6 +146,7 @@ void flightMode();
 void dynamicSoar();
 void horizontal();
 void DSattitude();
+void throttleController();
 
 void setup()
 {
@@ -225,9 +235,10 @@ void loop()
     }
     else if (channel_5_pwm < 1600.0)
     {
-        // flight mode 2, stabilized flight (or other tests)
+        // flight mode 2, stabilized flight and constant airspeed
         controlANGLE();
-        s1_command_scaled = thro_des;
+        throttleController();
+        s1_command_scaled = auto_throttle;
         s2_command_scaled = roll_PID;
         s3_command_scaled = pitch_PID;
         s4_command_scaled = yaw_PID;
@@ -242,7 +253,8 @@ void loop()
         dynamicSoar();
         DSattitude();
         controlANGLE();
-        s1_command_scaled = thro_des;
+        throttleController();
+        s1_command_scaled = auto_throttle;
         s2_command_scaled = roll_PID;
         s3_command_scaled = pitch_PID;
         s4_command_scaled = yaw_PID;
@@ -385,7 +397,7 @@ void horizontal()
         {cos(pitch_IMU_rad) * sin(yaw_IMU_rad), cos(roll_IMU_rad) * cos(yaw_IMU_rad) + sin(roll_IMU_rad) * sin(pitch_IMU_rad) * sin(yaw_IMU_rad), -sin(roll_IMU_rad) * cos(yaw_IMU_rad) + cos(roll_IMU_rad) * sin(pitch_IMU_rad) * sin(yaw_IMU_rad)},
         {-sin(pitch_IMU_rad), sin(roll_IMU_rad) * cos(pitch_IMU_rad), cos(roll_IMU_rad) * cos(pitch_IMU_rad)}};
     // convert acceleration to global frame (centered on the DS path)
-    double DSglobalAccel[3]; // Global accelerations
+    float DSglobalAccel[3]; // Global accelerations
     // Transform local accelerations to global coordinates
     for (int i = 0; i < 3; i++)
     {
@@ -488,7 +500,7 @@ void pitotSetup()
     for (int i = 0; i < 10; i++)
     {
         _status = fetch_airspeed(&P_dat);
-        PR = (double)((P_dat - 819.15) / (14744.7));
+        PR = (float)((P_dat - 819.15) / (14744.7));
         PR = (PR - 0.49060678);
         PR = abs(PR);
         V = ((PR * 13789.5144) / 1.225);
@@ -589,4 +601,8 @@ void writeDataToSD()
     dataFile.print('\n');
 
     dataFile.close();
+}
+
+void throttleController() {
+
 }
