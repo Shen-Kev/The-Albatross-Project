@@ -28,8 +28,9 @@ double airspeed_adjusted;
 double airspeed_scalar = 1.8; // the scaled airspeed, tuned to be most accurate at about 10-15 m/s
 
 double altitude_offset;
-int altitude_offset_num = 10;
-double altitude_offset_sum = 0;
+const int altitude_offset_num_vals = 10;
+int offset_loop_counter = 0;
+double altitude_offset_sum = 0.0;
 double altitude_baro;
 double altitude_prev;
 double altitude_LP_param = 0.05;
@@ -425,7 +426,7 @@ void estimateAltitude()
     float accelData[3] = {AccX, AccY, AccZ};
     float gyroData[3] = {GyroX * DEG_TO_RAD, GyroY * DEG_TO_RAD, GyroZ * DEG_TO_RAD};
 
-    altitudeLPbaro.estimate(accelData, gyroData, altitudeMeasured, dt);
+    altitudeLPbaro.estimate(accelData, gyroData, altitudeMeasured - altitude_offset, dt);
 
     // might need to somehow smooth/interpolate between the two...
     // also need to figure out how to get the range of the ToF sensor to 4m
@@ -433,9 +434,21 @@ void estimateAltitude()
     {
         s5_command_PWM = roll_IMU * gimbalServoGain; // servo should have the same rotational angle as the UAV roll, but this servo only goes +- 45 degrees, so scaled up 2x
 
-        // NEED TO DO  somehow "zero" the IMU and barometer based on this reading
-
         ToFaltitude = (distance_LP / 1000.0) * cos(pitch_IMU_rad); // altitude in meters from the ToF sensor
+
+        // just zeroing the baro, the IMU seems to automatically zero itself in the kalman and complementary filter
+        // average offset from previous 10 value, make the value, then do the cycle again, no need to waste bunch of computational power on sliding window
+        if (offset_loop_counter < altitude_offset_num_vals)
+        {
+            offset_loop_counter++;
+            altitude_offset_sum += altitudeMeasured - ToFaltitude;
+        }
+        else
+        {
+            offset_loop_counter = 0;
+            altitude_offset = (altitude_offset_sum / altitude_offset_num_vals);
+            altitude_offset_sum = 0;
+        }
 
         // experimental: estimate the distance the wingtip is to the ground
         // wingspan of 1.5m, half wingspan of .75m
@@ -500,12 +513,12 @@ void BMP180setup()
         }
     }
 
-    for (int i = 0; i < altitude_offset_num; i++)
+    for (int i = 0; i < altitude_offset_num_vals; i++)
     {
         altitude_offset_sum += bmp.readAltitude();
     }
 
-    altitude_offset = altitude_offset_sum / ((float)altitude_offset_num);
+    altitude_offset = altitude_offset_sum / ((float)altitude_offset_num_vals);
     // calibrate to assume that startup is at sea level
 }
 
