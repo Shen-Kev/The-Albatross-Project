@@ -20,19 +20,28 @@ float gimbalDistanceFromCenter = 0.14; // distance left of center in meters
 float gimbalRightBoundAngle;
 float gimbalLeftBoundAngle;
 
-float airspeed;
+float airspeed_unadjusted;
 float airspeed_prev;
 float airspeed_LP_param = 0.05;
 float airspeed_zero = 0; // the calibrated airspeed to be 0m/s at startup to account for different pressrues
-float airspeed_adjusted;
-float airspeed_scalar = 1.8; // the scaled airspeed, tuned to be most accurate at about 10-15 m/s
+float airspeed_adjusted; // the scaled airspeed, tuned to be most accurate at about 10-15 m/s
+float airspeed_adjusted_prev;
+float airspeed_scalar = 1.8;
 
-float auto_throttle; // throttle outputted by autopilot to maintain constant airspeed (0.0-1.0)
-float throttle_setpoint; //setpoint for throttle, it can change
-const float flight_speed = 20.0; //m/s for regular flight, will need to be tested based on rc flight 
-const float stall_speed = 10.0; //m/s to always stay above. When flying normally or in DS, treat this as a 'turn throttle off' variable
-float airspeed_error; //error between setpoint airspeed and current airspeed
+float throttle_PID;              // throttle outputted by autopilot to maintain constant airspeed (0.0-1.0)
+float throttle_setpoint;         // setpoint for throttle, it can change
+const float flight_speed = 20.0; // m/s for regular flight, will need to be tested based on rc flight
+const float stall_speed = 10.0;  // m/s to always stay above. When flying normally or in DS, treat this as a 'turn throttle off' variable
+float airspeed_error;            // error between setpoint airspeed and current airspeed
 
+float Kp_throttle = 0.2;    // throttle P gain
+float Ki_throttle = 0.3;    // throttle I gain
+float Kd_throttle = 0.0015; // throttle D gain
+
+float throttle_integral = 0.0;
+float throttle_integral_prev;
+float thorttle_integral_saturation_limit = 50.0;
+float throttle_derivative;
 
 float altitude_offset;
 const int altitude_offset_num_vals = 10;
@@ -66,6 +75,7 @@ float horizontal_vel_tolerance = 0.5;              // no more than 0.5m/s horizo
 
 float DS_altitude_setpoint; // altitude setpoint
 float DS_altitude_error;
+float DS_altitude_error_prev;
 float DS_altitude_terrain_following = 0.3; // altitude in meters to NEVER GO BELOW (somehow tell the PID loops that this is realy bad)
 float DS_altitude_in_wind = 5.5;           // altitude in meters to try and achieve when wanting to be influcenced by the wind
 
@@ -94,6 +104,38 @@ enum DS_phases // uses different sensors and different setpoints in different ph
     DS_phase_4 = 4  // terrain following, accelerating towards the wind, should take the same time as DS_phase_1 and DS_phase_2 combined. Resets the IMU and barometer measurements
 };
 
+// variables for turning and flying the UAV
+float K_horiz_accel = 1.0;
+float Kp_horiz_vel = 1.0;
+float Ki_horiz_vel = 0.1;
+float horiz_vel_integral = 0.0;
+float horiz_vel_integral_prev;
+float horiz_integral_saturation_limit = 2.0;
+
+float Kp_altitude = 0.2;    // altitude P gain
+float Ki_altitude = 0.3;    // altitude I gain
+float Kd_altitude = 0.0015; // altitude D gain
+float altitude_integral = 0.0;
+float altitude_integral_prev = 0.0;
+float altitude_integral_saturation_limit = 25.0;
+float altitude_derivative;
+
+float rudderCoordinatedCommand;
+float acceleration_downwards_angle;
+float acceleration_downwards_angle_prev;
+float acceleration_downwards_angle_LP;
+float acceleration_downwards_angle_LP_param = 0.1;
+float acceleration_downwards_magnitude;
+float acceleration_downwards_magnitude_tolerance = 0.5; // must be at least a bit of a g to be a trustworthy reading
+
+float Kp_coord = 0.2;    // coordinated turn P gain
+float Ki_coord = 0.3;    // coordinated turn I gain
+float Kd_coord = 0.0015; // coordinated turn D gain
+float coord_integral = 0.0;
+float coord_integral_prev = 0.0;
+float coord_integral_saturation_limit = 25.0;
+float coord_derivative;
+
 // angles but in radians bc im tired of constantly converting
 float pitch_IMU_rad;
 float roll_IMU_rad;
@@ -108,8 +150,6 @@ float k3_vel;
 float k3_pos;
 float k4_vel;
 float k4_pos;
-
-
 
 // PROGRAM OBJECTS
 Adafruit_BMP085 bmp; // altitude sensor object
@@ -238,10 +278,10 @@ void loop()
         // flight mode 2, stabilized flight and constant airspeed
         controlANGLE();
         throttleController();
-        s1_command_scaled = auto_throttle;
+        s1_command_scaled = throttle_PID;
         s2_command_scaled = roll_PID;
         s3_command_scaled = pitch_PID;
-        s4_command_scaled = yaw_PID;
+        s4_command_scaled = rudderCoordinatedCommand; // basically just yaw PID but setpoint is always to make it coordinated
         DSifFirstRun = true;
         readyToDS = false;
     }
@@ -254,10 +294,10 @@ void loop()
         DSattitude();
         controlANGLE();
         throttleController();
-        s1_command_scaled = auto_throttle;
+        s1_command_scaled = throttle_PID;
         s2_command_scaled = roll_PID;
         s3_command_scaled = pitch_PID;
-        s4_command_scaled = yaw_PID;
+        s4_command_scaled = rudderCoordinatedCommand; // basically just yaw PID but setpoint is always to make it coordinated
         DSifFirstRun = false;
     }
 
@@ -296,6 +336,8 @@ void dynamicSoar()
 
             // ground follow
             DS_altitude_setpoint = DS_altitude_terrain_following;
+            DS_altitude_error_prev = DS_altitude_error;
+
             DS_altitude_error = DS_altitude_setpoint - estimated_altitude;
             // no horiz vel, this automatically means fly parallel to the DS flight path
             horiz_setpoint_type = setpoint_horiz_vel;
@@ -312,6 +354,8 @@ void dynamicSoar()
 
         // ground follow
         DS_altitude_setpoint = DS_altitude_terrain_following;
+        DS_altitude_error_prev = DS_altitude_error;
+
         DS_altitude_error = DS_altitude_setpoint - estimated_altitude;
 
         // towards the wind
@@ -330,6 +374,8 @@ void dynamicSoar()
 
         // climb into wind
         DS_altitude_setpoint = DS_altitude_in_wind;
+        DS_altitude_error_prev = DS_altitude_error;
+
         DS_altitude_error = DS_altitude_setpoint - estimated_altitude;
 
         // away from wind
@@ -347,6 +393,8 @@ void dynamicSoar()
 
         // ground follow
         DS_altitude_setpoint = DS_altitude_terrain_following;
+        DS_altitude_error_prev = DS_altitude_error;
+
         DS_altitude_error = DS_altitude_setpoint - estimated_altitude;
 
         // away from wind
@@ -364,6 +412,7 @@ void dynamicSoar()
 
         // ground follow
         DS_altitude_setpoint = DS_altitude_terrain_following;
+        DS_altitude_error_prev = DS_altitude_error;
         DS_altitude_error = DS_altitude_setpoint - estimated_altitude;
 
         // towards the wind
@@ -381,9 +430,73 @@ void dynamicSoar()
 }
 
 // finds the roll, pitch, and yaw required do coordinated turns and stuff to reach the angle requierd to reach the setpoint vertical and horizontal setpoints to do DS (take insp from ardupilot)
+// YOOO DOUBLE PID LOOP
 void DSattitude()
 {
     // NEED TO DO:  in this funciton, call the dRehmFlight stuff, use tthe horiz_setpoint_type to see how to fly
+    // idea for horizontalal: just bank and adjust the bank angle to get horizontal velocity. the elevator will automaticlly pitch up to maintain altitude, and to make coordinated turn the rudder will adjust to make the acceleration always straight down.r
+    // for vertical, just more or less pitch angle, and its bound to 30 degrees so thats fine.
+    // this is completely my idea, not from ardupilot, so if it ends up not working ardupilot will still be my backup
+    // okay here we go
+
+    // for horizontal acceleration
+    // setup a proportional gain between horizontal acceleration and bankangle
+    if (horiz_setpoint_type == setpoint_horiz_accel)
+    {
+        roll_des = K_horiz_accel * DS_horizontal_accel_error;
+    }
+    // for horizontal velocity, setup PI controller
+    else if (horiz_setpoint_type = setpoint_horiz_vel)
+    {
+        horiz_vel_integral_prev = horiz_vel_integral;
+        horiz_vel_integral = horiz_vel_integral_prev + DS_horizontal_vel_error * dt;
+        if (channel_1_pwm < 1060 || DSifFirstRun)
+        { // Don't let integrator build if throttle is too low or DS just started
+            horiz_vel_integral = 0;
+        }
+        horiz_vel_integral = constrain(horiz_vel_integral, -horiz_integral_saturation_limit, horiz_integral_saturation_limit); // Saturate integrator to prevent unsafe buildup
+        roll_des = 0.01 * (Kp_horiz_vel * DS_horizontal_vel_error + Ki_horiz_vel * horiz_vel_integral);                        // Scaled by .01 to bring within -1 to 1 range
+    }
+    // for pitch
+    // use PID loop
+    altitude_integral_prev = altitude_integral;
+    altitude_integral = altitude_integral_prev + DS_altitude_error * dt;
+    if (channel_1_pwm < 1060 || DSifFirstRun)
+    { // Don't let integrator build if throttle is too low
+        altitude_integral = 0;
+    }
+    altitude_integral = constrain(altitude_integral, -altitude_integral_saturation_limit, altitude_integral_saturation_limit);  // Saturate integrator to prevent unsafe buildup
+    altitude_derivative = (DS_altitude_error - DS_altitude_error_prev) / dt;                                                    // shouldn't need low pass filter since the airspeed already has low pass filter on it
+    pitch_des = 0.01 * (Kp_altitude * DS_altitude_error + Ki_altitude * altitude_integral - Kd_altitude * altitude_derivative); // Scaled by .01 to bring within -1 to 1 range
+
+    // rudder to coordinated turn will direclty have yaw control (output rudderCoordinatedCommand)
+    // use acceleration to see which way is down
+
+    acceleration_downwards_angle = atan2(AccY, AccZ) * RAD_TO_DEG; // Calculate the angle of the vector in radians
+    // BAM LOW PASS FILTER IT
+    acceleration_downwards_angle_LP = (1.0 - acceleration_downwards_angle_LP_param) * acceleration_downwards_angle_prev + acceleration_downwards_angle_LP_param * acceleration_downwards_angle;
+    acceleration_downwards_angle_prev = acceleration_downwards_angle_LP;
+
+    acceleration_downwards_magnitude = sqrt(AccZ * AccZ + AccY * AccY); // used to check that its an actual force and angle
+    // use PID loop to get that down arrow to the center, if angle reading is valid (bc yk how tangnet functions somtimes go haywire when the two accel vals get close to 0)
+    if (acceleration_downwards_magnitude > acceleration_downwards_magnitude_tolerance)
+    {
+        // run PID loop
+        coord_integral_prev = coord_integral;
+        coord_integral = coord_integral_prev + acceleration_downwards_angle * dt; //the angle is the error
+        if (channel_1_pwm < 1060 || DSifFirstRun)
+        { // Don't let integrator build if throttle is too low
+            coord_integral = 0;
+        }
+        coord_integral = constrain(coord_integral, -coord_integral_saturation_limit, coord_integral_saturation_limit);  // Saturate integrator to prevent unsafe buildup
+        coord_derivative = (acceleration_downwards_angle - acceleration_downwards_angle_prev) / dt;                                                    // shouldn't need low pass filter since the airspeed already has low pass filter on it
+        rudderCoordinatedCommand = 0.01 * (Kp_coord * acceleration_downwards_angle + Ki_coord * coord_integral - Kd_coord * coord_derivative); // Scaled by .01 to bring within -1 to 1 range
+    }
+    else
+    {
+        rudderCoordinatedCommand = 0.5; // set to the middle
+    }
+    // make the claim that im doing all of this fancy flight computer stuff because unlike regular flight computer the most important thing for DS is acceleration in the wind
 }
 
 void horizontal()
@@ -473,6 +586,7 @@ void estimateAltitude()
             estimated_altitude = leftWingtipAltitude < rightWingtipAltitude ? leftWingtipAltitude : rightWingtipAltitude; // gets lesser of two values
             altitudeTypeDataLog = 0;                                                                                      // ToF sensor, within gimbal range
         }
+        // KEEP IN MIND: dRehmFlight LIMITS ROLL ANGLE TO 30 DEGREES. CAN CHANGE, BUT AT THE MOMENT THIS CODE SHOULDN'T RUN, BUT IS HERE JUST IN CASE:
         else
         {
             if (roll_IMU > gimbalLeftBoundAngle) // banking far to the left
@@ -511,9 +625,10 @@ void pitotSetup()
 void pitotLoop()
 {
     // adjust and filter the raw data into smooth and readable airspeed signal
-    airspeed = (1.0 - airspeed_LP_param) * airspeed_prev + airspeed_LP_param * fetch_airspeed(&P_dat); // fetch_airspeed gets the raw airspeed
-    airspeed_prev = airspeed;
-    airspeed_adjusted = (airspeed - airspeed_zero) * airspeed_scalar;
+    airspeed_unadjusted = (1.0 - airspeed_LP_param) * airspeed_prev + airspeed_LP_param * fetch_airspeed(&P_dat); // fetch_airspeed gets the raw airspeed
+    airspeed_prev = airspeed_unadjusted;
+    airspeed_adjusted_prev = airspeed_adjusted;
+    airspeed_adjusted = (airspeed_unadjusted - airspeed_zero) * airspeed_scalar;
 }
 
 void BMP180setup()
@@ -603,6 +718,16 @@ void writeDataToSD()
     dataFile.close();
 }
 
-void throttleController() {
-
+void throttleController()
+{
+    throttle_integral_prev = throttle_integral;
+    airspeed_error = throttle_setpoint - airspeed_adjusted;
+    throttle_integral = throttle_integral_prev + airspeed_error * dt;
+    if (channel_1_pwm < 1060)
+    { // Don't let integrator build if throttle is too low
+        throttle_integral = 0;
+    }
+    throttle_integral = constrain(throttle_integral, 0, thorttle_integral_saturation_limit);                                        // Saturate integrator to prevent unsafe buildup
+    throttle_derivative = (airspeed_adjusted - airspeed_adjusted_prev) / dt;                                                        // shouldn't need low pass filter since the airspeed already has low pass filter on it
+    throttle_PID = 0.01 * (Kp_roll_angle * airspeed_error + Ki_throttle * throttle_integral - Kd_roll_angle * throttle_derivative); // Scaled by .01 to bring within -1 to 1 range
 }
