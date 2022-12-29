@@ -4,6 +4,7 @@
  *
  *   Code in this file fully written by Kevin Shen. Other files and libraries have been modified but are mostly unoriginal
  *   This is the main program that runs on the UAV's Teensy 4.1 flight computer
+ *   During startup, the UAV should be level, unmoving, and pointed towards the wind
  *
  *   Repository created November 30, 2022. Found at https://github.com/Shen-Kev/The-Albatross-Project
  *   File created December 21, 2022
@@ -29,7 +30,7 @@
 #include "AltitudeEstimation/altitude.h" // Library to combine barometric sensor and IMU in a two step Kalman-Complementary filter to estimate altitude
 
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
-// FLIGHT COMPUTER SPECS AND PINOUT
+// FLIGHT COMPUTER SPECS AND PINOUT (edited on dRehmFlight.h)
 /*
  * All sensors on I2C:
  * MPU6050 Inertial Measrement Unit (IMU)
@@ -55,6 +56,12 @@
  * Gimbal servo 1: D28
  * Gimbal servo 2: D29 (currently not used)
  */
+
+// ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
+// DEBUG AND TESTING #IFS
+#define SERIAL_CONNECTED TRUE
+#define DATALOG TRUE
+#define MOTOR_ACTIVE FALSE
 
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
 // PROGRAM VARIABLES AND OBJECTS
@@ -102,8 +109,8 @@ int loopCounter = 0;        // A counter used to log data every certain number o
 const int datalogRate = 50; // NEEDS TO BE ADJUSTED: Data logging rate in Hz
 
 // Dynamic soaring state variables
-float wind_heading;                                      // The heading the wind is coming from. For now it is assumed it is 0 degrees relative to the yaw IMU at startup. In the future can be manually set if absolute compass is added
-float DS_heading;                                        // The yaw heading of the overall DS flight path, perpendicular to the wind. Flying to the right relative to the wind.
+float wind_heading = 0.0;                                // The heading the wind is coming from. For now it is assumed it is 0 degrees relative to the yaw IMU at startup. In the future can be manually set if absolute compass is added
+float DS_heading = 90.0;                                 // The yaw heading of the overall DS flight path, perpendicular to the wind. Flying to the right relative to the wind.
 const float heading_setup_tolerance = 5;                 //  NEEDS TO BE ADJUSTED: The tolerance of the heading allowed while setting up the DS flight path (deg)
 const float heading_rate_of_change_setup_tolerance = 10; //  NEEDS TO BE ADJUSTED: The tolerance of the heading rate of change while setting up the DS flight path (deg/s)
 const float pitch_rate_of_change_setup_tolerance = 10;   //  NEEDS TO BE ADJUSTED: The tolerance of the pitch rate of change while setting up the DS flight path (deg/s)
@@ -169,7 +176,7 @@ const float altitude_integral_saturation_limit = 25.0; //  NEEDS TO BE ADJUSTED:
 float altitude_derivative;                             // Variable to keep track of altitude derivative
 
 // Coordinated turn variables
-float rudderCoordinatedCommand;                               // The command (0-1 ACTUALLY IDK IF ITS 0-1, NEED TO CHECK) to give to the rudder to have a coordinate turn
+float rudderCoordinatedCommand;                               // The command (-1 to 1) to give to the rudder to have a coordinate turn
 float acceleration_downwards_angle;                           // The roll angle of the downwards acceleration the UAV experiences (deg)
 float acceleration_downwards_angle_prev;                      // The previous roll angle of the downwards acceleration the UAV experiences (deg)
 float acceleration_downwards_angle_LP;                        // The roll angle of the downwards acceleration the UAV experiences (deg), with a low pass filter applied
@@ -226,6 +233,7 @@ static AltitudeEstimator altitudeLPbaro = AltitudeEstimator(0.001002176158, // S
 
 void dynamicSoar();
 void DSattitude();
+void coordinatedController();
 void throttleController();
 void horizontal();
 void estimateAltitude();
@@ -241,59 +249,55 @@ void writeDataToSD();
 
 void setup()
 {
-    // delay to have enough time to push reset, close hatch, and place UAV flat and into the wind
-    delay(20 * 1000); // 20 second delay
+#if SERIAL_CONNECTED
+    Serial.begin(500000); // Begin serial communication with computer via USB
+#elif
+    delay(20 * 1000); // Delay to have enough time to push reset, close hatch, and place UAV flat on the ground and into the wind
+#endif
 
-    Serial.begin(500000);
-    delay(500);
+    pinMode(13, OUTPUT); // LED on the Teensy 4.1 set to output
 
-    pinMode(13, OUTPUT);
-    servo1.attach(servo1Pin, 900, 2100);
-    servo2.attach(servo2Pin, 900, 2100);
-    servo3.attach(servo3Pin, 900, 2100);
-    servo4.attach(servo4Pin, 900, 2100);
-    servo5.attach(servo5Pin, 900, 2100);
-
-    delay(500);
-
-    radioSetup();
-    IMUinit();
-    BMP180setup();
-    VL53L1Xsetup();
-    setupSD();
-    pitotSetup();
-
-    // Set radio channels to default (safe) values before entering main loop
-    channel_1_pwm = channel_1_fs;
-    channel_2_pwm = channel_2_fs;
-    channel_3_pwm = channel_3_fs;
-    channel_4_pwm = channel_4_fs;
-    channel_5_pwm = channel_5_fs;
-    channel_6_pwm = channel_6_fs;
+    // Attach actuators to PWM pins
+    ESC.attach(ESCpin, 900, 2100);
+    aileronServo.attach(aileronServoPin, 900, 2100);
+    elevatorServo.attach(elevatorServoPin, 900, 2100);
+    rudderServo.attach(rudderServoPin, 900, 2100);
+    gimbalServo.attach(gimbal1ServoPin, 900, 2100);
 
     delay(100);
 
-    // Get IMU error to zero accelerometer and gyro readings, assuming vehicle is level when powered up
-    calculate_IMU_error(); // Calibration parameters printed to serial monitor. Paste these in the user specified variables section, then comment this out forever.
+    // Setup and calibrate communciations
+    radioSetup();          // R/c reciever
+    IMUinit();             // IMU init
+    calculate_IMU_error(); // IMU calibrate
+    BMP180setup();         // Barometer init and calibrate
+    VL53L1Xsetup();        // ToF sensor init
+    pitotSetup();          // Airspeed sensor init and calibrate
+#if DATALOG
+    setupSD(); // microSD card read/write unit
+#endif
 
-    // DS setup
-    wind_heading = 0.0;
-    DS_heading = wind_heading + 90.0;
+    // Set R/c reciever channels to failsafe values
+    throttle_channel = throttle_fs;
+    roll_channel = roll_fs;
+    pitch_channel = pitch_fs;
+    yaw_channel = yaw_fs;
+    mode1_channel = mode1_fs;
+
+    delay(100);
+
+    // Set actuator values to safe values
+    ESC.write(0); // ESC throttle off
+    aileronServo.write(90);
+    elevatorServo.write(90);
+    rudderServo.write(90);
+    gimbalServo.write(90);
+
+    delay(100);
+
+    // Set gimbal bounds
     gimbalRightBoundAngle = (0 - gimbalServoBound) + (gimbalServoTrim / gimbalServoGain);
     gimbalLeftBoundAngle = (0 + gimbalServoBound) + (gimbalServoTrim / gimbalServoGain);
-
-    delay(100);
-
-    servo1.write(0); // ESC set to 0
-    servo2.write(90);
-    servo3.write(90);
-    servo4.write(90);
-    servo5.write(90);
-
-    delay(100);
-
-    // calibrateESCs(); //PROPS OFF. Uncomment this to calibrate your ESCs by setting throttle stick to max, powering on, and lowering throttle to zero after the beeps
-    // Code will not proceed past here if this function is uncommented!
 }
 
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
@@ -301,86 +305,96 @@ void setup()
 
 void loop()
 {
+    // Timing
     prev_time = current_time;
     current_time = micros();
-    dt = (current_time - prev_time) / 1000000.0;
+    dt = (current_time - prev_time) / 1000000.0; // Time between loop iterations, in seconds
     timeInMillis = millis();
-    loopBlink();                                                               // Indicate we are in main loop with short blink every 1.5 seconds
-    getIMUdata();                                                              // Pulls raw gyro, accelerometer, and magnetometer data from IMU and LP filters to remove noise
-    Madgwick(GyroX, -GyroY, -GyroZ, -AccX, AccY, AccZ, MagY, -MagX, MagZ, dt); // Updates roll_IMU, pitch_IMU, and yaw_IMU angle estimates (degrees)
 
+    // Retrieve sensor data
+    getIMUdata();                                                              // Retrieves gyro and accelerometer data from IMU and LP filters
+    Madgwick(GyroX, -GyroY, -GyroZ, -AccX, AccY, AccZ, MagY, -MagX, MagZ, dt); // Updates roll_IMU, pitch_IMU, and yaw_IMU angle estimates (in deg)
+    BMP180loop();                                                              // Retrieves barometric altitude and LP filters
+    VL35L1Xloop();                                                             // Retrieves ToF sensor distance
+    pitotLoop();                                                               // Retrieves pitot tube airspeed
+    getCommands();                                                             // Retrieves radio commands
+    failSafe();                                                                // Failsafe in case of radio connection loss
+
+    // Convert roll, pitch, and yaw from degrees to radians
     pitch_IMU_rad = pitch_IMU * DEG_TO_RAD;
     roll_IMU_rad = roll_IMU * DEG_TO_RAD;
     yaw_IMU_rad = yaw_IMU * DEG_TO_RAD;
 
-    BMP180loop();
-    VL35L1Xloop();
-    pitotLoop();
+    getDesState(); // Scales throttle to between 0 and 1, and roll, pitch, and yaw to between -1 and 1. Produces thro_des, roll_des, pitch_des, yaw_des, roll_passthru, pitch_passthru, yaw_passthru
 
-    getDesState();
-
-    if (channel_5_pwm < 1400.0)
+    // Flight modes:
+    if (mode1_channel < 1400.0)
     {
-        // flight mode 1, manual flight
-        s1_command_scaled = thro_des;
-        s2_command_scaled = roll_passthru;
-        s3_command_scaled = pitch_passthru;
-        s4_command_scaled = yaw_passthru;
-        DSifFirstRun = true;
+        // Flight mode 1 (manual flight). Directly puts the servo commands to the commands from the radio
+        s1_command_scaled = thro_des;       // Between 0 and 1
+        s2_command_scaled = roll_passthru;  // Between -0.5 and 0.5
+        s3_command_scaled = pitch_passthru; // Between -0.5 and 0.5
+        s4_command_scaled = yaw_passthru;   // Between -0.5 and 0.5
+
+        DSifFirstRun = true; // Resets the DS variable while not in the DS flight mode
     }
-    else if (channel_5_pwm < 1600.0)
+    else if (mode1_channel < 1600.0)
     {
-        // flight mode 2, stabilized flight and constant airspeed
-        controlANGLE();
-        throttleController();
-        s1_command_scaled = throttle_PID;
-        s2_command_scaled = roll_PID;
-        s3_command_scaled = pitch_PID;
-        s4_command_scaled = rudderCoordinatedCommand; // basically just yaw PID but setpoint is always to make it coordinated
-        DSifFirstRun = true;
+        // Flight mode 2 (stabilized flight, constant airspeed, and coordinated turns.
+        controlANGLE();                               // dRehmFlight for angle based (pitch and roll) PID loops
+        throttleController();                         // PID loop for throttle control
+        coordinatedController();                      // PID loop for coordinated turns
+        s1_command_scaled = throttle_PID;             // Between 0 and 1
+        s2_command_scaled = roll_PID;                 // Between -1 and 1
+        s3_command_scaled = pitch_PID;                // Between -1 and 1
+        s4_command_scaled = rudderCoordinatedCommand; // Between -1 and 1
+
+        DSifFirstRun = true; // Resets the DS variable while not in the DS flight mode
     }
     else
     {
+        // Flight mode 3 (Dynamic soaring)
+        horizontal();                                 // Estimates the global horizontal acceleration, velocity, and position of the UAV
+        dynamicSoar();                                // Creates the dynamic soaring setpoints
+        DSattitude();                                 // Converts dynamic soaring setpoints to desired angles
+        controlANGLE();                               // dRehmFlight for angle based (pitch and roll) PID loops
+        throttleController();                         // PID loop for throttle control
+        coordinatedController();                      // PID loop for coordinated turns
+        s1_command_scaled = throttle_PID;             // Between 0 and 1
+        s2_command_scaled = roll_PID;                 // Between -1 and 1
+        s3_command_scaled = pitch_PID;                // Between -1 and 1
+        s4_command_scaled = rudderCoordinatedCommand; // Between -1 and 1
 
-        // flight mode 3, dynamic soaring
-        horizontal();
-        dynamicSoar();
-        DSattitude();
-        controlANGLE();
-        throttleController();
-        s1_command_scaled = throttle_PID;
-        s2_command_scaled = roll_PID;
-        s3_command_scaled = pitch_PID;
-        s4_command_scaled = rudderCoordinatedCommand; // basically just yaw PID but setpoint is always to make it coordinated
-        DSifFirstRun = false;
+        DSifFirstRun = false; // False after the first loop
     }
 
-    scaleCommands();
-    servo1.write(s1_command_PWM); // ESC
-    servo2.write(s2_command_PWM); // aileron
-    servo3.write(s3_command_PWM); // elevator
-    servo4.write(s4_command_PWM); // rudder
-    servo5.write(s5_command_PWM); // gimbal
+    scaleCommands(); // Scales commands to values that the servo and ESC can understand
+#if MOTOR_ACTIVE
+    ESC.write(s1_command_PWM); // ESC active
+#else
+    ESC.write(-100);  // ESC inactive
+#endif
+    aileronServo.write(s2_command_PWM);  // aileron
+    elevatorServo.write(s3_command_PWM); // elevator
+    rudderServo.write(s4_command_PWM);   // rudder
+    gimbalServo.write(s5_command_PWM);   // gimbal
 
-    getCommands(); // Pulls current available radio commands
-    failSafe();    // Prevent failures in event of bad receiver connection, defaults to failsafe values assigned in setup
-
-    // log data
-    //  loop runs 2000 times a second.
-    //  if the loop goes over 2000/50 times, it will log data
+#if DATALOG
+    // Log data
     if (loopCounter > (2000 / datalogRate))
     {
         writeDataToSD();
-
         loopCounter = 0;
     }
     else
     {
         loopCounter++;
     }
+#endif
 
     // Regulate loop rate
-    loopRate(2000); // Do not exceed 2000Hz, all filter parameters tuned to 2000Hz by default
+    loopBlink();    // Blink every 1.5 seconds to indicate main loop
+    loopRate(2000); // Loop runs at 2000 Hz
 }
 
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
@@ -539,7 +553,7 @@ void DSattitude()
     {
         horiz_vel_integral_prev = horiz_vel_integral;
         horiz_vel_integral = horiz_vel_integral_prev + DS_horizontal_vel_error * dt;
-        if (channel_1_pwm < 1060 || DSifFirstRun)
+        if (throttle_channel < 1060 || DSifFirstRun)
         { // Don't let integrator build if throttle is too low or DS just started
             horiz_vel_integral = 0;
         }
@@ -550,14 +564,17 @@ void DSattitude()
     // use PID loop
     altitude_integral_prev = altitude_integral;
     altitude_integral = altitude_integral_prev + DS_altitude_error * dt;
-    if (channel_1_pwm < 1060 || DSifFirstRun)
+    if (throttle_channel < 1060 || DSifFirstRun)
     { // Don't let integrator build if throttle is too low
         altitude_integral = 0;
     }
     altitude_integral = constrain(altitude_integral, -altitude_integral_saturation_limit, altitude_integral_saturation_limit);  // Saturate integrator to prevent unsafe buildup
     altitude_derivative = (DS_altitude_error - DS_altitude_error_prev) / dt;                                                    // shouldn't need low pass filter since the airspeed already has low pass filter on it
     pitch_des = 0.01 * (Kp_altitude * DS_altitude_error + Ki_altitude * altitude_integral - Kd_altitude * altitude_derivative); // Scaled by .01 to bring within -1 to 1 range
+}
 
+void coordinatedController()
+{
     // rudder to coordinated turn will direclty have yaw control (output rudderCoordinatedCommand)
     // use acceleration to see which way is down
 
@@ -573,7 +590,7 @@ void DSattitude()
         // run PID loop
         coord_integral_prev = coord_integral;
         coord_integral = coord_integral_prev + acceleration_downwards_angle * dt; // the angle is the error
-        if (channel_1_pwm < 1060 || DSifFirstRun)
+        if (throttle_channel < 1060 || DSifFirstRun)
         { // Don't let integrator build if throttle is too low
             coord_integral = 0;
         }
@@ -596,13 +613,14 @@ void throttleController()
         airspeed_error_prev = airspeed_error;
         airspeed_error = airspeed_setpoint - airspeed_adjusted;
         throttle_integral = throttle_integral_prev + airspeed_error * dt;
-        if (channel_1_pwm < 1060)
+        if (throttle_channel < 1060)
         { // Don't let integrator build if throttle is too low
             throttle_integral = 0;
         }
         throttle_integral = constrain(throttle_integral, 0, thorttle_integral_saturation_limit);                                        // figure out how this works // Saturate integrator to prevent unsafe buildup
         throttle_derivative = (airspeed_error - airspeed_error_prev) / dt;                                                              // shouldn't need low pass filter since the airspeed already has low pass filter on it
-        throttle_PID = 0.01 * (Kp_roll_angle * airspeed_error + Ki_throttle * throttle_integral - Kd_roll_angle * throttle_derivative); // Scaled by .01 to bring within -1 to 1 range OOOH THIS IS GONNA PROB TRIP ME UP, PAY ATTENTION TO THIS
+        throttle_PID = 0.01 * (Kp_roll_angle * airspeed_error + Ki_throttle * throttle_integral - Kd_roll_angle * throttle_derivative); // Scaled by .01 to bring within -1 to 1 range
+        throttle_PID = map(throttle_PID, -1, 1, 0, 1);                                                                                  // scale to 0 to 1 range
     }
     else
     {

@@ -105,11 +105,11 @@ MPU9250 mpu9250(SPI2, 36);
 //========================================================================================================================//
 
 // Radio failsafe values for every channel in the event that bad reciever data is detected. Recommended defaults:
-unsigned long channel_1_fs = 1000; // thro
-unsigned long channel_2_fs = 1500; // ail
-unsigned long channel_3_fs = 1500; // elev
-unsigned long channel_4_fs = 1500; // rudd
-unsigned long channel_5_fs = 1000; //  mode: position 1: full manual: position 2: stabilized flight : position 3: dynamic soar activated
+unsigned long throttle_fs = 1000; // thro
+unsigned long roll_fs = 1500; // ail
+unsigned long pitch_fs = 1500; // elev
+unsigned long yaw_fs = 1500; // rudd
+unsigned long mode1_fs = 1000; //  mode: position 1: full manual: position 2: stabilized flight : position 3: dynamic soar activated
 unsigned long channel_6_fs = 2000; //
 
 // Filter parameters - Defaults tuned for 2kHz loop rate; Do not touch unless you know what you are doing:
@@ -168,12 +168,12 @@ float Kd_yaw = 0.00015; // Yaw D-gain (be careful when increasing too high, moto
 // NOTE: Pin 13 is reserved for onboard LED, pins 18 and 19 are reserved for the MPU6050 IMU for default setup
 // Radio:
 // Note: If using SBUS, connect to pin 21 (RX5), if using DSM, connect to pin 15 (RX3)
-const int ch1Pin = 2; // throttle
-const int ch2Pin = 3; // ail
-const int ch3Pin = 4; // ele
-const int ch4Pin = 5; // rudd
-const int ch5Pin = 6; // mode: position 1: full manual: position 2: stabilized flight : position 3: dynamic soar activate
-const int ch6Pin = 7; //
+const int throttleChannelPin = 2; // throttle
+const int rollChannelPin = 3; // ail
+const int pitchChannelPin = 4; // ele
+const int yawChannelPin = 5; // rudd
+const int mode1ChannelPin = 6; // mode: position 1: full manual: position 2: stabilized flight : position 3: dynamic soar activate
+const int mode2ChannelPin = 7; // not used
 const int PPM_Pin = 23;
 // OneShot125 ESC pin outputs: NOT USED
 const int m1Pin = 100;
@@ -183,18 +183,18 @@ const int m4Pin = 3100;
 const int m5Pin = 4100;
 const int m6Pin = 5100;
 // PWM servo or ESC outputs:
-const int servo1Pin = 8;  // ESC
-const int servo2Pin = 9;  // ailerons
-const int servo3Pin = 24; // rudder
-const int servo4Pin = 25; // elevator
-const int servo5Pin = 28; // gimbal
-const int servo6Pin = 100;
+const int ESCpin = 8;  // ESC
+const int aileronServoPin = 9;  // ailerons
+const int elevatorServoPin = 25; // elevator
+const int rudderServoPin = 24; // rudder
+const int gimbal1ServoPin = 28; // gimbal
+const int gimbal2ServoPin = 29; //not
 const int servo7Pin = 100;
-PWMServo servo1; // Create servo objects to control a servo or ESC with PWM
-PWMServo servo2;
-PWMServo servo3;
-PWMServo servo4;
-PWMServo servo5;
+PWMServo ESC; // Create servo objects to control a servo or ESC with PWM
+PWMServo aileronServo;
+PWMServo elevatorServo;
+PWMServo rudderServo;
+PWMServo gimbalServo;
 PWMServo servo6;
 PWMServo servo7;
 
@@ -210,7 +210,7 @@ unsigned long blink_counter, blink_delay;
 bool blinkAlternate;
 
 // Radio communication:
-unsigned long channel_1_pwm, channel_2_pwm, channel_3_pwm, channel_4_pwm, channel_5_pwm, channel_6_pwm;
+unsigned long throttle_channel, roll_channel, pitch_channel, yaw_channel, mode1_channel, channel_6_pwm;
 unsigned long channel_1_pwm_prev, channel_2_pwm_prev, channel_3_pwm_prev, channel_4_pwm_prev;
 
 // PWM stuff
@@ -318,12 +318,12 @@ void dRehmFlightSetup()
   // pinMode(m4Pin, OUTPUT);
   // pinMode(m5Pin, OUTPUT);
   // pinMode(m6Pin, OUTPUT);
-  servo1.attach(servo1Pin, 900, 2100); // Pin, min PWM value, max PWM value
-  servo2.attach(servo2Pin, 900, 2100);
-  servo3.attach(servo3Pin, 900, 2100);
-  servo4.attach(servo4Pin, 900, 2100);
-  servo5.attach(servo5Pin, 900, 2100);
-  servo6.attach(servo6Pin, 900, 2100);
+  ESC.attach(ESCpin, 900, 2100); // Pin, min PWM value, max PWM value
+  aileronServo.attach(aileronServoPin, 900, 2100);
+  elevatorServo.attach(elevatorServoPin, 900, 2100);
+  rudderServo.attach(rudderServoPin, 900, 2100);
+  gimbalServo.attach(gimbal1ServoPin, 900, 2100);
+  servo6.attach(gimbal2ServoPin, 900, 2100);
   servo7.attach(servo7Pin, 900, 2100);
 
   // Set built in LED to turn on to signal startup
@@ -335,11 +335,11 @@ void dRehmFlightSetup()
   radioSetup();
 
   // Set radio channels to default (safe) values before entering main loop
-  channel_1_pwm = channel_1_fs;
-  channel_2_pwm = channel_2_fs;
-  channel_3_pwm = channel_3_fs;
-  channel_4_pwm = channel_4_fs;
-  channel_5_pwm = channel_5_fs;
+  throttle_channel = throttle_fs;
+  roll_channel = roll_fs;
+  pitch_channel = pitch_fs;
+  yaw_channel = yaw_fs;
+  mode1_channel = mode1_fs;
   channel_6_pwm = channel_6_fs;
 
   // Initialize IMU communication
@@ -351,11 +351,11 @@ void dRehmFlightSetup()
   calculate_IMU_error(); // Calibration parameters printed to serial monitor. Paste these in the user specified variables section, then comment this out forever.
   delay(10000);
   // Arm servo channels
-  servo1.write(0); // Command servo angle from 0-180 degrees (1000 to 2000 PWM)
-  servo2.write(0); // Set these to 90 for servos if you do not want them to briefly max out on startup
-  servo3.write(0); // Keep these at 0 if you are using servo outputs for motors
-  servo4.write(0);
-  servo5.write(0);
+  ESC.write(0); // Command servo angle from 0-180 degrees (1000 to 2000 PWM)
+  aileronServo.write(0); // Set these to 90 for servos if you do not want them to briefly max out on startup
+  elevatorServo.write(0); // Keep these at 0 if you are using servo outputs for motors
+  rudderServo.write(0);
+  gimbalServo.write(0);
   servo6.write(0);
   servo7.write(0);
 
@@ -422,11 +422,11 @@ void dRehmFlightLoop() // for the setup and loop, ill prob just use this as the 
 
   // Command actuators
   commandMotors();              // Sends command pulses to each motor pin using OneShot125 protocol
-  servo1.write(s1_command_PWM); // Writes PWM value to servo object
-  servo2.write(s2_command_PWM);
-  servo3.write(s3_command_PWM);
-  servo4.write(s4_command_PWM);
-  servo5.write(s5_command_PWM);
+  ESC.write(s1_command_PWM); // Writes PWM value to servo object
+  aileronServo.write(s2_command_PWM);
+  elevatorServo.write(s3_command_PWM);
+  rudderServo.write(s4_command_PWM);
+  gimbalServo.write(s5_command_PWM);
   servo6.write(s6_command_PWM);
   servo7.write(s7_command_PWM);
 
@@ -912,10 +912,10 @@ void getDesState()
    * (rate mode). yaw_des is scaled to be within max yaw in degrees/sec. Also creates roll_passthru, pitch_passthru, and
    * yaw_passthru variables, to be used in commanding motors/servos with direct unstabilized commands in controlMixer().
    */
-  thro_des = (channel_1_pwm - 1000.0) / 1000.0; // Between 0 and 1
-  roll_des = (channel_2_pwm - 1500.0) / 500.0;  // Between -1 and 1
-  pitch_des = (channel_3_pwm - 1500.0) / 500.0; // Between -1 and 1
-  yaw_des = (channel_4_pwm - 1500.0) / 500.0;   // Between -1 and 1
+  thro_des = (throttle_channel - 1000.0) / 1000.0; // Between 0 and 1
+  roll_des = (roll_channel - 1500.0) / 500.0;  // Between -1 and 1
+  pitch_des = (pitch_channel - 1500.0) / 500.0; // Between -1 and 1
+  yaw_des = (yaw_channel - 1500.0) / 500.0;   // Between -1 and 1
   roll_passthru = roll_des / 2.0;               // Between -0.5 and 0.5
   pitch_passthru = pitch_des / 2.0;             // Between -0.5 and 0.5
   yaw_passthru = yaw_des / 2.0;                 // Between -0.5 and 0.5
@@ -947,7 +947,7 @@ void controlANGLE()
   // Roll
   error_roll = roll_des - roll_IMU;
   integral_roll = integral_roll_prev + error_roll * dt;
-  if (channel_1_pwm < 1060)
+  if (throttle_channel < 1060)
   { // Don't let integrator build if throttle is too low
     integral_roll = 0;
   }
@@ -958,7 +958,7 @@ void controlANGLE()
   // Pitch
   error_pitch = pitch_des - pitch_IMU;
   integral_pitch = integral_pitch_prev + error_pitch * dt;
-  if (channel_1_pwm < 1060)
+  if (throttle_channel < 1060)
   { // Don't let integrator build if throttle is too low
     integral_pitch = 0;
   }
@@ -969,7 +969,7 @@ void controlANGLE()
   // Yaw, stablize on rate from GyroZ
   error_yaw = yaw_des - GyroZ;
   integral_yaw = integral_yaw_prev + error_yaw * dt;
-  if (channel_1_pwm < 1060)
+  if (throttle_channel < 1060)
   { // Don't let integrator build if throttle is too low
     integral_yaw = 0;
   }
@@ -998,7 +998,7 @@ void controlANGLE2()
   // Roll
   error_roll = roll_des - roll_IMU;
   integral_roll_ol = integral_roll_prev_ol + error_roll * dt;
-  if (channel_1_pwm < 1060)
+  if (throttle_channel < 1060)
   { // Don't let integrator build if throttle is too low
     integral_roll_ol = 0;
   }
@@ -1009,7 +1009,7 @@ void controlANGLE2()
   // Pitch
   error_pitch = pitch_des - pitch_IMU;
   integral_pitch_ol = integral_pitch_prev_ol + error_pitch * dt;
-  if (channel_1_pwm < 1060)
+  if (throttle_channel < 1060)
   { // Don't let integrator build if throttle is too low
     integral_pitch_ol = 0;
   }
@@ -1030,7 +1030,7 @@ void controlANGLE2()
   // Roll
   error_roll = roll_des_ol - GyroX;
   integral_roll_il = integral_roll_prev_il + error_roll * dt;
-  if (channel_1_pwm < 1060)
+  if (throttle_channel < 1060)
   { // Don't let integrator build if throttle is too low
     integral_roll_il = 0;
   }
@@ -1041,7 +1041,7 @@ void controlANGLE2()
   // Pitch
   error_pitch = pitch_des_ol - GyroY;
   integral_pitch_il = integral_pitch_prev_il + error_pitch * dt;
-  if (channel_1_pwm < 1060)
+  if (throttle_channel < 1060)
   { // Don't let integrator build if throttle is too low
     integral_pitch_il = 0;
   }
@@ -1052,7 +1052,7 @@ void controlANGLE2()
   // Yaw
   error_yaw = yaw_des - GyroZ;
   integral_yaw = integral_yaw_prev + error_yaw * dt;
-  if (channel_1_pwm < 1060)
+  if (throttle_channel < 1060)
   { // Don't let integrator build if throttle is too low
     integral_yaw = 0;
   }
@@ -1086,7 +1086,7 @@ void controlRATE()
   // Roll
   error_roll = roll_des - GyroX;
   integral_roll = integral_roll_prev + error_roll * dt;
-  if (channel_1_pwm < 1060)
+  if (throttle_channel < 1060)
   { // Don't let integrator build if throttle is too low
     integral_roll = 0;
   }
@@ -1097,7 +1097,7 @@ void controlRATE()
   // Pitch
   error_pitch = pitch_des - GyroY;
   integral_pitch = integral_pitch_prev + error_pitch * dt;
-  if (channel_1_pwm < 1060)
+  if (throttle_channel < 1060)
   { // Don't let integrator build if throttle is too low
     integral_pitch = 0;
   }
@@ -1108,7 +1108,7 @@ void controlRATE()
   // Yaw, stablize on rate from GyroZ
   error_yaw = yaw_des - GyroZ;
   integral_yaw = integral_yaw_prev + error_yaw * dt;
-  if (channel_1_pwm < 1060)
+  if (throttle_channel < 1060)
   { // Don't let integrator build if throttle is too low
     integral_yaw = 0;
   }
@@ -1183,11 +1183,11 @@ void getCommands()
    */
 
 #if defined USE_PPM_RX || defined USE_PWM_RX
-  channel_1_pwm = getRadioPWM(1);
-  channel_2_pwm = getRadioPWM(2);
-  channel_3_pwm = getRadioPWM(3);
-  channel_4_pwm = getRadioPWM(4);
-  channel_5_pwm = getRadioPWM(5);
+  throttle_channel = getRadioPWM(1);
+  roll_channel = getRadioPWM(2);
+  pitch_channel = getRadioPWM(3);
+  yaw_channel = getRadioPWM(4);
+  mode1_channel = getRadioPWM(5);
   channel_6_pwm = getRadioPWM(6);
 
 #elif defined USE_SBUS_RX
@@ -1225,14 +1225,14 @@ void getCommands()
 
   // Low-pass the critical commands and update previous values
   float b = 0.7; // Lower=slower, higher=noiser
-  channel_1_pwm = (1.0 - b) * channel_1_pwm_prev + b * channel_1_pwm;
-  channel_2_pwm = (1.0 - b) * channel_2_pwm_prev + b * channel_2_pwm;
-  channel_3_pwm = (1.0 - b) * channel_3_pwm_prev + b * channel_3_pwm;
-  channel_4_pwm = (1.0 - b) * channel_4_pwm_prev + b * channel_4_pwm;
-  channel_1_pwm_prev = channel_1_pwm;
-  channel_2_pwm_prev = channel_2_pwm;
-  channel_3_pwm_prev = channel_3_pwm;
-  channel_4_pwm_prev = channel_4_pwm;
+  throttle_channel = (1.0 - b) * channel_1_pwm_prev + b * throttle_channel;
+  roll_channel = (1.0 - b) * channel_2_pwm_prev + b * roll_channel;
+  pitch_channel = (1.0 - b) * channel_3_pwm_prev + b * pitch_channel;
+  yaw_channel = (1.0 - b) * channel_4_pwm_prev + b * yaw_channel;
+  channel_1_pwm_prev = throttle_channel;
+  channel_2_pwm_prev = roll_channel;
+  channel_3_pwm_prev = pitch_channel;
+  channel_4_pwm_prev = yaw_channel;
 }
 
 void failSafe()
@@ -1255,15 +1255,15 @@ void failSafe()
   int check6 = 0;
 
   // Triggers for failure criteria
-  if (channel_1_pwm > maxVal || channel_1_pwm < minVal)
+  if (throttle_channel > maxVal || throttle_channel < minVal)
     check1 = 1;
-  if (channel_2_pwm > maxVal || channel_2_pwm < minVal)
+  if (roll_channel > maxVal || roll_channel < minVal)
     check2 = 1;
-  if (channel_3_pwm > maxVal || channel_3_pwm < minVal)
+  if (pitch_channel > maxVal || pitch_channel < minVal)
     check3 = 1;
-  if (channel_4_pwm > maxVal || channel_4_pwm < minVal)
+  if (yaw_channel > maxVal || yaw_channel < minVal)
     check4 = 1;
-  if (channel_5_pwm > maxVal || channel_5_pwm < minVal)
+  if (mode1_channel > maxVal || mode1_channel < minVal)
     check5 = 1;
   if (channel_6_pwm > maxVal || channel_6_pwm < minVal)
     check6 = 1;
@@ -1271,11 +1271,11 @@ void failSafe()
   // If any failures, set to default failsafe values
   if ((check1 + check2 + check3 + check4 + check5 + check6) > 0)
   {
-    channel_1_pwm = channel_1_fs;
-    channel_2_pwm = channel_2_fs;
-    channel_3_pwm = channel_3_fs;
-    channel_4_pwm = channel_4_fs;
-    channel_5_pwm = channel_5_fs;
+    throttle_channel = throttle_fs;
+    roll_channel = roll_fs;
+    pitch_channel = pitch_fs;
+    yaw_channel = yaw_fs;
+    mode1_channel = mode1_fs;
     channel_6_pwm = channel_6_fs;
   }
 }
@@ -1403,11 +1403,11 @@ void calibrateESCs()
 
     // throttleCut(); //Directly sets motor commands to low based on state of ch5
 
-    servo1.write(s1_command_PWM);
-    servo2.write(s2_command_PWM);
-    servo3.write(s3_command_PWM);
-    servo4.write(s4_command_PWM);
-    servo5.write(s5_command_PWM);
+    ESC.write(s1_command_PWM);
+    aileronServo.write(s2_command_PWM);
+    elevatorServo.write(s3_command_PWM);
+    rudderServo.write(s4_command_PWM);
+    gimbalServo.write(s5_command_PWM);
     servo6.write(s6_command_PWM);
     servo7.write(s7_command_PWM);
     commandMotors(); // Sends command pulses to each motor pin using OneShot125 protocol
@@ -1499,7 +1499,7 @@ void throttleCut()
    * called before commandMotors() is called so that the last thing checked is if the user is giving permission to command
    * the motors to anything other than minimum value. Safety first.
    */
-  if (channel_5_pwm > 1500)
+  if (mode1_channel > 1500)
   {
     m1_command_PWM = 120;
     m2_command_PWM = 120;
@@ -1633,15 +1633,15 @@ void printRadioData()
   {
     print_counter = micros();
     Serial.print(F(" CH1: "));
-    Serial.print(channel_1_pwm);
+    Serial.print(throttle_channel);
     Serial.print(F(" CH2: "));
-    Serial.print(channel_2_pwm);
+    Serial.print(roll_channel);
     Serial.print(F(" CH3: "));
-    Serial.print(channel_3_pwm);
+    Serial.print(pitch_channel);
     Serial.print(F(" CH4: "));
-    Serial.print(channel_4_pwm);
+    Serial.print(yaw_channel);
     Serial.print(F(" CH5: "));
-    Serial.print(channel_5_pwm);
+    Serial.print(mode1_channel);
     Serial.print(F(" CH6: "));
     Serial.println(channel_6_pwm);
   }
@@ -1810,20 +1810,20 @@ float invSqrt(float x)
 
 void radioSetup()
 {
-  pinMode(ch1Pin, INPUT_PULLUP);
-  pinMode(ch2Pin, INPUT_PULLUP);
-  pinMode(ch3Pin, INPUT_PULLUP);
-  pinMode(ch4Pin, INPUT_PULLUP);
-  pinMode(ch5Pin, INPUT_PULLUP);
-  pinMode(ch6Pin, INPUT_PULLUP);
+  pinMode(throttleChannelPin, INPUT_PULLUP);
+  pinMode(rollChannelPin, INPUT_PULLUP);
+  pinMode(pitchChannelPin, INPUT_PULLUP);
+  pinMode(yawChannelPin, INPUT_PULLUP);
+  pinMode(mode1ChannelPin, INPUT_PULLUP);
+  pinMode(mode2ChannelPin, INPUT_PULLUP);
   delay(20);
   // Attach interrupt and point to corresponding ISR functions
-  attachInterrupt(digitalPinToInterrupt(ch1Pin), getCh1, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(ch2Pin), getCh2, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(ch3Pin), getCh3, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(ch4Pin), getCh4, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(ch5Pin), getCh5, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(ch6Pin), getCh6, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(throttleChannelPin), getCh1, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(rollChannelPin), getCh2, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(pitchChannelPin), getCh3, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(yawChannelPin), getCh4, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(mode1ChannelPin), getCh5, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(mode2ChannelPin), getCh6, CHANGE);
   delay(20);
 }
 
@@ -1862,7 +1862,7 @@ unsigned long getRadioPWM(int ch_num)
 
 void getCh1()
 {
-  int trigger = digitalRead(ch1Pin);
+  int trigger = digitalRead(throttleChannelPin);
   if (trigger == 1)
   {
     rising_edge_start_1 = micros();
@@ -1875,7 +1875,7 @@ void getCh1()
 
 void getCh2()
 {
-  int trigger = digitalRead(ch2Pin);
+  int trigger = digitalRead(rollChannelPin);
   if (trigger == 1)
   {
     rising_edge_start_2 = micros();
@@ -1888,7 +1888,7 @@ void getCh2()
 
 void getCh3()
 {
-  int trigger = digitalRead(ch3Pin);
+  int trigger = digitalRead(pitchChannelPin);
   if (trigger == 1)
   {
     rising_edge_start_3 = micros();
@@ -1901,7 +1901,7 @@ void getCh3()
 
 void getCh4()
 {
-  int trigger = digitalRead(ch4Pin);
+  int trigger = digitalRead(yawChannelPin);
   if (trigger == 1)
   {
     rising_edge_start_4 = micros();
@@ -1914,7 +1914,7 @@ void getCh4()
 
 void getCh5()
 {
-  int trigger = digitalRead(ch5Pin);
+  int trigger = digitalRead(mode1ChannelPin);
   if (trigger == 1)
   {
     rising_edge_start_5 = micros();
@@ -1927,7 +1927,7 @@ void getCh5()
 
 void getCh6()
 {
-  int trigger = digitalRead(ch6Pin);
+  int trigger = digitalRead(mode2ChannelPin);
   if (trigger == 1)
   {
     rising_edge_start_6 = micros();
