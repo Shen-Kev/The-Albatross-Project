@@ -116,24 +116,34 @@ const float heading_rate_of_change_setup_tolerance = 10; //  NEEDS TO BE ADJUSTE
 const float pitch_rate_of_change_setup_tolerance = 10;   //  NEEDS TO BE ADJUSTED: The tolerance of the pitch rate of change while setting up the DS flight path (deg/s)
 const float horizontal_vel_tolerance = 0.5;              //  NEEDS TO BE ADJUSTED: The tolerance of the horizontal velocity while setting up the DS flight path (m/s)
 
-float DS_altitude_setpoint;                // The altitude setpoint while dynamic soaring
-float DS_altitude_error;                   // The difference between the altitude setpoint and the estimated altitude
-float DS_altitude_error_prev;              // The previous altitude error, used to differentiate the error curve
-float DS_altitude_terrain_following = 0.3; // NEEDS TO BE ADJUSTED: The altitude (in meters) that the UAV should fly at while at the lowest phase of dynamic soaring. Could based on the bumpiness (std) of the water
-const float DS_altitude_in_wind = 5.5;     // NEEDS TO BE ADJUSTED:The altitude (in meters) that the UAV should fly at to be most influenced by the wind shear layer
+float DS_altitude_setpoint;                      // The altitude setpoint while dynamic soaring
+float DS_altitude_error;                         // The difference between the altitude setpoint and the estimated altitude
+float DS_altitude_error_prev;                    // The previous altitude error, used to differentiate the error curve
+const float DS_altitude_terrain_following = 0.3; // NEEDS TO BE ADJUSTED: The altitude (in meters) that the UAV should fly at while at the lowest phase of dynamic soaring. Could based on the bumpiness (std) of the water
+const float DS_altitude_tolerance = 0.1;         // NEEDS TO BE ADJUSTED: The altitude (in meters) that the UAV must be close to the setpoint to have met the setpoint
+const float DS_altitude_in_wind = 5.5;           // NEEDS TO BE ADJUSTED:The altitude (in meters) that the UAV should fly at to be most influenced by the wind shear layer
 
 float DSrotationMatrix[3][3]; // The rotation matrix to transform local angles (local: relative to the UAV) to global angles (global: relatie to the dynamic soaring line)
 
 float DS_horizontal_accel;                                // The global horizontal acceleration (perpendicular to the dynamic soaring line, parallel to the wind direction) (in g's)
-float DS_horizontal_accel_setpoint;                       // The global horizontal acceleration setpoint (in g's)
 float DS_horizontal_accel_error;                          // The difference between the global horizontal acceleration setpoint and measured horizontal acceleration
 const float DS_horizontal_accel_setpoint_phase_2_3 = 2.0; //  NEEDS TO BE ADJUSTED: The setpoint acceleration (in g's) while accelerating in the wind (DS phase 2 and 3)
 
 float DS_horizontal_vel;                                 // The global horizontal velocity (perpendicular to the dynamic soaring line, parallel to the wind direction) (in m/s)
-float DS_horizontal_vel_setpoint;                        // The global horizontal velocity setpoint
 float DS_horizontal_vel_error;                           // The differnece between the global horizontal velocity setpoint and the measured horizontal velocity
 float DS_horizontal_pos;                                 // The global horizontal position relative to the dynamic soaring line. Left of the line is negative, right of the line positive, and the center is set to be at 0 when the DS cycle starts
 const float DS_horizontal_vel_setpoint_phase_1_4 = -1.5; //  NEEDS TO BE ADJUSTED: The setpoint horizontal velocity (in m/s) while turning into the wind, below the shear layer
+
+float DS_horizontal_setpoint; // The global horizontal movement setpoint (can be velocity or acceleration, determined in the loop)
+int horiz_setpoint_type;      // variable to keep track what type of global horizontal setpoint is being used
+
+enum horiz_setpoint_types
+{
+    setpoint_horiz_accel = 0, // Use global horizontal acceleration as the setpoint
+    setpoint_horiz_vel = 1,   // Use global horizontal velocity as the setpoint
+    setpoint_horiz_pos = 2,   // Use global horizontal acceleration as the setpoint
+
+};
 
 // Dynamic soaring phase variables
 boolean DSifFirstRun = true; // The boolean which is true only if the mode switch goes from a non DS flight mode to the DS flight mode
@@ -155,16 +165,6 @@ float Ki_horiz_vel = 0.1;                    //  NEEDS TO BE ADJUSTED:Global hor
 float horiz_vel_integral = 0.0;              //  Variable to keep track of global horizontal velocity integral
 float horiz_vel_integral_prev = 0.0;         //  The previous global horizontal velocity integral (to be integrated upon)
 float horiz_integral_saturation_limit = 2.0; //  NEEDS TO BE ADJUSTED:Altitude integral saturation limit (to prevent integral windup)
-
-int horiz_setpoint_type; // variable to keep track what type of global horizontal setpoint is being used
-
-enum horiz_setpoint_types
-{
-    setpoint_horiz_accel = 0, // Use global horizontal acceleration as the setpoint
-    setpoint_horiz_vel = 1,   // Use global horizontal velocity as the setpoint
-    setpoint_horiz_pos = 2,   // Use global horizontal acceleration as the setpoint
-
-};
 
 // Altitude PID controller values
 const float Kp_altitude = 0.2;                         //  NEEDS TO BE ADJUSTED:// Altitude proportional gain
@@ -225,8 +225,8 @@ File dataFile;       // Object to interface with the microSD card
 static AltitudeEstimator altitudeLPbaro = AltitudeEstimator(0.001002176158, // Sigma (standard deviation of) the accelerometer
                                                             0.01942384099,  // Sigma (standard deviation of) the gyroscope
                                                             0.1674466677,   // sigma (standard deviation of) the barometer
-                                                            0.5,            // ca
-                                                            0.1);           // accel threshold
+                                                            0.5,            // ca (don't touch)
+                                                            0.1);           // accel threshold (if there are many IMU acceleration values below this value, it is assumed the aircraft is not moving vertically)
 
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
 // FUNCTION DECLARATIONS (in this order)
@@ -380,10 +380,10 @@ void loop()
     gimbalServo.write(s5_command_PWM);   // gimbal
 
 #if DATALOG
-    // Log data
+    // Log data dataLogRate times per second
     if (loopCounter > (2000 / datalogRate))
     {
-        writeDataToSD();
+        writeDataToSD(); // Calls the function to open and write to the SDfile
         loopCounter = 0;
     }
     else
@@ -400,130 +400,161 @@ void loop()
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
 // DYNAMIC SOARING CONTROLLER FUNCTIONS
 
-// generates the setpoint altitude and horizontal accel and the error for each phase of DS flight
+// This function manages the phases of DS flight. It generates the setpoints (airspeed,altitude, and global horizontal motion) for each DS phase, and provides the conditions to move to the next phase
 void dynamicSoar()
 {
-    // first time swtich goes on:
+    // Detects the first time the DS switch is activated by the pilot
     if (DSifFirstRun)
     {
-        DS_phase = DS_phase_0; // ready to dynamic soar, activate phase 0
+        DS_phase = DS_phase_0; // Go-ahead by the pilot to dynamic soar: activate DS Phase 0
     }
 
+    // All the dynamic soaring phases in a switch function to be most computaitonally efficent
     switch (DS_phase)
     {
     case DS_phase_0:
-        // do phase 0, turn and descent, wait until stable(using the IMU for now, use compass later with kalman filter class)
-        if (yaw_IMU < DS_heading - heading_setup_tolerance || yaw_IMU > DS_heading + heading_setup_tolerance || abs(GyroZ) > heading_rate_of_change_setup_tolerance || estimated_altitude > DS_altitude_terrain_following || abs(GyroY) > pitch_rate_of_change_setup_tolerance || abs(DS_horizontal_vel) > horizontal_vel_tolerance || abs(airspeed_error) > airspeed_error_tolerance)
+        // Phase 0 autonomously flies the UAV to be ready for dynamic soaring, but does not actually dynamic soar.
+        // To safely activate the dynamic soaring cycle, the UAV must meet the following conditions, and the rest of DS Phase 0 is trying to meet these conditions.
+        if (yaw_IMU < DS_heading - heading_setup_tolerance || yaw_IMU > DS_heading + heading_setup_tolerance // The UAV must be flying at the DS heading (within a tolerance), perpendicular to the wind, flying right (just using the IMU for yaw for now. If compass implemented, then the best estimate for heading will be used)
+            || abs(GyroZ) > heading_rate_of_change_setup_tolerance                                           // The UAV must not be changing yaw direciton (within a tolerance)
+            || abs(DS_altitude_error) > DS_altitude_tolerance                                                // The UAV must be within the tolerance for terrain following altitude
+            || abs(GyroY) > pitch_rate_of_change_setup_tolerance                                             // The UAV must not be chaning pitch (within a tolerance)
+            || abs(DS_horizontal_vel) > horizontal_vel_tolerance                                             // The UAV must not be moving horizontally (within a tolerance)
+            || abs(airspeed_error) > airspeed_error_tolerance)                                               // The AUV must not be moving too fast or too slow (within a tolerance)
         {
-            // ground follow
-            DS_altitude_setpoint = DS_altitude_terrain_following;
-            DS_altitude_error_prev = DS_altitude_error;
+            // Ground following setpoints in DS Phase 0
+            DS_altitude_setpoint = DS_altitude_terrain_following;          // Fly below the wind shear layer
+            DS_altitude_error_prev = DS_altitude_error;                    // Set the previous error before recalculating the new error
+            DS_altitude_error = DS_altitude_setpoint - estimated_altitude; // Calculate the error
 
-            DS_altitude_error = DS_altitude_setpoint - estimated_altitude;
-            // no horiz vel, this automatically means fly parallel to the DS flight path
-            horiz_setpoint_type = setpoint_horiz_vel;
-            DS_horizontal_vel_error = 0.0 - DS_horizontal_vel; // set horizontal velocity setpoint to 0
+            // Global horizontal motion setpoints in DS Phase 0
+            horiz_setpoint_type = setpoint_horiz_vel;                             // Setpoint is based on global horizontal velocity
+            DS_horizontal_setpoint = 0.0;                                         // The horizontal velocity setpoint is 0, which automatically means fly parallel to the DS flight path
+            DS_horizontal_vel_error = DS_horizontal_setpoint - DS_horizontal_vel; // Calculate the error
 
-            // airspeed
-            motorOn = true;
-            airspeed_setpoint = flight_speed;
+            // Airspeed setpoint in DS Phase 0
+            motorOn = true;                   // The UAV may use its motor in this phase because it is below the wind shear layer and not harvesting wind energy
+            airspeed_setpoint = flight_speed; // Fly at normal flight speed
         }
         else
         {
             DS_phase = DS_phase_1;
         }
+
         break;
+
     case DS_phase_1:
-        // do phase 1, inital turn into the wind (turning left for this code)
-        // based on VELOCITY
+        // Phase 1 is the intial turn into the wind to start the dynamic soaring cycle. Because flying right relative to the wind, this turns left.
 
-        // ground follow
-        DS_altitude_setpoint = DS_altitude_terrain_following;
-        DS_altitude_error_prev = DS_altitude_error;
+        // Ground following setpoints in DS Phase 1
+        DS_altitude_setpoint = DS_altitude_terrain_following;          // Fly below the wind shear layer
+        DS_altitude_error_prev = DS_altitude_error;                    // Set the previous error before recalculating the new error
+        DS_altitude_error = DS_altitude_setpoint - estimated_altitude; // Calculate the error
 
-        DS_altitude_error = DS_altitude_setpoint - estimated_altitude;
+        // Global horizontal motion setpoints in DS Phase 1
+        horiz_setpoint_type = setpoint_horiz_vel;                             // Setpoint is based on horizontal velocity
+        DS_horizontal_setpoint = DS_horizontal_vel_setpoint_phase_1_4;        // The setpoint velocity for flying towards the wind
+        DS_horizontal_vel_error = DS_horizontal_setpoint - DS_horizontal_vel; // Calculate the error
 
-        // towards the wind
-        horiz_setpoint_type = setpoint_horiz_vel;
-        DS_horizontal_vel_error = DS_horizontal_vel_setpoint_phase_1_4 - DS_horizontal_vel;
+        // Airspeed setpoint in DS Phase 1
+        motorOn = true;                   // The UAV may use its motor in this phase because it is below the wind shear layer and not harvesting wind energy
+        airspeed_setpoint = flight_speed; // Fly at normal flight speed
 
-        // airspeed
-        motorOn = true;
-        airspeed_setpoint = flight_speed;
-
+        // If the UAV is within horizontal velocity tolerance, proceed to the next DS phase. Making sure the velocity while under the shear layer is consistant is important because acceleration is used as the setpoint in the next to phases, and having significantly different sized DS cycles would not be good
         if (abs(DS_horizontal_vel) < horizontal_vel_tolerance)
         {
-            DS_phase = DS_phase_2; // start DS cycle
-            DS_horizontal_pos = 0; // crosses the line at the right velocity, so sets the line to be here
+            DS_phase = DS_phase_2; // Go the DS Phase 2, starting the DS cycle
+            DS_horizontal_pos = 0; // Because the UAV should cross the DS line at the right velocity, set the DS line to be right here
         }
 
         break;
+
     case DS_phase_2:
-        // do phase 2, climb and accelrate out of the wind
+        // Phase 2 is the energy harvesting climb above the wind shear layer
 
-        // climb into wind
-        DS_altitude_setpoint = DS_altitude_in_wind;
-        DS_altitude_error_prev = DS_altitude_error;
+        // Ground following setpoints in DS Phase 2
+        DS_altitude_setpoint = DS_altitude_in_wind;                    // Fly above the wind shear layer
+        DS_altitude_error_prev = DS_altitude_error;                    // Set the previous error before recalculating the new error
+        DS_altitude_error = DS_altitude_setpoint - estimated_altitude; // Calculate the error
 
-        DS_altitude_error = DS_altitude_setpoint - estimated_altitude;
+        // Global horizontal motion setpoints in DS Phase 2
+        horiz_setpoint_type = setpoint_horiz_accel;                               // Setpoint is based on global horizontal acceleration
+        DS_horizontal_setpoint = DS_horizontal_accel_setpoint_phase_2_3;          // The setpoint velocity for accelerating with the wind, harvesting energy
+        DS_horizontal_accel_error = DS_horizontal_setpoint - DS_horizontal_accel; // Calcualte the error
 
-        // away from wind
-        horiz_setpoint_type = setpoint_horiz_accel;
-        DS_horizontal_accel_error = DS_horizontal_accel_setpoint_phase_2_3 - DS_horizontal_accel;
-
-        // airspeed
+        // Airspeed setpoint in DS Phase 2
         if (airspeed_adjusted < stall_speed)
         {
+            // If about to stall, turn the motor on and get above the stall speed
+            motorOn = true;
             airspeed_setpoint = stall_speed;
         }
-        motorOn = false;
+        else
+        {
+            // If above stall speed, turn the motor off and let the wind do the work
+            motorOn = false;
+        }
 
+        // Once the UAV reverses direction and begins to fly back towards the DS line, proceed to Phase 3 and begin descent
         if (DS_horizontal_vel > 0.0)
-        { // once reached horizontal peak, go the other way and descend
+        {
             DS_phase = DS_phase_3;
         }
 
         break;
+
     case DS_phase_3:
-        // do phase 3, descend and accelerate out of the wind
+        // Phase 3 is the energy harvesting descent above the wind shear layer
 
-        // ground follow
-        DS_altitude_setpoint = DS_altitude_terrain_following;
-        DS_altitude_error_prev = DS_altitude_error;
+        // Ground following setpoints in DS Phase 3
+        DS_altitude_setpoint = DS_altitude_terrain_following;          // Aim for below the shear layer, but at this phase is still above the shear layer
+        DS_altitude_error_prev = DS_altitude_error;                    // Set the previous error before recalculating the new error
+        DS_altitude_error = DS_altitude_setpoint - estimated_altitude; // Calculate the error
 
-        DS_altitude_error = DS_altitude_setpoint - estimated_altitude;
+        // Global horizontal motion setpoints in DS Phase 3
+        horiz_setpoint_type = setpoint_horiz_accel;                                               // Setpoint is based on global horizontal velocity
+        DS_horizontal_setpoint = DS_horizontal_accel_setpoint_phase_2_3;                          // The setpoint velocity for accelerating with the wind, harvesting energy
+        DS_horizontal_accel_error = DS_horizontal_accel_setpoint_phase_2_3 - DS_horizontal_accel; // Calcualte the error
 
-        // away from wind
-        horiz_setpoint_type = setpoint_horiz_accel;
-        DS_horizontal_accel_error = DS_horizontal_accel_setpoint_phase_2_3 - DS_horizontal_accel;
-
-        if (DS_horizontal_pos > 0.0)
-        { // passed from left to right side of the line
-            DS_phase = DS_phase_4;
-        }
-        // airspeed
+        // Airspeed setpoint in DS Phase 3
         if (airspeed_adjusted < stall_speed)
         {
+            // If about to stall, turn the motor on and get above the stall speed
+            motorOn = true;
             airspeed_setpoint = stall_speed;
         }
-        motorOn = false;
+        else
+        {
+            // If above stall speed, turn the motor off and let the wind do the work
+            motorOn = false;
+        }
+
+        // Once the UAV passes the DS line and is below the shear layer, proceed to Phase 4 and begin to turn back to recover for leeway
+        if (DS_horizontal_pos > 0.0 && abs(DS_altitude_error) < DS_altitude_tolerance)
+        {
+            DS_phase = DS_phase_4;
+        }
+
         break;
+
     case DS_phase_4:
-        // do phase 4, turn back into the wind BUT THIS TIME SETPOINT IS VELOCITY, SO THAT EACH CYCLE STARTS WITH THE SAME VELOCITY??
+        // Phase 4 is the leeway recovery phase below the wind shear layer
 
-        // ground follow
-        DS_altitude_setpoint = DS_altitude_terrain_following;
-        DS_altitude_error_prev = DS_altitude_error;
-        DS_altitude_error = DS_altitude_setpoint - estimated_altitude;
+        // Ground following setpoints in DS Phase 4
+        DS_altitude_setpoint = DS_altitude_terrain_following;          // Fly below the wind shear layer
+        DS_altitude_error_prev = DS_altitude_error;                    // Set the previous error before recalculating the new error
+        DS_altitude_error = DS_altitude_setpoint - estimated_altitude; // Calculate the error
 
-        // towards the wind
-        horiz_setpoint_type = setpoint_horiz_vel;
-        DS_horizontal_vel_error = DS_horizontal_vel_setpoint_phase_1_4 - DS_horizontal_vel;
+        // Global horizontal motion setpoints in DS Phase 4
+        horiz_setpoint_type = setpoint_horiz_vel;                             // Setpoint is based on horizontal velocity
+        DS_horizontal_setpoint = DS_horizontal_vel_setpoint_phase_1_4;        // The setpoint velocity for flying towards the wind
+        DS_horizontal_vel_error = DS_horizontal_setpoint - DS_horizontal_vel; // Calculate the error
 
-        // airspeed
-        airspeed_setpoint = flight_speed;
+        // Airspeed setpoint in DS Phase 4
+        motorOn = true;                   // The UAV may use its motor in this phase because it is below the wind shear layer and not harvesting wind energy
+        airspeed_setpoint = flight_speed; // Fly at normal flight speed
 
-        // velocity constant, and crossed the line
+        // If the UAV is within horizontal velocity tolerance and crossed the DS flight path, loop back to Phase 2 to restart the cycle
         if (abs(DS_horizontal_vel_error) < horizontal_vel_tolerance && DS_horizontal_pos < 0.0)
         {
             DS_phase = DS_phase_2;
