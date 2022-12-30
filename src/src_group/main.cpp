@@ -5,6 +5,7 @@
  *   Code in this file fully written by Kevin Shen. Other files and libraries have been modified but are mostly unoriginal
  *   This is the main program that runs on the UAV's Teensy 4.1 flight computer
  *   During startup, the UAV should be level, unmoving, and pointed towards the wind
+ *   Start with manual flight, then turn to stabilized flight to let the PID loops settle, then activate DS flight
  *
  *   Repository created November 30, 2022. Found at https://github.com/Shen-Kev/The-Albatross-Project
  *   File created December 21, 2022
@@ -98,8 +99,8 @@ float ToFaltitude;          // The estimated altitude by the Time of Flight sens
 float leftWingtipAltitude;  // The estimated and calculated altitude of the left wingtip based on roll angle and the ToF sensor
 float rightWingtipAltitude; // The estimated and calculated altitude of the right wingtip based on roll angle and the ToF sensor
 
-float IMU_vertical_accel, IMU_vertical_vel, IMU_vertical_pos;       // the vertical acceleration, velocity, and position estimated by the IMU
-float IMU_horizontal_accel, IMU_horizontal_vel, IMU_horizontal_pos; // the horizontal acceleration, velocity, and position estimated by the IMU
+// float IMU_vertical_accel, IMU_vertical_vel, IMU_vertical_pos;       // the vertical acceleration, velocity, and position estimated by the IMU
+// float IMU_horizontal_accel, IMU_horizontal_vel, IMU_horizontal_pos; // the horizontal acceleration, velocity, and position estimated by the IMU
 
 float estimated_altitude; // The estimated altitude of the UAV, as a combination of the ToF, IMU, and baro sensor
 int altitudeTypeDataLog;  // To record the type of altitude the UAV is using as its estimated altitude. 0 is ToF within gimbal range, 1 is ToF too far left, 2 is ToF too far right, and 3 is using IMU and barometer
@@ -109,8 +110,8 @@ int loopCounter = 0;        // A counter used to log data every certain number o
 const int datalogRate = 50; // NEEDS TO BE ADJUSTED: Data logging rate in Hz
 
 // Dynamic soaring state variables
-float wind_heading = 0.0;                                // The heading the wind is coming from. For now it is assumed it is 0 degrees relative to the yaw IMU at startup. In the future can be manually set if absolute compass is added
-float DS_heading = 90.0;                                 // The yaw heading of the overall DS flight path, perpendicular to the wind. Flying to the right relative to the wind.
+const float wind_heading = 0.0;                          // The heading the wind is coming from. For now it is assumed it is 0 degrees relative to the yaw IMU at startup. In the future can be manually set if absolute compass is added
+const float DS_heading = 90.0;                           // The yaw heading of the overall DS flight path, perpendicular to the wind. Flying to the right relative to the wind.
 const float heading_setup_tolerance = 5;                 //  NEEDS TO BE ADJUSTED: The tolerance of the heading allowed while setting up the DS flight path (deg)
 const float heading_rate_of_change_setup_tolerance = 10; //  NEEDS TO BE ADJUSTED: The tolerance of the heading rate of change while setting up the DS flight path (deg/s)
 const float pitch_rate_of_change_setup_tolerance = 10;   //  NEEDS TO BE ADJUSTED: The tolerance of the pitch rate of change while setting up the DS flight path (deg/s)
@@ -123,7 +124,7 @@ const float DS_altitude_terrain_following = 0.3; // NEEDS TO BE ADJUSTED: The al
 const float DS_altitude_tolerance = 0.1;         // NEEDS TO BE ADJUSTED: The altitude (in meters) that the UAV must be close to the setpoint to have met the setpoint
 const float DS_altitude_in_wind = 5.5;           // NEEDS TO BE ADJUSTED:The altitude (in meters) that the UAV should fly at to be most influenced by the wind shear layer
 
-float DSrotationMatrix[3][3]; // The rotation matrix to transform local angles (local: relative to the UAV) to global angles (global: relatie to the dynamic soaring line)
+// float DSrotationMatrix[3][3]; // The rotation matrix to transform local angles (local: relative to the UAV) to global angles (global: relatie to the dynamic soaring line)
 
 float DS_horizontal_accel;                                // The global horizontal acceleration (perpendicular to the dynamic soaring line, parallel to the wind direction) (in g's)
 float DS_horizontal_accel_error;                          // The difference between the global horizontal acceleration setpoint and measured horizontal acceleration
@@ -215,11 +216,16 @@ float throttle_derivative;                             // Throttle derivative va
 float pitch_IMU_rad, roll_IMU_rad, yaw_IMU_rad;
 
 // Variables for the Runge-Kutta integration method
-float k1_vel, k1_pos, k2_vel, k2_pos, k3_vel, k3_pos, k4_vel, k4_pos;
+// float k1_vel, k1_pos, k2_vel, k2_pos, k3_vel, k3_pos, k4_vel, k4_pos;
 
 // Program Objects
 Adafruit_BMP085 bmp; // Object to interface with the BMP180 barometric pressure sensor
 File dataFile;       // Object to interface with the microSD card
+
+// KalmanFilter kalmanHoriz; // Kalman filter for the horizontal
+
+// float pastHorizGyro[3];
+// float pastHorizAccel[3];
 
 // Altitude estimator to combine barometric pressure sensor (with low pass filter applied) with the gyroscope and acclerometer
 static AltitudeEstimator altitudeLPbaro = AltitudeEstimator(0.001002176158, // Sigma (standard deviation of) the accelerometer
@@ -227,6 +233,16 @@ static AltitudeEstimator altitudeLPbaro = AltitudeEstimator(0.001002176158, // S
                                                             0.1674466677,   // sigma (standard deviation of) the barometer
                                                             0.5,            // ca (don't touch)
                                                             0.1);           // accel threshold (if there are many IMU acceleration values below this value, it is assumed the aircraft is not moving vertically)
+
+// Flight mode variables
+int flight_mode; // The flight mode (manual, stabilized, DS)
+enum flight_modes
+{
+    lost_connection = -1,
+    manual_flight = 0,
+    stabilized_flight = 1,
+    dynamic_soaring_flight = 2
+};
 
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
 // FUNCTION DECLARATIONS (in this order)
@@ -327,8 +343,25 @@ void loop()
 
     getDesState(); // Scales throttle to between 0 and 1, and roll, pitch, and yaw to between -1 and 1. Produces thro_des, roll_des, pitch_des, yaw_des, roll_passthru, pitch_passthru, yaw_passthru
 
-    // Flight modes:
-    if (mode1_channel < 1400.0)
+    // Flight modes based on mode switch
+    if (mode1_channel < 1000)
+    {
+        flight_mode = lost_connection;
+    }
+    else if (mode1_channel < 1400)
+    {
+        flight_mode = manual_flight;
+    }
+    else if (mode1_channel < 1600)
+    {
+        flight_mode = stabilized_flight;
+    }
+    else
+    {
+        flight_mode = dynamic_soaring_flight;
+    }
+
+    if (flight_mode == manual_flight)
     {
         // Flight mode 1 (manual flight). Directly puts the servo commands to the commands from the radio
         s1_command_scaled = thro_des;       // Between 0 and 1
@@ -337,8 +370,17 @@ void loop()
         s4_command_scaled = yaw_passthru;   // Between -0.5 and 0.5
 
         DSifFirstRun = true; // Resets the DS variable while not in the DS flight mode
+
+        // Reset integrators to 0 so when the other two flight modes are triggered, they start out without integral windup
+        integral_pitch = 0;
+        integral_roll = 0;
+        integral_yaw = 0;
+        throttle_integral = 0;
+        coord_integral = 0;
+        altitude_integral = 0;
+        horiz_vel_integral = 0;
     }
-    else if (mode1_channel < 1600.0)
+    else if (flight_mode == stabilized_flight)
     {
         // Flight mode 2 (stabilized flight, constant airspeed, and coordinated turns.
         controlANGLE();                               // dRehmFlight for angle based (pitch and roll) PID loops
@@ -351,7 +393,7 @@ void loop()
 
         DSifFirstRun = true; // Resets the DS variable while not in the DS flight mode
     }
-    else
+    else if (flight_mode == dynamic_soaring_flight)
     {
         // Flight mode 3 (Dynamic soaring)
         horizontal();                                 // Estimates the global horizontal acceleration, velocity, and position of the UAV
@@ -564,169 +606,156 @@ void dynamicSoar()
     }
 }
 
-// finds the roll, pitch, and yaw required do coordinated turns and stuff to reach the angle requierd to reach the setpoint vertical and horizontal setpoints to do DS (take insp from ardupilot)
+// This function creates the desired attitude (roll, pitch, and yaw angles) to meet the setpoint altitude and setpoint horizontal motion in a coordinated fashion to dynamic soar (keep in mind, this controller controlls the setpoint for the actual PID controller, and thus often does not need to be as complicated)
 void DSattitude()
 {
-    // NEED TO DO:  in this funciton, call the dRehmFlight stuff, use tthe horiz_setpoint_type to see how to fly
-    // idea for horizontalal: just bank and adjust the bank angle to get horizontal velocity. the elevator will automaticlly pitch up to maintain altitude, and to make coordinated turn the rudder will adjust to make the acceleration always straight down.r
-    // for vertical, just more or less pitch angle, and its bound to 30 degrees so thats fine.
-    // this is completely my idea, not from ardupilot, so if it ends up not working ardupilot will still be my backup
-    // okay here we go
+    // This is a very unconventional and novel? flight computer algorithm because unlike regular flight computer algorithms the most important thing for DS is the global horizontal acceleration, because that measures how much energy is being harvested from the
 
-    // for horizontal acceleration
-    // setup a proportional gain between horizontal acceleration and bankangle
+    // For horizontal motion, the increased bank angle increases the horizontal velocity. The elevator will automatically pitch up to maintain altitude, and the rudder will automatically move to coordinate the turn
     if (horiz_setpoint_type == setpoint_horiz_accel)
     {
+        // If the horizontal setpoint is based on acceleration, the desired roll is just a simple proportional gain controller because it controlls the 'zeroth' integral of acceleration, which is just acceleration
         roll_des = K_horiz_accel * DS_horizontal_accel_error;
     }
-    // for horizontal velocity, setup PI controller
     else if (horiz_setpoint_type == setpoint_horiz_vel)
     {
+        // If the horizontal setpoint is based on velocity, the desired roll is just a PI (proportional-integral) controller, since it controlls the first integral of acceleration, velocity
         horiz_vel_integral_prev = horiz_vel_integral;
-        horiz_vel_integral = horiz_vel_integral_prev + DS_horizontal_vel_error * dt;
-        if (throttle_channel < 1060 || DSifFirstRun)
-        { // Don't let integrator build if throttle is too low or DS just started
-            horiz_vel_integral = 0;
-        }
+        horiz_vel_integral = horiz_vel_integral_prev + DS_horizontal_vel_error * dt;                                           // Integrate integral
         horiz_vel_integral = constrain(horiz_vel_integral, -horiz_integral_saturation_limit, horiz_integral_saturation_limit); // Saturate integrator to prevent unsafe buildup
         roll_des = 0.01 * (Kp_horiz_vel * DS_horizontal_vel_error + Ki_horiz_vel * horiz_vel_integral);                        // Scaled by .01 to bring within -1 to 1 range
     }
-    // for pitch
-    // use PID loop
+
+    // For pitch to reach altitude, it is a PID loop because it is based on the second integral of acceleration, position. Pitching too high or low is automatically prevented by the dRehmFlight pitch limitation to +-30 degrees
     altitude_integral_prev = altitude_integral;
-    altitude_integral = altitude_integral_prev + DS_altitude_error * dt;
-    if (throttle_channel < 1060 || DSifFirstRun)
-    { // Don't let integrator build if throttle is too low
-        altitude_integral = 0;
-    }
+    altitude_integral = altitude_integral_prev + DS_altitude_error * dt;                                                        // Integrate integral
     altitude_integral = constrain(altitude_integral, -altitude_integral_saturation_limit, altitude_integral_saturation_limit);  // Saturate integrator to prevent unsafe buildup
-    altitude_derivative = (DS_altitude_error - DS_altitude_error_prev) / dt;                                                    // shouldn't need low pass filter since the airspeed already has low pass filter on it
+    altitude_derivative = (DS_altitude_error - DS_altitude_error_prev) / dt;                                                    // Derivative shouldn't need low pass filter because the altitude already has a low pass filter on it
     pitch_des = 0.01 * (Kp_altitude * DS_altitude_error + Ki_altitude * altitude_integral - Kd_altitude * altitude_derivative); // Scaled by .01 to bring within -1 to 1 range
 }
 
+// This function coordinates the UAV by to attempt to make the acceleration vector the UAV experinces point straight down about the roll axis. Outputs the rudder command rudderCoordinatedCommand
 void coordinatedController()
 {
-    // rudder to coordinated turn will direclty have yaw control (output rudderCoordinatedCommand)
-    // use acceleration to see which way is down
+    acceleration_downwards_angle = atan2(AccY, AccZ) * RAD_TO_DEG; // Calculate the angle of the downwards vector
 
-    acceleration_downwards_angle = atan2(AccY, AccZ) * RAD_TO_DEG; // Calculate the angle of the vector in radians
-    // BAM LOW PASS FILTER IT
+    // Low pass filter the angle, even though Acc is already low passed its good to be cautous around trig functions. Also to help prevent jitters in the PID derivative
     acceleration_downwards_angle_LP = (1.0 - acceleration_downwards_angle_LP_param) * acceleration_downwards_angle_prev + acceleration_downwards_angle_LP_param * acceleration_downwards_angle;
     acceleration_downwards_angle_prev = acceleration_downwards_angle_LP;
 
-    acceleration_downwards_magnitude = sqrt(AccZ * AccZ + AccY * AccY); // used to check that its an actual force and angle
-    // use PID loop to get that down arrow to the center, if angle reading is valid (bc yk how tangnet functions somtimes go haywire when the two accel vals get close to 0)
+    acceleration_downwards_magnitude = sqrt(AccZ * AccZ + AccY * AccY); // Calculate the magnitude of the downwards vector
+
+    // Check if vector angle is valid, since no matter now small the AccY and AccZ values are, the atan2 function will still produce an angle
     if (acceleration_downwards_magnitude > acceleration_downwards_magnitude_tolerance)
     {
-        // run PID loop
+        // Run PID loop
         coord_integral_prev = coord_integral;
-        coord_integral = coord_integral_prev + acceleration_downwards_angle * dt; // the angle is the error
-        if (throttle_channel < 1060 || DSifFirstRun)
-        { // Don't let integrator build if throttle is too low
-            coord_integral = 0;
-        }
+        coord_integral = coord_integral_prev + acceleration_downwards_angle * dt;                                                              // The angle is the error
         coord_integral = constrain(coord_integral, -coord_integral_saturation_limit, coord_integral_saturation_limit);                         // Saturate integrator to prevent unsafe buildup
-        coord_derivative = (acceleration_downwards_angle - acceleration_downwards_angle_prev) / dt;                                            // shouldn't need low pass filter since the airspeed already has low pass filter on it
+        coord_derivative = (acceleration_downwards_angle - acceleration_downwards_angle_prev) / dt;                                            // Derivative values already have low pass filter applied
         rudderCoordinatedCommand = 0.01 * (Kp_coord * acceleration_downwards_angle + Ki_coord * coord_integral - Kd_coord * coord_derivative); // Scaled by .01 to bring within -1 to 1 range
     }
     else
     {
-        rudderCoordinatedCommand = 0.5; // set to the middle
+        rudderCoordinatedCommand = 0; // If the vector is not good (if the UAV is momentarily in freefall and the wings aren't producing lift, there is nothing to coordinate) then set the rudder to the middle
     }
-    // make the claim that im doing all of this fancy flight computer stuff because unlike regular flight computer the most important thing for DS is acceleration in the wind
 }
 
+// This function controlls the throttle to maintain airspeed
 void throttleController()
 {
     if (motorOn)
     {
+        // If the motor is on, run the PID loop
         throttle_integral_prev = throttle_integral;
         airspeed_error_prev = airspeed_error;
         airspeed_error = airspeed_setpoint - airspeed_adjusted;
         throttle_integral = throttle_integral_prev + airspeed_error * dt;
-        if (throttle_channel < 1060)
-        { // Don't let integrator build if throttle is too low
-            throttle_integral = 0;
-        }
-        throttle_integral = constrain(throttle_integral, 0, thorttle_integral_saturation_limit);                                        // figure out how this works // Saturate integrator to prevent unsafe buildup
-        throttle_derivative = (airspeed_error - airspeed_error_prev) / dt;                                                              // shouldn't need low pass filter since the airspeed already has low pass filter on it
+        throttle_integral = constrain(throttle_integral, 0, thorttle_integral_saturation_limit);                                        // Saturate integrator to prevent unsafe buildup
+        throttle_derivative = (airspeed_error - airspeed_error_prev) / dt;                                                              // Derivative shouldn't need low pass filter becasuse the airspeed already has low pass filter on it
         throttle_PID = 0.01 * (Kp_roll_angle * airspeed_error + Ki_throttle * throttle_integral - Kd_roll_angle * throttle_derivative); // Scaled by .01 to bring within -1 to 1 range
-        throttle_PID = map(throttle_PID, -1, 1, 0, 1);                                                                                  // scale to 0 to 1 range
+        throttle_PID = map(throttle_PID, -1, 1, 0, 1);                                                                                  // Scale to 0 to 1 range.
     }
     else
     {
-        throttle_PID = 0.0;
+        throttle_PID = 0.0; // If the motor is off, set the throttle to zero.
     }
 }
 
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
 // STATE VARIABLE ESTIMATION FUNCTIONS
 
-// make comments above the function about what it does
+// This function estimates the global horizontal acceleration, velocity, and position of the UAV based on the IMU
 void horizontal()
 {
-    // NEED TO DO: calculate this still, again, maybe horizVelocity instead
-    // actually, i can do both, acceleration for DS, but to get it started have veloicty be 0
 
-    // create rotation matrix
-    double DSrotationMatrix[3][3] = {
-        {cos(pitch_IMU_rad) * cos(yaw_IMU_rad), -sin(roll_IMU_rad) * sin(pitch_IMU_rad) * cos(yaw_IMU_rad) + cos(roll_IMU_rad) * sin(yaw_IMU_rad), sin(roll_IMU_rad) * sin(yaw_IMU_rad) + cos(roll_IMU_rad) * sin(pitch_IMU_rad) * cos(yaw_IMU_rad)},
-        {cos(pitch_IMU_rad) * sin(yaw_IMU_rad), cos(roll_IMU_rad) * cos(yaw_IMU_rad) + sin(roll_IMU_rad) * sin(pitch_IMU_rad) * sin(yaw_IMU_rad), -sin(roll_IMU_rad) * cos(yaw_IMU_rad) + cos(roll_IMU_rad) * sin(pitch_IMU_rad) * sin(yaw_IMU_rad)},
-        {-sin(pitch_IMU_rad), sin(roll_IMU_rad) * cos(pitch_IMU_rad), cos(roll_IMU_rad) * cos(pitch_IMU_rad)}};
-    // convert acceleration to global frame (centered on the DS path)
-    float DSglobalAccel[3]; // Global accelerations
-    // Transform local accelerations to global coordinates
-    for (int i = 0; i < 3; i++)
-    {
-        DSglobalAccel[i] = 0;
-        for (int j = 0; j < 3; j++)
+    // OKAY THIS FUNCTION IS IDK WHATS GOING ON, DSOUHFOSDHFOUSDHF, FIGURE THIS OUT
+
+    // ACTUALLY CHANGE THIS TO USE THE ALTITUDE ESTIMTION, BUT JUST FEED IT THE SIDEWAYS FORCE AS THE UPWARDS FORCE, ESSENTIALLY ROTATING IT, AND HAVE IT PREDCIT ALTITUDE WHICH IS ACTUALLY THE HORIZONTAL MOTION, SOMEHOW REMOVE OR SHIFT THE GRAVITY COMPONENT TO THE OTHER AXIS  AND MAKE A NEW FUNCTION LIKE THE ESTIMATE THAT DOESN"T TAKE INTO ACCOUNT ANOTHER SENSOR.. MAYBE NOT KALMAN THEN??
+    // float horizGyro[3] = {GyroX, GyroZ-9.81, GyroY+9.81}; //Swap Z and Y, resulting in the vertical calulator calculating the horizontal? actually but then how do i tell wheich direction DS is/??
+    // float horizAccel[3] = {AccX, AccZ-9.81, AccY+9.81};
+    // DS_horizontal_accel = kalmanHoriz.estimate(pastHorizGyro, pastHorizAccel, dt);
+    // copyVector(pastHorizGyro, horizGyro);
+    // copyVector(pastHorizAccel, horizAccel);
+
+    /*
+        // create rotation matrix
+
+        double DSrotationMatrix[3][3] = {
+            {cos(pitch_IMU_rad) * cos(yaw_IMU_rad), -sin(roll_IMU_rad) * sin(pitch_IMU_rad) * cos(yaw_IMU_rad) + cos(roll_IMU_rad) * sin(yaw_IMU_rad), sin(roll_IMU_rad) * sin(yaw_IMU_rad) + cos(roll_IMU_rad) * sin(pitch_IMU_rad) * cos(yaw_IMU_rad)},
+            {cos(pitch_IMU_rad) * sin(yaw_IMU_rad), cos(roll_IMU_rad) * cos(yaw_IMU_rad) + sin(roll_IMU_rad) * sin(pitch_IMU_rad) * sin(yaw_IMU_rad), -sin(roll_IMU_rad) * cos(yaw_IMU_rad) + cos(roll_IMU_rad) * sin(pitch_IMU_rad) * sin(yaw_IMU_rad)},
+            {-sin(pitch_IMU_rad), sin(roll_IMU_rad) * cos(pitch_IMU_rad), cos(roll_IMU_rad) * cos(pitch_IMU_rad)}};
+        // convert acceleration to global frame (centered on the DS path)
+        float DSglobalAccel[3]; // Global accelerations
+        // Transform local accelerations to global coordinates
+        for (int i = 0; i < 3; i++)
         {
-            DSglobalAccel[i] += DSrotationMatrix[i][j] * ((i == 0) ? AccX : ((i == 1) ? AccY : AccZ));
+            DSglobalAccel[i] = 0;
+            for (int j = 0; j < 3; j++)
+            {
+                DSglobalAccel[i] += DSrotationMatrix[i][j] * ((i == 0) ? AccX : ((i == 1) ? AccY : AccZ));
+            }
         }
-    }
 
-    // a_global[0] is the acceleration along the global pitch axis
-    DS_horizontal_accel = DSglobalAccel[0];
+        // a_global[0] is the acceleration along the global pitch axis
+        DS_horizontal_accel = DSglobalAccel[0];
+    */
 
     // integrate to get horizontal velocity:
     // uncomment one at a time:
-    // DS_horizontal_vel += DS_horizontal_accel * dt; // direct
-
+    DS_horizontal_vel += DS_horizontal_accel * dt; // direct
+    DS_horizontal_pos += DS_horizontal_vel * dt;
     // Integrate velocity and position using the Runge-Kutta method
-
-    k1_vel = DS_horizontal_accel * dt;
-    k1_pos = DS_horizontal_vel * dt;
-    k2_vel = (DS_horizontal_accel + k1_vel / 2) * dt;
-    k2_pos = (DS_horizontal_vel + k1_pos / 2) * dt;
-    k3_vel = (DS_horizontal_accel + k2_vel / 2) * dt;
-    k3_pos = (DS_horizontal_vel + k2_pos / 2) * dt;
-    k4_vel = (DS_horizontal_accel + k3_vel) * dt;
-    k4_pos = (DS_horizontal_vel + k3_pos) * dt;
-    DS_horizontal_vel += (k1_vel + 2 * k2_vel + 2 * k3_vel + k4_vel) / 6;
-    DS_horizontal_pos += (k1_pos + 2 * k2_pos + 2 * k3_pos + k4_pos) / 6;
+    /*
+        k1_vel = DS_horizontal_accel * dt;
+        k1_pos = DS_horizontal_vel * dt;
+        k2_vel = (DS_horizontal_accel + k1_vel / 2) * dt;
+        k2_pos = (DS_horizontal_vel + k1_pos / 2) * dt;
+        k3_vel = (DS_horizontal_accel + k2_vel / 2) * dt;
+        k3_pos = (DS_horizontal_vel + k2_pos / 2) * dt;
+        k4_vel = (DS_horizontal_accel + k3_vel) * dt;
+        k4_pos = (DS_horizontal_vel + k3_pos) * dt;
+        DS_horizontal_vel += (k1_vel + 2 * k2_vel + 2 * k3_vel + k4_vel) / 6;
+        DS_horizontal_pos += (k1_pos + 2 * k2_pos + 2 * k3_pos + k4_pos) / 6;
+    */
 }
 
-// takes in the IMU, baro, and ToF sensors
-// If ToF sensor in range, just use this sensor and IMU
-// If ToF sensor out of range, use baro and IMU
-// IMU mostly just to smooth out the data, since it drifts over time
+// This function estimates the altitude of the UAV relative to the water using the IMU, baro, and ToF sensors
 void estimateAltitude()
 {
+    // Use the Kalman filter to estimate the altitude of the UAV using only the IMU and barometer (both after having a low pass filter applied)
     float accelData[3] = {AccX, AccY, AccZ};
     float gyroData[3] = {GyroX * DEG_TO_RAD, GyroY * DEG_TO_RAD, GyroZ * DEG_TO_RAD};
-
     altitudeLPbaro.estimate(accelData, gyroData, altitudeMeasured - altitude_offset, dt);
 
-    // might need to somehow smooth/interpolate between the two...
+    s5_command_PWM = roll_IMU * gimbalServoGain; // Rotate the gimbal servo to point the ToF sensor straight down
+
+    ToFaltitude = (distance_LP / 1000.0) * cos(pitch_IMU_rad); // Find the altitude of the UAV in meters based on the ToF sensor. Accounts for pitch.
     // also need to figure out how to get the range of the ToF sensor to 4m
-    if (!(distance_LP < 4000.0) && distance_LP > 0.0)
+    // If the distance being read is a valid number (it returns -1 if it cannot detect anything, and has a range up to 4m), use the ToF sensor as the altitude
+    if (ToFaltitude < 4.0 && ToFaltitude > 0.0)
     {
-        s5_command_PWM = roll_IMU * gimbalServoGain; // servo should have the same rotational angle as the UAV roll, but this servo only goes +- 45 degrees, so scaled up 2x
-
-        ToFaltitude = (distance_LP / 1000.0) * cos(pitch_IMU_rad); // altitude in meters from the ToF sensor
-
-        // just zeroing the baro, the IMU seems to automatically zero itself in the kalman and complementary filter
-        // average offset from previous 10 value, make the value, then do the cycle again, no need to waste bunch of computational power on sliding window
+        // Recalibrate the barometer based on the ToF sensor. Every 10 readings, find the offset and average
         if (offset_loop_counter < altitude_offset_num_vals)
         {
             offset_loop_counter++;
@@ -739,40 +768,42 @@ void estimateAltitude()
             altitude_offset_sum = 0;
         }
 
-        // experimental: estimate the distance the wingtip is to the ground
-        // wingspan of 1.5m, half wingspan of .75m
-        // sensor is located on the left wing .14m from the center
-        // these two equations only work when bank angle within servo range of motion
+        // Calculate the distance of the wingtip to the ground. The UAV has a wingspan of 1.5m and the ToF sensor is located 0.14m to the left of the center of the fuselage
         if (roll_IMU > gimbalRightBoundAngle && roll_IMU < gimbalLeftBoundAngle)
         {
+            // If the gimbal is within range (which it always should be, since the roll angle limit is 30 degrees)
             leftWingtipAltitude = ToFaltitude - sin(roll_IMU_rad) * (halfWingspan - gimbalDistanceFromCenter);
             rightWingtipAltitude = ToFaltitude + sin(roll_IMU_rad) * (halfWingspan + gimbalDistanceFromCenter);
             estimated_altitude = leftWingtipAltitude < rightWingtipAltitude ? leftWingtipAltitude : rightWingtipAltitude; // gets lesser of two values
             altitudeTypeDataLog = 0;                                                                                      // ToF sensor, within gimbal range
         }
-        // KEEP IN MIND: dRehmFlight LIMITS ROLL ANGLE TO 30 DEGREES. CAN CHANGE, BUT AT THE MOMENT THIS CODE SHOULDN'T RUN, BUT IS HERE JUST IN CASE:
         else
         {
-            if (roll_IMU > gimbalLeftBoundAngle) // banking far to the left
+            // If the roll somehow surpasses the gimbal servo bound, the altitude can still be calculated.
+            if (roll_IMU > gimbalLeftBoundAngle)
             {
+                // Altitude calculation when banking too far to the left
                 estimated_altitude = ToFaltitude * cos(roll_IMU_rad - (gimbalLeftBoundAngle * DEG_TO_RAD)) - sin(roll_IMU_rad) * (halfWingspan - gimbalDistanceFromCenter);
-                altitudeTypeDataLog = 1; // ToF sensor, too far left
+                altitudeTypeDataLog = 1; // Logs that the ToF sensor reading is based on a saturated gimbal (banking too far left)
             }
-            else // banking far to the right
+            else
             {
+                // Altitude calculation when banking too far to the right
                 estimated_altitude = ToFaltitude * cos(roll_IMU_rad - (gimbalLeftBoundAngle * DEG_TO_RAD)) - sin(roll_IMU_rad) * (halfWingspan + gimbalDistanceFromCenter);
-                altitudeTypeDataLog = 2; // ToF sensor, too far right
+                altitudeTypeDataLog = 2; // Logs that the ToF sensor readin is based on a saturated gimbal (banking too far right)
             }
         }
-        estimated_altitude = estimated_altitude - (sin(roll_IMU_rad) * halfWingspan);
+        // estimated_altitude = estimated_altitude - (sin(roll_IMU_rad) * halfWingspan); //Not sure what this piece of code does, so it is commented out. Not deleting yet.
     }
     else
     {
+        // If the ToF sensor is out of range, estimate the altitude with the IMU and barometer only
         estimated_altitude = altitudeLPbaro.getAltitude();
-        altitudeTypeDataLog = 3; // using IMU and barometer
+        altitudeTypeDataLog = 3; // Let the flight data show that the altitude is based on the IMU and barometer only
     }
 }
 
+// This function calibrates the pitot tube by finding the average of 10 readings
 void pitotSetup()
 {
     for (int i = 0; i < 10; i++)
@@ -786,15 +817,17 @@ void pitotSetup()
     }
     airspeed_offset = airspeed_offset / 10.0;
 }
+
+// This function retrieves the airspeed data, low pass filters it, and scales and offsets it
 void pitotLoop()
 {
-    // adjust and filter the raw data into smooth and readable airspeed signal
     airspeed_unadjusted = (1.0 - airspeed_LP_param) * airspeed_prev + airspeed_LP_param * fetch_airspeed(&P_dat); // fetch_airspeed gets the raw airspeed
     airspeed_prev = airspeed_unadjusted;
     airspeed_adjusted_prev = airspeed_adjusted;
     airspeed_adjusted = (airspeed_unadjusted - airspeed_offset) * airspeed_scalar;
 }
 
+// This function sets up and calibrates the barometric pressure sensor, and on startup offests the raw data to say the starting position is 0m
 void BMP180setup()
 {
     if (!bmp.begin())
@@ -803,16 +836,14 @@ void BMP180setup()
         {
         }
     }
-
     for (int i = 0; i < altitude_offset_num_vals; i++)
     {
         altitude_offset_sum += bmp.readAltitude();
     }
-
     altitude_offset = altitude_offset_sum / ((float)altitude_offset_num_vals);
-    // calibrate to assume that startup is at sea level
 }
 
+// This function offsets and low pass filters the barometric altitude reading
 void BMP180loop()
 {
     altitudeMeasured = bmp.readAltitude() - altitude_offset;
@@ -823,49 +854,97 @@ void BMP180loop()
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
 // DATA LOGGING FUNCTIONS
 
+// This function checks if the SD card can be communicated with
 void setupSD()
 {
-    // won't proceed until it detects an SD card, avoids flying with no datalog
+    // Setup won't proceed until it detects an SD card, avoids flying with no datalog
     while (!SD.begin(BUILTIN_SDCARD))
     {
         delay(1000);
     }
 }
 
-// edit to print all the appropritate data, perhaps a CSV to be easily read by microsoft excel or google sheets, maybe even modifiable by a python script to analyze the data
-/*
-A1,B1,C1,D1,E1,F1
-A2,B2,C2,D2,E2,F2
-A3,B3,C3,D3,E3,F3
-A4,B4,C4,D4,E4,F4
-A5,B5,C5,D5,E5,F5
-A6,B6,C6,D6,E6,F6
-A7,B7,C7,D7,E7,F7
-A8,B8,C8,D8,E8,F8
-A9,B9,C9,D9,E9,F9
-A10,B10,C10,D10,E10,F10
-A11,B11,C11,D11,E11,F11
-A12,B12,C12,D12,E12,F12
-A13,B13,C13,D13,E13,F13
-A14,B14,C14,D14,E14,F14
-A15,B15,C15,D15,E15,F15
-A16,B16,C16,D16,E16,F16
-*/
-// commas separate the values, and new line separates datapoints
-// record the actual template here:
-//  time,
-
-// when you get down here, also setup the variable printout
+// Writes the flight data in CSV format to the mciroSD card in this order
 void writeDataToSD()
 {
     dataFile = SD.open("flightData.txt", FILE_WRITE);
 
-    dataFile.print(current_time + ',');
-    dataFile.print(current_time + ',');
-    dataFile.print(current_time + ',');
-    dataFile.print(current_time + ',');
-    dataFile.print(current_time + ',');
-    dataFile.print(current_time + ',');
+    // Time
+    dataFile.print(timeInMillis + ',');
+
+    // Pilot command
+    dataFile.print(throttle_channel + ',');
+    dataFile.print(roll_channel + ',');
+    dataFile.print(pitch_channel + ',');
+    dataFile.print(yaw_channel + ',');
+    dataFile.print(flight_mode + ',');
+
+    // Setpoints
+    dataFile.print(airspeed_setpoint + ',');
+    dataFile.print(DS_altitude_setpoint + ',');
+    dataFile.print(DS_horizontal_setpoint + ',');
+    dataFile.print(horiz_setpoint_type + ',');
+    dataFile.print(rudderCoordinatedCommand + ',');
+
+    // Altitude variables
+    dataFile.print(altitude_baro + ',');
+    dataFile.print(leftWingtipAltitude + ',');
+    dataFile.print(rightWingtipAltitude + ',');
+    dataFile.print(estimated_altitude + ',');
+    dataFile.print(altitudeTypeDataLog + ',');
+    dataFile.print(ToFaltitude + ',');
+
+    // Airspeed
+    dataFile.print(airspeed_adjusted + ',');
+
+    // Orientation
+    dataFile.print(roll_IMU + ',');
+    dataFile.print(pitch_IMU + ',');
+    dataFile.print(yaw_IMU + ',');
+
+    //Global horizontal motion
+    dataFile.print(DS_horizontal_accel + ',');
+    dataFile.print(DS_horizontal_vel + ',');
+    dataFile.print(DS_horizontal_pos + ',');
+
+    // Booleans and enums
+    dataFile.print(motorOn + ',');
+    dataFile.print(DSifFirstRun + ',');
+    dataFile.print(DS_phase + ',');
+
+    // PID values
+    dataFile.print(airspeed_error + ',');
+    dataFile.print(throttle_integral + ',');
+    dataFile.print(throttle_derivative + ',');
+
+    dataFile.print(error_roll + ',');
+    dataFile.print(integral_roll + ',');
+    dataFile.print(derivative_roll + ',');
+
+    dataFile.print(error_pitch + ',');
+    dataFile.print(integral_pitch + ',');
+    dataFile.print(derivative_pitch);
+
+    dataFile.print(DS_altitude_error + ',');
+    dataFile.print(altitude_integral + ',');
+    dataFile.print(altitude_derivative + ',');
+
+    dataFile.print(DS_horizontal_accel_error + ',');
+    dataFile.print(DS_horizontal_vel_error + ',');
+    dataFile.print(horiz_vel_integral + ',');
+
+    dataFile.print(acceleration_downwards_magnitude + ',');
+    dataFile.print(acceleration_downwards_angle + ',');
+    dataFile.print(coord_integral + ',');
+    dataFile.print(coord_derivative + ',');
+
+    // Servo outputs
+    dataFile.print(s1_command_PWM + ',');
+    dataFile.print(s2_command_PWM + ',');
+    dataFile.print(s3_command_PWM + ',');
+    dataFile.print(s4_command_PWM + ',');
+    dataFile.print(s5_command_PWM + ',');
+
     dataFile.print('\n');
 
     dataFile.close();

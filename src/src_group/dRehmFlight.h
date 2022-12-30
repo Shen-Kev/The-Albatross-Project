@@ -105,11 +105,11 @@ MPU9250 mpu9250(SPI2, 36);
 //========================================================================================================================//
 
 // Radio failsafe values for every channel in the event that bad reciever data is detected. Recommended defaults:
-unsigned long throttle_fs = 1000; // thro
-unsigned long roll_fs = 1500; // ail
-unsigned long pitch_fs = 1500; // elev
-unsigned long yaw_fs = 1500; // rudd
-unsigned long mode1_fs = 1000; //  mode: position 1: full manual: position 2: stabilized flight : position 3: dynamic soar activated
+unsigned long throttle_fs = 1000;  // thro
+unsigned long roll_fs = 1500;      // ail
+unsigned long pitch_fs = 1500;     // elev
+unsigned long yaw_fs = 1500;       // rudd
+unsigned long mode1_fs = 1000;     //  mode: position 1: full manual: position 2: stabilized flight : position 3: dynamic soar activated
 unsigned long channel_6_fs = 2000; //
 
 // Filter parameters - Defaults tuned for 2kHz loop rate; Do not touch unless you know what you are doing:
@@ -169,11 +169,11 @@ float Kd_yaw = 0.00015; // Yaw D-gain (be careful when increasing too high, moto
 // Radio:
 // Note: If using SBUS, connect to pin 21 (RX5), if using DSM, connect to pin 15 (RX3)
 const int throttleChannelPin = 2; // throttle
-const int rollChannelPin = 3; // ail
-const int pitchChannelPin = 4; // ele
-const int yawChannelPin = 5; // rudd
-const int mode1ChannelPin = 6; // mode: position 1: full manual: position 2: stabilized flight : position 3: dynamic soar activate
-const int mode2ChannelPin = 7; // not used
+const int rollChannelPin = 3;     // ail
+const int pitchChannelPin = 4;    // ele
+const int yawChannelPin = 5;      // rudd
+const int mode1ChannelPin = 6;    // mode: position 1: full manual: position 2: stabilized flight : position 3: dynamic soar activate
+const int mode2ChannelPin = 7;    // not used
 const int PPM_Pin = 23;
 // OneShot125 ESC pin outputs: NOT USED
 const int m1Pin = 100;
@@ -183,12 +183,12 @@ const int m4Pin = 3100;
 const int m5Pin = 4100;
 const int m6Pin = 5100;
 // PWM servo or ESC outputs:
-const int ESCpin = 8;  // ESC
-const int aileronServoPin = 9;  // ailerons
+const int ESCpin = 8;            // ESC
+const int aileronServoPin = 9;   // ailerons
 const int elevatorServoPin = 25; // elevator
-const int rudderServoPin = 24; // rudder
-const int gimbal1ServoPin = 28; // gimbal
-const int gimbal2ServoPin = 29; //not
+const int rudderServoPin = 24;   // rudder
+const int gimbal1ServoPin = 28;  // gimbal
+const int gimbal2ServoPin = 29;  // not
 const int servo7Pin = 100;
 PWMServo ESC; // Create servo objects to control a servo or ESC with PWM
 PWMServo aileronServo;
@@ -255,7 +255,7 @@ float error_yaw, error_yaw_prev, integral_yaw, integral_yaw_prev, derivative_yaw
 // Mixer
 float m1_command_scaled, m2_command_scaled, m3_command_scaled, m4_command_scaled, m5_command_scaled, m6_command_scaled;
 int m1_command_PWM, m2_command_PWM, m3_command_PWM, m4_command_PWM, m5_command_PWM, m6_command_PWM;
-float s1_command_scaled, s2_command_scaled, s3_command_scaled, s4_command_scaled, s5_command_scaled, s6_command_scaled, s7_command_scaled; //0 to 1
+float s1_command_scaled, s2_command_scaled, s3_command_scaled, s4_command_scaled, s5_command_scaled, s6_command_scaled, s7_command_scaled; // 0 to 1
 int s1_command_PWM, s2_command_PWM, s3_command_PWM, s4_command_PWM, s5_command_PWM, s6_command_PWM, s7_command_PWM;
 
 // function prototypes https://forum.arduino.cc/t/functions-at-the-end-or-beggining/530377/5
@@ -351,8 +351,8 @@ void dRehmFlightSetup()
   calculate_IMU_error(); // Calibration parameters printed to serial monitor. Paste these in the user specified variables section, then comment this out forever.
   delay(10000);
   // Arm servo channels
-  ESC.write(0); // Command servo angle from 0-180 degrees (1000 to 2000 PWM)
-  aileronServo.write(0); // Set these to 90 for servos if you do not want them to briefly max out on startup
+  ESC.write(0);           // Command servo angle from 0-180 degrees (1000 to 2000 PWM)
+  aileronServo.write(0);  // Set these to 90 for servos if you do not want them to briefly max out on startup
   elevatorServo.write(0); // Keep these at 0 if you are using servo outputs for motors
   rudderServo.write(0);
   gimbalServo.write(0);
@@ -421,7 +421,7 @@ void dRehmFlightLoop() // for the setup and loop, ill prob just use this as the 
   // throttleCut(); // Directly sets motor commands to low based on state of ch5
 
   // Command actuators
-  commandMotors();              // Sends command pulses to each motor pin using OneShot125 protocol
+  commandMotors();           // Sends command pulses to each motor pin using OneShot125 protocol
   ESC.write(s1_command_PWM); // Writes PWM value to servo object
   aileronServo.write(s2_command_PWM);
   elevatorServo.write(s3_command_PWM);
@@ -611,7 +611,7 @@ void getIMUdata()
    * the readings. The filter parameters B_gyro and B_accel are set to be good for a 2kHz loop rate. Finally,
    * the constant errors found in calculate_IMU_error() on startup are subtracted from the accelerometer and gyro readings.
    */
-  int16_t AcX, AcY, AcZ, GyX, GyY, GyZ;//, MgX, MgY, MgZ;
+  int16_t AcX, AcY, AcZ, GyX, GyY, GyZ; //, MgX, MgY, MgZ;
 
 #if defined USE_MPU6050_I2C
   mpu6050.getMotion6(&AcX, &AcY, &AcZ, &GyX, &GyY, &GyZ);
@@ -656,23 +656,23 @@ void getIMUdata()
   GyroX_prev = GyroX;
   GyroY_prev = GyroY;
   GyroZ_prev = GyroZ;
-/*
-  // Magnetometer
-  MagX = MgX / 6.0; // uT
-  MagY = MgY / 6.0;
-  MagZ = MgZ / 6.0;
-  // Correct the outputs with the calculated error values
-  MagX = (MagX - MagErrorX) * MagScaleX;
-  MagY = (MagY - MagErrorY) * MagScaleY;
-  MagZ = (MagZ - MagErrorZ) * MagScaleZ;
-  // LP filter magnetometer data
-  MagX = (1.0 - B_mag) * MagX_prev + B_mag * MagX;
-  MagY = (1.0 - B_mag) * MagY_prev + B_mag * MagY;
-  MagZ = (1.0 - B_mag) * MagZ_prev + B_mag * MagZ;
-  MagX_prev = MagX;
-  MagY_prev = MagY;
-  MagZ_prev = MagZ;
-*/
+  /*
+    // Magnetometer
+    MagX = MgX / 6.0; // uT
+    MagY = MgY / 6.0;
+    MagZ = MgZ / 6.0;
+    // Correct the outputs with the calculated error values
+    MagX = (MagX - MagErrorX) * MagScaleX;
+    MagY = (MagY - MagErrorY) * MagScaleY;
+    MagZ = (MagZ - MagErrorZ) * MagScaleZ;
+    // LP filter magnetometer data
+    MagX = (1.0 - B_mag) * MagX_prev + B_mag * MagX;
+    MagY = (1.0 - B_mag) * MagY_prev + B_mag * MagY;
+    MagZ = (1.0 - B_mag) * MagZ_prev + B_mag * MagZ;
+    MagX_prev = MagX;
+    MagY_prev = MagY;
+    MagZ_prev = MagZ;
+  */
 }
 
 void calibrateAttitude()
@@ -913,12 +913,12 @@ void getDesState()
    * yaw_passthru variables, to be used in commanding motors/servos with direct unstabilized commands in controlMixer().
    */
   thro_des = (throttle_channel - 1000.0) / 1000.0; // Between 0 and 1
-  roll_des = (roll_channel - 1500.0) / 500.0;  // Between -1 and 1
-  pitch_des = (pitch_channel - 1500.0) / 500.0; // Between -1 and 1
-  yaw_des = (yaw_channel - 1500.0) / 500.0;   // Between -1 and 1
-  roll_passthru = roll_des / 2.0;               // Between -0.5 and 0.5
-  pitch_passthru = pitch_des / 2.0;             // Between -0.5 and 0.5
-  yaw_passthru = yaw_des / 2.0;                 // Between -0.5 and 0.5
+  roll_des = (roll_channel - 1500.0) / 500.0;      // Between -1 and 1
+  pitch_des = (pitch_channel - 1500.0) / 500.0;    // Between -1 and 1
+  yaw_des = (yaw_channel - 1500.0) / 500.0;        // Between -1 and 1
+  roll_passthru = roll_des / 2.0;                  // Between -0.5 and 0.5
+  pitch_passthru = pitch_des / 2.0;                // Between -0.5 and 0.5
+  yaw_passthru = yaw_des / 2.0;                    // Between -0.5 and 0.5
 
   // Constrain within normalized bounds
   thro_des = constrain(thro_des, 0.0, 1.0);               // Between 0 and 1
@@ -947,7 +947,52 @@ void controlANGLE()
   // Roll
   error_roll = roll_des - roll_IMU;
   integral_roll = integral_roll_prev + error_roll * dt;
-  if (throttle_channel < 1060)
+  integral_roll = constrain(integral_roll, -i_limit, i_limit); // Saturate integrator to prevent unsafe buildup
+  derivative_roll = GyroX;
+  roll_PID = 0.01 * (Kp_roll_angle * error_roll + Ki_roll_angle * integral_roll - Kd_roll_angle * derivative_roll); // Scaled by .01 to bring within -1 to 1 range
+
+  // Pitch
+  error_pitch = pitch_des - pitch_IMU;
+  integral_pitch = integral_pitch_prev + error_pitch * dt;
+  integral_pitch = constrain(integral_pitch, -i_limit, i_limit); // Saturate integrator to prevent unsafe buildup
+  derivative_pitch = GyroY;
+  pitch_PID = .01 * (Kp_pitch_angle * error_pitch + Ki_pitch_angle * integral_pitch - Kd_pitch_angle * derivative_pitch); // Scaled by .01 to bring within -1 to 1 range
+
+  // Yaw, stablize on rate from GyroZ
+  error_yaw = yaw_des - GyroZ;
+  integral_yaw = integral_yaw_prev + error_yaw * dt;
+  integral_yaw = constrain(integral_yaw, -i_limit, i_limit); // Saturate integrator to prevent unsafe buildup
+  derivative_yaw = (error_yaw - error_yaw_prev) / dt;
+  yaw_PID = .01 * (Kp_yaw * error_yaw + Ki_yaw * integral_yaw + Kd_yaw * derivative_yaw); // Scaled by .01 to bring within -1 to 1 range
+
+  // Update roll variables
+  integral_roll_prev = integral_roll;
+  // Update pitch variables
+  integral_pitch_prev = integral_pitch;
+  // Update yaw variables
+  error_yaw_prev = error_yaw;
+  integral_yaw_prev = integral_yaw;
+}
+
+/*
+void controlANGLEWithIntegralWindupPreventionNotUsedThough()
+{
+  // DESCRIPTION: Computes control commands based on state error (angle)
+  
+   * Basic PID control to stablize on angle setpoint based on desired states roll_des, pitch_des, and yaw_des computed in
+   * getDesState(). Error is simply the desired state minus the actual state (ex. roll_des - roll_IMU). Two safety features
+   * are implimented here regarding the I terms. The I terms are saturated within specified limits on startup to prevent
+   * excessive buildup. This can be seen by holding the vehicle at an angle and seeing the motors ramp up on one side until
+   * they've maxed out throttle...saturating I to a specified limit fixes this. The second feature defaults the I terms to 0
+   * if the throttle is at the minimum setting. This means the motors will not start spooling up on the ground, and the I
+   * terms will always start from 0 on takeoff. This function updates the variables roll_PID, pitch_PID, and yaw_PID which
+   * can be thought of as 1-D stablized signals. They are mixed to the configuration of the vehicle in controlMixer().
+   
+
+  // Roll
+  error_roll = roll_des - roll_IMU;
+  integral_roll = integral_roll_prev + error_roll * dt;
+  if (airspeed_adjusted < stall_speed)
   { // Don't let integrator build if throttle is too low
     integral_roll = 0;
   }
@@ -986,6 +1031,7 @@ void controlANGLE()
   integral_yaw_prev = integral_yaw;
 }
 
+*/
 void controlANGLE2()
 {
   // DESCRIPTION: Computes control commands based on state error (angle) in cascaded scheme
@@ -1286,7 +1332,7 @@ void commandMotors()
 
    * My crude implimentation of OneShot125 protocol which sends 125 - 250us pulses to the ESCs (mXPin). The pulselengths being
    * sent are mX_command_PWM, computed in scaleCommands(). This may be replaced by something more efficient in the future.
-   
+
   int wentLow = 0;
   int pulseStart, timer;
   int flagM1 = 0;
