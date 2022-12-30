@@ -210,7 +210,7 @@ unsigned long blink_counter, blink_delay;
 bool blinkAlternate;
 
 // Radio communication:
-unsigned long throttle_channel, roll_channel, pitch_channel, yaw_channel, mode1_channel, channel_6_pwm;
+unsigned long throttle_channel, roll_channel, pitch_channel, yaw_channel, mode1_channel, mode_2_channel;
 unsigned long channel_1_pwm_prev, channel_2_pwm_prev, channel_3_pwm_prev, channel_4_pwm_prev;
 
 // PWM stuff
@@ -340,7 +340,7 @@ void dRehmFlightSetup()
   pitch_channel = pitch_fs;
   yaw_channel = yaw_fs;
   mode1_channel = mode1_fs;
-  channel_6_pwm = channel_6_fs;
+  mode_2_channel = channel_6_fs;
 
   // Initialize IMU communication
   IMUinit();
@@ -1234,7 +1234,7 @@ void getCommands()
   pitch_channel = getRadioPWM(3);
   yaw_channel = getRadioPWM(4);
   mode1_channel = getRadioPWM(5);
-  channel_6_pwm = getRadioPWM(6);
+  mode_2_channel = getRadioPWM(6);
 
 #elif defined USE_SBUS_RX
   if (sbus.read(&sbusChannels[0], &sbusFailSafe, &sbusLostFrame))
@@ -1311,7 +1311,7 @@ void failSafe()
     check4 = 1;
   if (mode1_channel > maxVal || mode1_channel < minVal)
     check5 = 1;
-  if (channel_6_pwm > maxVal || channel_6_pwm < minVal)
+  if (mode_2_channel > maxVal || mode_2_channel < minVal)
     check6 = 1;
 
   // If any failures, set to default failsafe values
@@ -1322,7 +1322,7 @@ void failSafe()
     pitch_channel = pitch_fs;
     yaw_channel = yaw_fs;
     mode1_channel = mode1_fs;
-    channel_6_pwm = channel_6_fs;
+    mode_2_channel = channel_6_fs;
   }
 }
 /*
@@ -1689,7 +1689,7 @@ void printRadioData()
     Serial.print(F(" CH5: "));
     Serial.print(mode1_channel);
     Serial.print(F(" CH6: "));
-    Serial.println(channel_6_pwm);
+    Serial.println(mode_2_channel);
   }
 }
 
