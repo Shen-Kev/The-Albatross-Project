@@ -160,16 +160,12 @@ float KalmanFilter::estimate(float gyro[3], float accel[3], float deltat)
 
 // chatGPT coming in clutch
 
-// Sure! Here is the modified code that calculates the global horizontal acceleration instead of the global vertical acceleration:
-
-// The main difference between the modified code and the original code is that the modified code calculates the horizontal acceleration
-// using the cross product of the accelerometer measurement and the updated state (which is the estimated orientation of the system in
-// the Earth frame of reference), instead of the dot product used in the original code. The cross product yields a vector that is orthogonal
-//  to the plane formed by the two input vectors, so the result is a vector that lies in the horizontal plane. The magnitude of this vector
-//  is then calculated using the normVector function, which returns the Euclidean norm (i.e., the length) of the vector, and this magnitude
-// is returned as the horizontal acceleration estimate.
-
-float KalmanFilter::estimateHorizontal(float gyro[3], float accel[3], float deltat)
+/*
+In this version of the Kalman filter, the function calculates the global horizontal acceleration and orientation in the horizontal plane and returns them as output arguments accelHorizontal and accelOrientation, respectively.
+The global horizontal acceleration is calculated in the same way as in the previous version of the code, by taking the cross product of the accelerometer measurement and the updated state and then calculating the magnitude of the resulting vector using the normVector function.
+The orientation in the horizontal plane is calculated using the atan2 function, which returns the angle in the range [-pi, pi] (in radians) between the positive x-axis and the point (accelEarth[0], accelEarth[1]) in the Cartesian plane. This angle corresponds to the orientation of the horizontal acceleration vector in the horizontal plane.
+*/
+void KalmanFilter::estimateHorizontal(float gyro[3], float accel[3], float deltat, float& accelHorizontal, float& accelOrientation)
 {
     float predictedState[3];
     float updatedState[3];
@@ -179,7 +175,6 @@ float KalmanFilter::estimateHorizontal(float gyro[3], float accel[3], float delt
     float accelSensor[3];
     float tmp[3];
     float accelEarth[3];
-    float accelHorizontal;
     scaleVector(accel, 9.81, accel); // Scale accel readings since they are measured in gs
     // perform estimation
     // predictions
@@ -192,13 +187,13 @@ float KalmanFilter::estimateHorizontal(float gyro[3], float accel[3], float delt
     // Store required values for next iteration
     copyVector(currentState, updatedState);
     copyMatrix3x3(currErrorCovariance, updatedErrorCovariance);
-    // return horizontal acceleration estimate
+    // return horizontal acceleration and orientation
     scaleVector(tmp, 9.81, updatedState);
     subtractVectors(accelSensor, accel, tmp);
     copyVector(previousAccelSensor, accelSensor);
     crossProductVectors(accelEarth, accelSensor, updatedState);
     accelHorizontal = normVector(accelEarth);
-    return accelHorizontal;
+    accelOrientation = atan2(accelEarth[1], accelEarth[0]);
 }
 float normVector(float vec[3])
 {

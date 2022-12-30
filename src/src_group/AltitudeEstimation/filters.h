@@ -37,8 +37,8 @@ private:
 
 public:
   KalmanFilter(float ca, float sigmaGyro, float sigmaAccel);
-  
-  float estimateHorizontal(float gyro[3], float accel[3], float deltat);
+
+  void estimateHorizontal(float gyro[3], float accel[3], float deltat,float& accelHorizontal, float& accelOrientation);
   float estimate(float gyro[3], float accel[3], float deltat);
 
 }; // Class KalmanFilter

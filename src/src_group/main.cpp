@@ -711,13 +711,18 @@ void horizontal()
     //Use Kalman Filter libary to estimate horizontal velocity. Will need to test which horizontal it is, and if it needs to be rotated. 
     float accelData[3] = {AccX, AccY, AccZ};
     float gyroData[3] = {GyroX * DEG_TO_RAD, GyroY * DEG_TO_RAD, GyroZ * DEG_TO_RAD};
-    DS_horizontal_accel = kalmanHoriz.estimate(accelData, gyroData, dt);
+    float horizontal_acceleration_magnitude_any_direction;
+    float angle_of_horizontal_acceleration;
+    kalmanHoriz.estimateHorizontal(accelData, gyroData, dt, horizontal_acceleration_magnitude_any_direction,angle_of_horizontal_acceleration);
 
+    //Calculate horizontal accel perpendicular to the DS flight path, assumed to be directly into the wind and assumed to be 0 degrees yaw angle relative to staring position
+    DS_horizontal_accel = cos(angle_of_horizontal_acceleration)*horizontal_acceleration_magnitude_any_direction;
     // integrate to get horizontal velocity:
-    // uncomment one at a time:
-    DS_horizontal_vel += DS_horizontal_accel * dt; // direct
+    DS_horizontal_vel += DS_horizontal_accel * dt;
     DS_horizontal_pos += DS_horizontal_vel * dt;
-    // Integrate velocity and position using the Runge-Kutta method
+
+
+    // Integrate velocity and position using the Runge-Kutta method NOT USED RIGHT NOW
     /*
         k1_vel = DS_horizontal_accel * dt;
         k1_pos = DS_horizontal_vel * dt;
