@@ -2,7 +2,7 @@
    filters.cpp: Filter class implementations
  */
 
-//#include <cmath>
+// #include <cmath>
 #include <stdlib.h> // XXX eventually use fabs() instead of abs() ?
 
 #include "filters.h"
@@ -32,8 +32,8 @@ void KalmanFilter::getMeasurementCovariance(float covariance[3][3])
     float norm;
     // Compute measurement covariance
     scaleMatrix3x3(sigma, pow(sigmaAccel, 2), identity);
-    vectorLength(& norm, previousAccelSensor);
-    scaleAndAccumulateMatrix3x3(sigma, (1.0/3.0)*pow(ca, 2)*norm, identity);
+    vectorLength(&norm, previousAccelSensor);
+    scaleAndAccumulateMatrix3x3(sigma, (1.0 / 3.0) * pow(ca, 2) * norm, identity);
     copyMatrix3x3(covariance, sigma);
 }
 
@@ -121,7 +121,6 @@ void KalmanFilter::updateErrorCovariance(float covariance[3][3], float errorCova
     copyMatrix3x3(covariance, tmp2);
 }
 
-
 KalmanFilter::KalmanFilter(float ca, float sigmaGyro, float sigmaAccel)
 {
     this->ca = ca;
@@ -155,10 +154,56 @@ float KalmanFilter::estimate(float gyro[3], float accel[3], float deltat)
     scaleVector(tmp, 9.81, updatedState);
     subtractVectors(accelSensor, accel, tmp);
     copyVector(previousAccelSensor, accelSensor);
-    dotProductVectors(& accelEarth, accelSensor, updatedState);
+    dotProductVectors(&accelEarth, accelSensor, updatedState);
     return accelEarth;
 }
 
+// chatGPT coming in clutch
+
+// Sure! Here is the modified code that calculates the global horizontal acceleration instead of the global vertical acceleration:
+
+// The main difference between the modified code and the original code is that the modified code calculates the horizontal acceleration
+// using the cross product of the accelerometer measurement and the updated state (which is the estimated orientation of the system in
+// the Earth frame of reference), instead of the dot product used in the original code. The cross product yields a vector that is orthogonal
+//  to the plane formed by the two input vectors, so the result is a vector that lies in the horizontal plane. The magnitude of this vector
+//  is then calculated using the normVector function, which returns the Euclidean norm (i.e., the length) of the vector, and this magnitude
+// is returned as the horizontal acceleration estimate.
+
+float KalmanFilter::estimateHorizontal(float gyro[3], float accel[3], float deltat)
+{
+    float predictedState[3];
+    float updatedState[3];
+    float errorCovariance[3][3];
+    float updatedErrorCovariance[3][3];
+    float gain[3][3];
+    float accelSensor[3];
+    float tmp[3];
+    float accelEarth[3];
+    float accelHorizontal;
+    scaleVector(accel, 9.81, accel); // Scale accel readings since they are measured in gs
+    // perform estimation
+    // predictions
+    predictState(predictedState, gyro, deltat);
+    predictErrorCovariance(errorCovariance, gyro, deltat);
+    // updates
+    updateGain(gain, errorCovariance);
+    updateState(updatedState, predictedState, gain, accel);
+    updateErrorCovariance(updatedErrorCovariance, errorCovariance, gain);
+    // Store required values for next iteration
+    copyVector(currentState, updatedState);
+    copyMatrix3x3(currErrorCovariance, updatedErrorCovariance);
+    // return horizontal acceleration estimate
+    scaleVector(tmp, 9.81, updatedState);
+    subtractVectors(accelSensor, accel, tmp);
+    copyVector(previousAccelSensor, accelSensor);
+    crossProductVectors(accelEarth, accelSensor, updatedState);
+    accelHorizontal = normVector(accelEarth);
+    return accelHorizontal;
+}
+float normVector(float vec[3])
+{
+    return sqrt(vec[0] * vec[0] + vec[1] * vec[1] + vec[2] * vec[2]);
+}
 
 float ComplementaryFilter::ApplyZUPT(float accel, float vel)
 {
@@ -168,12 +213,13 @@ float ComplementaryFilter::ApplyZUPT(float accel, float vel)
     uint8_t nextIndex = (ZUPTIdx + 1) % ZUPT_SIZE;
     ZUPTIdx = nextIndex;
     // Apply Zero-velocity update
-    for (uint8_t k = 0; k < ZUPT_SIZE; ++k) {
-        if (abs(ZUPT[k]) > accelThreshold) return vel;
+    for (uint8_t k = 0; k < ZUPT_SIZE; ++k)
+    {
+        if (abs(ZUPT[k]) > accelThreshold)
+            return vel;
     }
     return 0.0;
 }
-
 
 ComplementaryFilter::ComplementaryFilter(float sigmaAccel, float sigmaBaro, float accelThreshold)
 {
@@ -185,18 +231,19 @@ ComplementaryFilter::ComplementaryFilter(float sigmaAccel, float sigmaBaro, floa
     this->accelThreshold = accelThreshold;
     // initialize zero-velocity update
     ZUPTIdx = 0;
-    for (uint8_t k = 0; k < ZUPT_SIZE; ++k) {
+    for (uint8_t k = 0; k < ZUPT_SIZE; ++k)
+    {
         ZUPT[k] = 0;
     }
 }
 
-void ComplementaryFilter::estimate(float * velocity, float * altitude, float baroAltitude,
-        float pastAltitude, float pastVelocity, float accel, float deltat)
+void ComplementaryFilter::estimate(float *velocity, float *altitude, float baroAltitude,
+                                   float pastAltitude, float pastVelocity, float accel, float deltat)
 {
     // Apply complementary filter
-    *altitude = pastAltitude + deltat*(pastVelocity + (gain[0] + gain[1]*deltat/2)*(baroAltitude-pastAltitude))+
-        accel*pow(deltat, 2)/2;
-    *velocity = pastVelocity + deltat*(gain[1]*(baroAltitude-pastAltitude) + accel);
+    *altitude = pastAltitude + deltat * (pastVelocity + (gain[0] + gain[1] * deltat / 2) * (baroAltitude - pastAltitude)) +
+                accel * pow(deltat, 2) / 2;
+    *velocity = pastVelocity + deltat * (gain[1] * (baroAltitude - pastAltitude) + accel);
     // Compute zero-velocity update
     *velocity = ApplyZUPT(accel, *velocity);
 }

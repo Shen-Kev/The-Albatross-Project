@@ -218,13 +218,9 @@ float pitch_IMU_rad, roll_IMU_rad, yaw_IMU_rad;
 // float k1_vel, k1_pos, k2_vel, k2_pos, k3_vel, k3_pos, k4_vel, k4_pos;
 
 // Program Objects
-Adafruit_BMP085 bmp; // Object to interface with the BMP180 barometric pressure sensor
-File dataFile;       // Object to interface with the microSD card
-
-// KalmanFilter kalmanHoriz; // Kalman filter for the horizontal
-
-// float pastHorizGyro[3];
-// float pastHorizAccel[3];
+Adafruit_BMP085 bmp;      // Object to interface with the BMP180 barometric pressure sensor
+File dataFile;            // Object to interface with the microSD card
+KalmanFilter kalmanHoriz; // Kalman filter for the horizontal
 
 // Data logging variables
 const int COLUMNS = 12;            // Columns in the datalog array
@@ -712,37 +708,10 @@ void throttleController()
 void horizontal()
 {
 
-    // OKAY THIS FUNCTION IS IDK WHATS GOING ON, DSOUHFOSDHFOUSDHF, FIGURE THIS OUT
-
-    // ACTUALLY CHANGE THIS TO USE THE ALTITUDE ESTIMTION, BUT JUST FEED IT THE SIDEWAYS FORCE AS THE UPWARDS FORCE, ESSENTIALLY ROTATING IT, AND HAVE IT PREDCIT ALTITUDE WHICH IS ACTUALLY THE HORIZONTAL MOTION, SOMEHOW REMOVE OR SHIFT THE GRAVITY COMPONENT TO THE OTHER AXIS  AND MAKE A NEW FUNCTION LIKE THE ESTIMATE THAT DOESN"T TAKE INTO ACCOUNT ANOTHER SENSOR.. MAYBE NOT KALMAN THEN??
-    // float horizGyro[3] = {GyroX, GyroZ-9.81, GyroY+9.81}; //Swap Z and Y, resulting in the vertical calulator calculating the horizontal? actually but then how do i tell wheich direction DS is/??
-    // float horizAccel[3] = {AccX, AccZ-9.81, AccY+9.81};
-    // DS_horizontal_accel = kalmanHoriz.estimate(pastHorizGyro, pastHorizAccel, dt);
-    // copyVector(pastHorizGyro, horizGyro);
-    // copyVector(pastHorizAccel, horizAccel);
-
-    /*
-        // create rotation matrix
-
-        double DSrotationMatrix[3][3] = {
-            {cos(pitch_IMU_rad) * cos(yaw_IMU_rad), -sin(roll_IMU_rad) * sin(pitch_IMU_rad) * cos(yaw_IMU_rad) + cos(roll_IMU_rad) * sin(yaw_IMU_rad), sin(roll_IMU_rad) * sin(yaw_IMU_rad) + cos(roll_IMU_rad) * sin(pitch_IMU_rad) * cos(yaw_IMU_rad)},
-            {cos(pitch_IMU_rad) * sin(yaw_IMU_rad), cos(roll_IMU_rad) * cos(yaw_IMU_rad) + sin(roll_IMU_rad) * sin(pitch_IMU_rad) * sin(yaw_IMU_rad), -sin(roll_IMU_rad) * cos(yaw_IMU_rad) + cos(roll_IMU_rad) * sin(pitch_IMU_rad) * sin(yaw_IMU_rad)},
-            {-sin(pitch_IMU_rad), sin(roll_IMU_rad) * cos(pitch_IMU_rad), cos(roll_IMU_rad) * cos(pitch_IMU_rad)}};
-        // convert acceleration to global frame (centered on the DS path)
-        float DSglobalAccel[3]; // Global accelerations
-        // Transform local accelerations to global coordinates
-        for (int i = 0; i < 3; i++)
-        {
-            DSglobalAccel[i] = 0;
-            for (int j = 0; j < 3; j++)
-            {
-                DSglobalAccel[i] += DSrotationMatrix[i][j] * ((i == 0) ? AccX : ((i == 1) ? AccY : AccZ));
-            }
-        }
-
-        // a_global[0] is the acceleration along the global pitch axis
-        DS_horizontal_accel = DSglobalAccel[0];
-    */
+    //Use Kalman Filter libary to estimate horizontal velocity. Will need to test which horizontal it is, and if it needs to be rotated. 
+    float accelData[3] = {AccX, AccY, AccZ};
+    float gyroData[3] = {GyroX * DEG_TO_RAD, GyroY * DEG_TO_RAD, GyroZ * DEG_TO_RAD};
+    DS_horizontal_accel = kalmanHoriz.estimate(accelData, gyroData, dt);
 
     // integrate to get horizontal velocity:
     // uncomment one at a time:
