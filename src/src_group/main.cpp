@@ -63,6 +63,7 @@
 #define SERIAL_CONNECTED TRUE
 #define DATALOG TRUE
 #define MOTOR_ACTIVE FALSE
+#define TEST_SETUP_LOOP TRUE
 
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
 // PROGRAM VARIABLES AND OBJECTS
@@ -261,6 +262,75 @@ void setupSD();
 void writeDataToSD();
 
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
+// DEBUG SETUP + LOOP
+#if TEST_SETUP_LOOP
+void setup()
+{
+
+#if SERIAL_CONNECTED
+    Serial.begin(500000); // Begin serial communication with computer via USB
+#elif
+    delay(20 * 1000); // Delay to have enough time to push reset, close hatch, and place UAV flat on the ground and into the wind
+#endif
+
+    pinMode(13, OUTPUT); // LED on the Teensy 4.1 set to output
+
+    // Attach actuators to PWM pins
+    ESC.attach(ESCpin, 900, 2100);
+    aileronServo.attach(aileronServoPin, 900, 2100);
+    elevatorServo.attach(elevatorServoPin, 900, 2100);
+    rudderServo.attach(rudderServoPin, 900, 2100);
+    gimbalServo.attach(gimbal1ServoPin, 900, 2100);
+
+    delay(100);
+
+#if DATALOG
+    setupSD(); // microSD card read/write unit
+#endif
+
+    // Set R/c reciever channels to failsafe values
+    throttle_channel = throttle_fs;
+    roll_channel = roll_fs;
+    pitch_channel = pitch_fs;
+    yaw_channel = yaw_fs;
+    mode1_channel = mode1_fs;
+
+    delay(100);
+
+    delay(100);
+
+}
+
+void loop()
+{
+
+    // Timing
+    prev_time = current_time;
+    current_time = micros();
+    dt = (current_time - prev_time) / 1000000.0; // Time between loop iterations, in seconds
+    timeInMillis = millis();
+
+    if (loopCounter > (2000 / datalogRate))
+    {
+
+         writeDataToSD();
+        //dataFile = SD.open("flightData.txt", FILE_WRITE);
+      //  dataFile.println(timeInMillis);
+
+        loopCounter = 0;
+    }
+    else
+    {
+        loopCounter++;
+    }
+    Serial.println(dt * 1000000);
+    //  Regulate loop rate
+    loopBlink();    // Blink every 1.5 seconds to indicate main loop
+    loopRate(2000); // Loop runs at 2000 Hz
+}
+
+#else
+// ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
 // MICROCONTROLLER SETUP
 
 void setup()
@@ -290,7 +360,7 @@ void setup()
     VL53L1Xsetup();        // ToF sensor init
     pitotSetup();          // Airspeed sensor init and calibrate
 #if DATALOG
-    setupSD(); // microSD card read/write unit
+    setupSD();             // microSD card read/write unit
 #endif
 
     // Set R/c reciever channels to failsafe values
@@ -317,7 +387,7 @@ void setup()
 }
 
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
-// MICROCONTROLLER LOOP
+// MICROCONTROLLER LOOPS
 
 void loop()
 {
@@ -410,9 +480,9 @@ void loop()
         DSifFirstRun = false; // False after the first loop
     }
 
-    scaleCommands(); // Scales commands to values that the servo and ESC can understand
+    scaleCommands();                     // Scales commands to values that the servo and ESC can understand
 #if MOTOR_ACTIVE
-    ESC.write(s1_command_PWM); // ESC active
+    ESC.write(s1_command_PWM);           // ESC active
 #else
     ESC.write(-100);  // ESC inactive
 #endif
@@ -438,6 +508,7 @@ void loop()
     loopBlink();    // Blink every 1.5 seconds to indicate main loop
     loopRate(2000); // Loop runs at 2000 Hz
 }
+#endif
 
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
 // DYNAMIC SOARING CONTROLLER FUNCTIONS
@@ -869,83 +940,132 @@ void writeDataToSD()
 {
     dataFile = SD.open("flightData.txt", FILE_WRITE);
 
-    // Time
-    dataFile.print(timeInMillis + ',');
+    // Time: column 0
+    dataFile.print(timeInMillis);
+    dataFile.print(",");
 
-    // Pilot command
-    dataFile.print(throttle_channel + ',');
-    dataFile.print(roll_channel + ',');
-    dataFile.print(pitch_channel + ',');
-    dataFile.print(yaw_channel + ',');
-    dataFile.print(flight_mode + ',');
+    // Pilot command: start column 1
+    dataFile.print(throttle_channel);
+    dataFile.print(",");
+    dataFile.print(roll_channel);
+    dataFile.print(",");
+    dataFile.print(pitch_channel);
+    dataFile.print(",");
+    dataFile.print(yaw_channel);
+    dataFile.print(",");
+    dataFile.print(flight_mode);
+    dataFile.print(",");
 
-    // Setpoints
-    dataFile.print(airspeed_setpoint + ',');
-    dataFile.print(DS_altitude_setpoint + ',');
-    dataFile.print(DS_horizontal_setpoint + ',');
-    dataFile.print(horiz_setpoint_type + ',');
-    dataFile.print(rudderCoordinatedCommand + ',');
+    // Setpoints: start column 6
+    dataFile.print(airspeed_setpoint);
+    dataFile.print(",");
+    dataFile.print(DS_altitude_setpoint);
+    dataFile.print(",");
+    dataFile.print(DS_horizontal_setpoint);
+    dataFile.print(",");
+    dataFile.print(horiz_setpoint_type);
+    dataFile.print(",");
+    dataFile.print(rudderCoordinatedCommand);
+    dataFile.print(",");
 
-    // Altitude variables
-    dataFile.print(altitude_baro + ',');
-    dataFile.print(leftWingtipAltitude + ',');
-    dataFile.print(rightWingtipAltitude + ',');
-    dataFile.print(estimated_altitude + ',');
-    dataFile.print(altitudeTypeDataLog + ',');
-    dataFile.print(ToFaltitude + ',');
+    // Altitude variables: start column 11
+    dataFile.print(altitude_baro);
+    dataFile.print(",");
+    dataFile.print(leftWingtipAltitude);
+    dataFile.print(",");
+    dataFile.print(rightWingtipAltitude);
+    dataFile.print(",");
+    dataFile.print(estimated_altitude);
+    dataFile.print(",");
+    dataFile.print(altitudeTypeDataLog);
+    dataFile.print(",");
+    dataFile.print(ToFaltitude);
+    dataFile.print(",");
 
-    // Airspeed
-    dataFile.print(airspeed_adjusted + ',');
+    // Airspeed: column 17
+    dataFile.print(airspeed_adjusted);
+    dataFile.print(",");
 
-    // Orientation
-    dataFile.print(roll_IMU + ',');
-    dataFile.print(pitch_IMU + ',');
-    dataFile.print(yaw_IMU + ',');
+    // Orientation: start column 18
+    dataFile.print(roll_IMU);
+    dataFile.print(",");
+    dataFile.print(pitch_IMU);
+    dataFile.print(",");
+    dataFile.print(yaw_IMU);
+    dataFile.print(",");
 
-    //Global horizontal motion
-    dataFile.print(DS_horizontal_accel + ',');
-    dataFile.print(DS_horizontal_vel + ',');
-    dataFile.print(DS_horizontal_pos + ',');
+    // Global horizontal motion: start column 21
+    dataFile.print(DS_horizontal_accel);
+    dataFile.print(",");
+    dataFile.print(DS_horizontal_vel);
+    dataFile.print(",");
+    dataFile.print(DS_horizontal_pos);
+    dataFile.print(",");
 
-    // Booleans and enums
-    dataFile.print(motorOn + ',');
-    dataFile.print(DSifFirstRun + ',');
-    dataFile.print(DS_phase + ',');
+    // Booleans and enums: start column 24
+    dataFile.print(motorOn);
+    dataFile.print(",");
+    dataFile.print(DSifFirstRun);
+    dataFile.print(",");
+    dataFile.print(DS_phase);
+    dataFile.print(",");
 
-    // PID values
-    dataFile.print(airspeed_error + ',');
-    dataFile.print(throttle_integral + ',');
-    dataFile.print(throttle_derivative + ',');
+    // PID values: start column 27
+    dataFile.print(airspeed_error);
+    dataFile.print(",");
+    dataFile.print(throttle_integral);
+    dataFile.print(",");
+    dataFile.print(throttle_derivative);
+    dataFile.print(",");
 
-    dataFile.print(error_roll + ',');
-    dataFile.print(integral_roll + ',');
-    dataFile.print(derivative_roll + ',');
+    dataFile.print(error_roll);
+    dataFile.print(",");
+    dataFile.print(integral_roll);
+    dataFile.print(",");
+    dataFile.print(derivative_roll);
+    dataFile.print(",");
 
-    dataFile.print(error_pitch + ',');
-    dataFile.print(integral_pitch + ',');
+    dataFile.print(error_pitch);
+    dataFile.print(",");
+    dataFile.print(integral_pitch);
+    dataFile.print(",");
     dataFile.print(derivative_pitch);
+    dataFile.print(",");
 
-    dataFile.print(DS_altitude_error + ',');
-    dataFile.print(altitude_integral + ',');
-    dataFile.print(altitude_derivative + ',');
+    dataFile.print(DS_altitude_error);
+    dataFile.print(",");
+    dataFile.print(altitude_integral);
+    dataFile.print(",");
+    dataFile.print(altitude_derivative);
+    dataFile.print(",");
 
-    dataFile.print(DS_horizontal_accel_error + ',');
-    dataFile.print(DS_horizontal_vel_error + ',');
-    dataFile.print(horiz_vel_integral + ',');
+    dataFile.print(DS_horizontal_accel_error);
+    dataFile.print(",");
+    dataFile.print(DS_horizontal_vel_error);
+    dataFile.print(",");
+    dataFile.print(horiz_vel_integral);
+    dataFile.print(",");
 
-    dataFile.print(acceleration_downwards_magnitude + ',');
-    dataFile.print(acceleration_downwards_angle + ',');
-    dataFile.print(coord_integral + ',');
-    dataFile.print(coord_derivative + ',');
+    dataFile.print(acceleration_downwards_magnitude);
+    dataFile.print(",");
+    dataFile.print(acceleration_downwards_angle);
+    dataFile.print(",");
+    dataFile.print(coord_integral);
+    dataFile.print(",");
+    dataFile.print(coord_derivative);
+    dataFile.print(",");
 
-    // Servo outputs
-    dataFile.print(s1_command_PWM + ',');
-    dataFile.print(s2_command_PWM + ',');
-    dataFile.print(s3_command_PWM + ',');
-    dataFile.print(s4_command_PWM + ',');
-    dataFile.print(s5_command_PWM + ',');
+    // Servo outputs: start column 46
+    dataFile.print(s1_command_PWM);
+    dataFile.print(",");
+    dataFile.print(s2_command_PWM);
+    dataFile.print(",");
+    dataFile.print(s3_command_PWM);
+    dataFile.print(",");
+    dataFile.print(s4_command_PWM);
+    dataFile.print(",");
+    dataFile.print(s5_command_PWM);
 
-    dataFile.print('\n');
+    dataFile.println();
 
-    dataFile.close();
 }

@@ -1,5 +1,7 @@
 import csv
 
+# this file has been mostly unmodified from template, will need to edit
+
 # Set the name of the input and output files
 input_file = "flight_data/flight_data_example.csv" #import the flight data into VS code, and specify the file path in this folder
 output_file = "flight_data/flight_data_example_filtered.csv"
