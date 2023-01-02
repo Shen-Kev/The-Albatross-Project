@@ -547,6 +547,7 @@ void loop()
     // use serial to get input. MAKE SURE USING "NO LINE ENDING" OPTION ON THE SERIAL MONITOR DROPDOWN
 
     // write the axis(r or p) LOWERCASE then gain (P, I, D) UPPERCASE
+    // axis of A means input real airspeed
 
     char axis = Serial.read();
     char gain = Serial.read();
@@ -582,6 +583,17 @@ void loop()
             {
                 Kd_pitch_angle = Serial.parseFloat();
             }
+        }
+        else if (axis = 'A')
+        {
+            dataFile = SD.open("airspeed.txt", FILE_WRITE);
+            dataFile.print("real airspeed inputted\t");
+            dataFile.print(Serial.parseFloat());
+            dataFile.print("\tcurrent measured unadusted airspeed\t");
+            dataFile.print(airspeed_unadjusted);
+            dataFile.print("\tcurrent measured adusted airspeed\t");
+            dataFile.print(airspeed_adjusted);
+            Serial.println("airspeed recorded");
         }
     }
 
@@ -622,7 +634,11 @@ void loop()
     s3_command_scaled = pitch_PID; // Between -1 and 1
     s4_command_scaled = 0;
 
-    Serial.print("roll setpoint\t");
+    Serial.print("airspeed undjusted\t");
+    Serial.print(airspeed_unadjusted);
+    Serial.print("\tairspeed adjusted\t");
+    Serial.print(airspeed_adjusted);
+    Serial.print("\troll setpoint\t");
     Serial.print(roll_des);
     Serial.print("roll command\t");
     Serial.print(s2_command_PWM);
@@ -630,12 +646,12 @@ void loop()
     Serial.print(Kp_roll_angle);
     Serial.print("\troll I gain \t");
     Serial.print(Ki_roll_angle);
-    Serial.print("\troll I val \t");
-    Serial.print(integral_roll);
+    //  Serial.print("\troll I val \t");
+    //  Serial.print(integral_roll);
     Serial.print("\troll D gain\t");
     Serial.print(Kd_roll_angle);
-    Serial.print("\troll D val\t");
-    Serial.print(derivative_roll);
+    //  Serial.print("\troll D val\t");
+    //  Serial.print(derivative_roll);
     Serial.print("\troll setpoint\t");
     Serial.print(roll_des);
     Serial.print("\tpitch command\t");
@@ -644,12 +660,12 @@ void loop()
     Serial.print(Kp_pitch_angle);
     Serial.print("\tpitch I gain \t");
     Serial.print(Ki_pitch_angle);
-    Serial.print("\tpitch I val \t");
-    Serial.print(integral_pitch);
+    //   Serial.print("\tpitch I val \t");
+    //   Serial.print(integral_pitch);
     Serial.print("\tpitch D gain\t");
     Serial.print(Kd_pitch_angle);
-    Serial.print("\troll D val\t");
-    Serial.print(derivative_pitch);
+    //  Serial.print("\troll D val\t");
+    // Serial.print(derivative_pitch);
     Serial.println();
 
     // write the most recent PID values
@@ -690,12 +706,12 @@ void loop()
     Serial.print("\tKalman altitude\t");
     Serial.print(altitudeLPbaro.getAltitude());
     Serial.print("\tleft wingtip altitude\t");
-    Seiral.print(leftWingtipAltitude)
-        Serial.print("\tright wingtip altitude\t");
+    Seiral.print(leftWingtipAltitude);
+    Serial.print("\tright wingtip altitude\t");
     Seiral.print(rightWingtipAltitude);
     Serial.print("\testimated altitude\t");
-    Seiral.print(estimated_altitude)
-        Serial.print("\taltitudeTypeDataLog \t");
+    Seiral.print(estimated_altitude);
+    Serial.print("\taltitudeTypeDataLog \t");
     Seiral.print(altitudeTypeDataLog);
 #elif TEST_HORIZONTAL_MOTION
 
@@ -706,12 +722,12 @@ void loop()
     Serial.print(AccY);
     Serial.print("\tAccZ\t");
     Serial.print(AccZ);
-    Serial.print("\thorizontal accel:\t")
-        Serial.print(DS_horizontal_accel);
-    Serial.print("\thorizontal vel:\t")
-        Serial.print(DS_horizontal_accel);
-    Serial.print("\thorizontal pos:\t")
-        Serial.print(DS_horizontal_pos);
+    Serial.print("\thorizontal accel:\t");
+    Serial.print(DS_horizontal_accel);
+    Serial.print("\thorizontal vel:\t");
+    Serial.print(DS_horizontal_accel);
+    Serial.print("\thorizontal pos:\t");
+    Serial.print(DS_horizontal_pos);
 
 #else
 
