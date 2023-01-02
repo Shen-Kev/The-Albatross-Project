@@ -906,12 +906,13 @@ void dynamicSoar()
     case DS_phase_0:
         // Phase 0 autonomously flies the UAV to be ready for dynamic soaring, but does not actually dynamic soar.
         // To safely activate the dynamic soaring cycle, the UAV must meet the following conditions, and the rest of DS Phase 0 is trying to meet these conditions.
-        if (yaw_IMU < DS_heading - heading_setup_tolerance || yaw_IMU > DS_heading + heading_setup_tolerance // The UAV must be flying at the DS heading (within a tolerance), perpendicular to the wind, flying right (just using the IMU for yaw for now. If compass implemented, then the best estimate for heading will be used)
-            || abs(GyroZ) > heading_rate_of_change_setup_tolerance                                           // The UAV must not be changing yaw direciton (within a tolerance)
-            || abs(DS_altitude_error) > DS_altitude_tolerance                                                // The UAV must be within the tolerance for terrain following altitude
-            || abs(GyroY) > pitch_rate_of_change_setup_tolerance                                             // The UAV must not be chaning pitch (within a tolerance)
+        //Some conditions have been limited for reliability. Also, this is assuming that the low altitude is in range of the ToF sensor, or it will not DS at the right altitude.
+        if (//yaw_IMU < DS_heading - heading_setup_tolerance || yaw_IMU > DS_heading + heading_setup_tolerance // The UAV must be flying at the DS heading (within a tolerance), perpendicular to the wind, flying right (just using the IMU for yaw for now. If compass implemented, then the best estimate for heading will be used)
+            //|| abs(GyroZ) > heading_rate_of_change_setup_tolerance                                           // The UAV must not be changing yaw direciton (within a tolerance)
+            abs(DS_altitude_error) > DS_altitude_tolerance                                                // The UAV must be within the tolerance for terrain following altitude
+            //|| abs(GyroY) > pitch_rate_of_change_setup_tolerance                                             // The UAV must not be chaning pitch (within a tolerance)
             || abs(DS_horizontal_vel) > horizontal_vel_tolerance                                             // The UAV must not be moving horizontally (within a tolerance)
-            || abs(airspeed_error) > airspeed_error_tolerance)                                               // The AUV must not be moving too fast or too slow (within a tolerance)
+            || abs(airspeed_error) > airspeed_error_tolerance)                                               // The UAV must not be moving too fast or too slow (within a tolerance)
         {
             // Ground following setpoints in DS Phase 0
             DS_altitude_setpoint = DS_altitude_terrain_following;          // Fly below the wind shear layer
