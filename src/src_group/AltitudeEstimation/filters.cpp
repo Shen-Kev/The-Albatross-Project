@@ -160,11 +160,10 @@ float KalmanFilter::estimate(float gyro[3], float accel[3], float deltat)
 
 // chatGPT coming in clutch
 
-/*
-In this version of the Kalman filter, the function calculates the global horizontal acceleration and orientation in the horizontal plane and returns them as output arguments accelHorizontal and accelOrientation, respectively.
-The global horizontal acceleration is calculated in the same way as in the previous version of the code, by taking the cross product of the accelerometer measurement and the updated state and then calculating the magnitude of the resulting vector using the normVector function.
-The orientation in the horizontal plane is calculated using the atan2 function, which returns the angle in the range [-pi, pi] (in radians) between the positive x-axis and the point (accelEarth[0], accelEarth[1]) in the Cartesian plane. This angle corresponds to the orientation of the horizontal acceleration vector in the horizontal plane.
-*/
+float normVector(float vec[3])
+{
+    return sqrt(vec[0]*vec[0] + vec[1]*vec[1] + vec[2]*vec[2]);
+}
 void KalmanFilter::estimateHorizontal(float gyro[3], float accel[3], float deltat, float& accelHorizontal, float& accelOrientation)
 {
     float predictedState[3];
@@ -195,10 +194,7 @@ void KalmanFilter::estimateHorizontal(float gyro[3], float accel[3], float delta
     accelHorizontal = normVector(accelEarth);
     accelOrientation = atan2(accelEarth[1], accelEarth[0]);
 }
-float normVector(float vec[3])
-{
-    return sqrt(vec[0] * vec[0] + vec[1] * vec[1] + vec[2] * vec[2]);
-}
+
 
 float ComplementaryFilter::ApplyZUPT(float accel, float vel)
 {

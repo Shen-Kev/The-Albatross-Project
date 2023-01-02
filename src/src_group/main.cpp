@@ -29,6 +29,7 @@
                                          // Sensor originally meant to work with Ardupilot flight computers, and thus needed to be experimentally tuned
 #include <SD.h>                          // Library to read and write to the microSD card port
 #include "AltitudeEstimation/altitude.h" // Library to combine barometric sensor and IMU in a two step Kalman-Complementary filter to estimate altitude
+// #include "AltitudeEstimation/filters.cpp"
 
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
 // FLIGHT COMPUTER SPECS AND PINOUT (edited on dRehmFlight.h)
@@ -58,11 +59,42 @@
  * Gimbal servo 2: D29
  */
 
+// THINGS TO DO:
+// finish implementing test programs
+// for the test program for PID, figure out how to change pid values using serial monitor
+// find what data visualization program BPS uses or how to make it fancy
+// edit csv data analyzing tool in python
+// tune values that need to be tuned (also in drehmflight)
+// get compass working if needed
+// test electronics with waterproofing, and in rigs, and in flight
+
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
 // DEBUG AND TESTING #IFS
-#define SERIAL_CONNECTED TRUE
-#define DATALOG TRUE
+
+// Throttle cut for safety:
 #define MOTOR_ACTIVE FALSE
+
+// Set only one of the below to TRURE to test. If all are false it runs the standard setup and loop. Can use this to test all systems, and also test flight mode 1 and 2 (servos, ESC, radio, PID, coordinated turns)
+
+// Basic, individual systems ground test programs (with serial connection). Mostly for troubleshooting individual components
+#define TEST_TOF FALSE      // Time of flight sensor test
+#define TEST_AIRSPEED FALSE // Airspeed sensor test
+#define TEST_IMU FALSE      // IMU sensor test
+#define TEST_BARO FALSE     // barometer sensor test
+#define TEST_RADIO FALSE    // radio sensor test
+#define TEST_SERVO FALSE    // servo test
+#define TEST_SERIAL FALSE   // serial output test
+#define TEST_SD FALSE       // SD write test
+
+// Combined systems ground test programs with serial connection
+#define TEST_ON_GIMBAL_RIG FALSE     // Uses the gimbal rig to tune PID pitch and roll loops, and validate/tune airspeed, but monitor the throttle PID
+#define TEST_ALTITUDE_RIG FALSE      // Uses the altitude rig to estimate the altitude of the UAV
+#define TEST_HORIZONTAL_MOTION FALSE // Tests the horizontal motion estimation
+
+// DS flight test codes without serial connection. ALl of these are in flight mode 3 in the main flight code, flight mode 1 and 2 are standard and should be tested using the FULL_FLIGHT_CODE
+#define LOW_ALTITUDE_FLIGHT FALSE       // Flies the UAV constantly at the low altitude and at constant flight speed
+#define LOW_ALTITUDE_HORIZ_FLIGHT FALSE // FLies the UAV constantly at low altitude, and completes the horizontal maneuver
+#define DS_AT_ALTITUDE FALSE            // Flies the UAV as if it was DS, but at regular flight altitude
 
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
 // PROGRAM VARIABLES AND OBJECTS
@@ -122,8 +154,6 @@ float DS_altitude_error_prev;                    // The previous altitude error,
 const float DS_altitude_terrain_following = 0.3; // NEEDS TO BE ADJUSTED: The altitude (in meters) that the UAV should fly at while at the lowest phase of dynamic soaring. Could based on the bumpiness (std) of the water
 const float DS_altitude_tolerance = 0.1;         // NEEDS TO BE ADJUSTED: The altitude (in meters) that the UAV must be close to the setpoint to have met the setpoint
 const float DS_altitude_in_wind = 5.5;           // NEEDS TO BE ADJUSTED:The altitude (in meters) that the UAV should fly at to be most influenced by the wind shear layer
-
-// float DSrotationMatrix[3][3]; // The rotation matrix to transform local angles (local: relative to the UAV) to global angles (global: relatie to the dynamic soaring line)
 
 float DS_horizontal_accel;                                // The global horizontal acceleration (perpendicular to the dynamic soaring line, parallel to the wind direction) (in g's)
 float DS_horizontal_accel_error;                          // The difference between the global horizontal acceleration setpoint and measured horizontal acceleration
@@ -218,9 +248,9 @@ float pitch_IMU_rad, roll_IMU_rad, yaw_IMU_rad;
 // float k1_vel, k1_pos, k2_vel, k2_pos, k3_vel, k3_pos, k4_vel, k4_pos;
 
 // Program Objects
-Adafruit_BMP085 bmp;      // Object to interface with the BMP180 barometric pressure sensor
-File dataFile;            // Object to interface with the microSD card
-KalmanFilter kalmanHoriz; // Kalman filter for the horizontal
+Adafruit_BMP085 bmp;                                          // Object to interface with the BMP180 barometric pressure sensor
+File dataFile;                                                // Object to interface with the microSD card
+KalmanFilter kalmanHoriz(0.5, 0.01942384099, 0.001002176158); // Kalman filter for the horizontal
 
 // Data logging variables
 const int COLUMNS = 12;            // Columns in the datalog array
@@ -228,13 +258,13 @@ const int ROWS = 8600;             // Rows in the datalog array
 float dataLogArray[ROWS][COLUMNS]; // Create the datalog array. Columns are the variables being printed, and rows are logs at different times
 int currentRow = 0;                // Keeps track of the row the data should be logged into
 const int datalogRate = 50;        // NEEDS TO BE ADJUSTED: Data logging rate in Hz
-
+const int dataLogRateSlow = 1;     // Data logging rate when not important, just to show the different phases of flight
 // Altitude estimator to combine barometric pressure sensor (with low pass filter applied) with the gyroscope and acclerometer
-static AltitudeEstimator altitudeLPbaro = AltitudeEstimator(0.001002176158, // Sigma (standard deviation of) the accelerometer
-                                                            0.01942384099,  // Sigma (standard deviation of) the gyroscope
-                                                            0.1674466677,   // sigma (standard deviation of) the barometer
-                                                            0.5,            // ca (don't touch)
-                                                            0.1);           // accel threshold (if there are many IMU acceleration values below this value, it is assumed the aircraft is not moving vertically)
+AltitudeEstimator altitudeLPbaro = AltitudeEstimator(0.001002176158, // Sigma (standard deviation of) the accelerometer
+                                                     0.01942384099,  // Sigma (standard deviation of) the gyroscope
+                                                     0.1674466677,   // sigma (standard deviation of) the barometer
+                                                     0.5,            // ca (don't touch)
+                                                     0.1);           // accel threshold (if there are many IMU acceleration values below this value, it is assumed the aircraft is not moving vertically)
 
 // Flight mode variables
 int flight_mode; // The flight mode (manual, stabilized, DS)
@@ -265,15 +295,173 @@ void clearDataInRAM();
 void writeDataToSD();
 
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
-// MICROCONTROLLER SETUP
+// INDIVIDUAL TEST PROGRAMS
+#if TEST_TOF
+void setup()
+{
+    Serial.begin(500000);
+    VL53L1Xsetup();
+}
+
+void loop()
+{
+    prev_time = current_time;
+    current_time = micros();
+    dt = (current_time - prev_time) / 1000000.0;
+    loopRate(2000);
+    VL35L1Xloop();
+    if (loopCounter > 50)
+    {
+        Serial.print(" Distance: ");
+        Serial.print(distance);
+        Serial.print(" DistanceLP: ");
+        Serial.print(distance_LP);
+        Serial.println(" mm");
+        loopCounter = 0;
+    }
+    else
+    {
+        loopCounter++;
+    }
+}
+
+#elif TEST_AIRSPEED
+void setup()
+{
+    Serial.begin(500000); // USB serial
+    pitotSetup();
+}
+
+void loop()
+{
+    prev_time = current_time;
+    current_time = micros();
+    dt = (current_time - prev_time) / 1000000.0;
+    loopRate(2000);
+    pitotLoop();
+    Serial.print(" airspeed unadjusted m/s: ");
+    Serial.print(airspeed_unadjusted);
+    Serial.print(" airspeed adjusted m/s: ");
+    Serial.print(airspeed_adjusted);
+    Serial.print(" airspeed adjusted mph: ");
+    Serial.print(airspeed_adjusted * 2.23694);
+    Serial.println();
+}
+#elif TEST_IMU
 
 void setup()
 {
-#if SERIAL_CONNECTED
-    Serial.begin(500000); // Begin serial communication with computer via USB
-#elif
-    delay(20 * 1000); // Delay to have enough time to push reset, close hatch, and place UAV flat on the ground and into the wind
-#endif
+    Serial.begin(500000); // USB serial
+    IMUinit();
+    calculate_IMU_error();
+}
+
+void loop()
+{
+    prev_time = current_time;
+    current_time = micros();
+    dt = (current_time - prev_time) / 1000000.0;
+    loopRate(2000);
+    getIMUdata();
+    Madgwick(GyroX, -GyroY, -GyroZ, -AccX, AccY, AccZ, MagY, -MagX, MagZ, dt);
+    Serial.print(roll_IMU);
+    Serial.print(" ");
+    Serial.print(pitch_IMU);
+    Serial.print(" ");
+    Serial.println(yaw_IMU);
+}
+
+#elif TEST_BARO
+void setup()
+{
+    Serial.begin(500000); // USB serial
+    BMP180setup();
+}
+
+void loop()
+{
+    prev_time = current_time;
+    current_time = micros();
+    dt = (current_time - prev_time) / 1000000.0;
+    loopBlink();
+    loopRate(2000);
+    BMP180loop();
+    // Serial.print(pressureMeasured);
+    // Serial.print(" ");
+    // Serial.print(pressure);
+    // Serial.print(" ");
+    Serial.print(altitudeMeasured);
+    Serial.print(" ");
+    Serial.print(altitude);
+    Serial.println();
+}
+
+#elif TEST_RADIO
+void setup()
+{
+    Serial.begin(500000);
+    radioSetup();
+}
+
+void loop()
+{
+    prev_time = current_time;
+    current_time = micros();
+    dt = (current_time - prev_time) / 1000000.0;
+    getCommands();
+    loopRate(2000);
+    Serial.print("channel 1: ");
+    Serial.print(throttle_channel);
+    Serial.print("channel 2: ");
+    Serial.print(roll_channel);
+    Serial.print("channel 3: ");
+    Serial.print(pitch_channel);
+    Serial.print("channel 4: ");
+    Serial.print(yaw_channel);
+    Serial.print("channel 5: ");
+    Serial.print(mode1_channel);
+    Serial.print("channel 6: ");
+    Serial.print(mode2_channel);
+    Serial.println();
+}
+
+#elif TEST_SERIAL
+void setup()
+{
+    Serial.begin(500000);
+}
+
+void loop()
+{
+    Serial.println("Hello World!");
+}
+
+#elif TEST_SD
+void setup()
+{
+    delay(500);
+    setupSD();
+}
+
+void loop()
+{
+
+    loopRate(2000);
+    dataFile = SD.open("flightData.txt", FILE_WRITE);
+    dataFile.print(millis());
+    dataFile.print(" ");
+    dataFile.print("SD Write Test");
+    dataFile.println();
+    dataFile.close();
+}
+
+#else
+
+// ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
+// MICROCONTROLLER SETUP
+void setup()
+{
+    delay(5 * 1000); // Delay to have enough time to push reset, close hatch, and place UAV flat on the ground and into the wind
 
     pinMode(13, OUTPUT); // LED on the Teensy 4.1 set to output
 
@@ -319,6 +507,12 @@ void setup()
     // Set gimbal bounds
     gimbalRightBoundAngle = (0 - gimbalServoBound) + (gimbalServoTrim / gimbalServoGain);
     gimbalLeftBoundAngle = (0 + gimbalServoBound) + (gimbalServoTrim / gimbalServoGain);
+
+#if DS_AT_ALTITUDE
+    // UAV does the DS at 10m up to avoid hitting the ground
+    DS_altitude_terrain_following += 10;
+    DS_altitude_in_wind += 10;
+#endif
 }
 
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
@@ -347,6 +541,179 @@ void loop()
     yaw_IMU_rad = yaw_IMU * DEG_TO_RAD;
 
     getDesState(); // Scales throttle to between 0 and 1, and roll, pitch, and yaw to between -1 and 1. Produces thro_des, roll_des, pitch_des, yaw_des, roll_passthru, pitch_passthru, yaw_passthru
+
+#if TEST_ON_GIMBAL_RIG
+
+    // use serial to get input. MAKE SURE USING "NO LINE ENDING" OPTION ON THE SERIAL MONITOR DROPDOWN
+
+    // write the axis(r or p) LOWERCASE then gain (P, I, D) UPPERCASE
+
+    char axis = Serial.read();
+    char gain = Serial.read();
+
+    if (Serial.available())
+    {
+        if (axis == 'r')
+        {
+            if (gain == 'P')
+            {
+                Kp_roll_angle = Serial.parseFloat();
+            }
+            else if (gain == 'I')
+            {
+                Ki_roll_angle = Serial.parseFloat();
+            }
+            else if (gain == 'D')
+            {
+                Kd_roll_angle = Serial.parseFloat();
+            }
+        }
+        else if (axis == 'p')
+        {
+            if (gain == 'P')
+            {
+                Kp_pitch_angle = Serial.parseFloat();
+            }
+            else if (gain == 'I')
+            {
+                Ki_pitch_angle = Serial.parseFloat();
+            }
+            else if (gain == 'D')
+            {
+                Kd_pitch_angle = Serial.parseFloat();
+            }
+        }
+    }
+
+    // step function. angle 20, 0, -20 for roll and pitch, every 2 seconds
+    if (loopCounter < 4000)
+    {
+        float roll_des = 20;
+        float pitch_des = 0;
+        loopCounter++;
+    }
+    else if (loopCounter < (8000))
+    {
+        float roll_des = -20;
+        float pitch_des = 0;
+        loopCounter++;
+    }
+    else if (loopCounter < (12000))
+    {
+        float roll_des = 0;
+        float pitch_des = 20;
+        loopCounter++;
+    }
+    else if (loopCounter < (16000))
+    {
+        float roll_des = 0;
+        float pitch_des = -20;
+        loopCounter++;
+    }
+    else
+    {
+        loopCounter = 0;
+    }
+
+    controlANGLE(); // dRehmFlight for angle based (pitch and roll) PID loops
+
+    s1_command_scaled = 0;
+    s2_command_scaled = roll_PID;  // Between -1 and 1
+    s3_command_scaled = pitch_PID; // Between -1 and 1
+    s4_command_scaled = 0;
+
+    Serial.print("roll setpoint\t");
+    Serial.print(roll_des);
+    Serial.print("roll command\t");
+    Serial.print(s2_command_PWM);
+    Serial.print("\troll P gain\t");
+    Serial.print(Kp_roll_angle);
+    Serial.print("\troll I gain \t");
+    Serial.print(Ki_roll_angle);
+    Serial.print("\troll I val \t");
+    Serial.print(integral_roll);
+    Serial.print("\troll D gain\t");
+    Serial.print(Kd_roll_angle);
+    Serial.print("\troll D val\t");
+    Serial.print(derivative_roll);
+    Serial.print("\troll setpoint\t");
+    Serial.print(roll_des);
+    Serial.print("\tpitch command\t");
+    Serial.print(s3_command_PWM);
+    Serial.print("\tpitch P gain\t");
+    Serial.print(Kp_pitch_angle);
+    Serial.print("\tpitch I gain \t");
+    Serial.print(Ki_pitch_angle);
+    Serial.print("\tpitch I val \t");
+    Serial.print(integral_pitch);
+    Serial.print("\tpitch D gain\t");
+    Serial.print(Kd_pitch_angle);
+    Serial.print("\troll D val\t");
+    Serial.print(derivative_pitch);
+    Serial.println();
+
+    // write the most recent PID values
+    if (loopCounter > (2000 / dataLogRateSlow))
+    {
+        dataFile = SD.open("PID.txt", FILE_WRITE);
+
+        dataFile.print("\troll P gain\t");
+        dataFile.print(Kp_roll_angle);
+        dataFile.print("\troll I gain \t");
+        dataFile.print(Ki_roll_angle);
+        dataFile.print("\troll D gain\t");
+        dataFile.print(Kd_roll_angle);
+        dataFile.print("\tpitch P gain\t");
+        dataFile.print(Kp_pitch_angle);
+        dataFile.print("\tpitch I gain \t");
+        dataFile.print(Ki_pitch_angle);
+        dataFile.print("\tpitch D gain\t");
+        dataFile.print(Kd_pitch_angle);
+        dataFile.println();
+
+        dataFile.close();
+
+        loopCounter = 0;
+    }
+    else
+    {
+        loopCounter++;
+    }
+
+#elif TEST_ALTITUDE_RIG
+
+    // no pilot control or movements, just altitude detection
+    Serial.print("ToF Altitude\t");
+    Serial.print(ToFaltitude);
+    Serial.print("\tBaro altitude\t");
+    Serial.print(altitude_baro);
+    Serial.print("\tKalman altitude\t");
+    Serial.print(altitudeLPbaro.getAltitude());
+    Serial.print("\tleft wingtip altitude\t");
+    Seiral.print(leftWingtipAltitude)
+        Serial.print("\tright wingtip altitude\t");
+    Seiral.print(rightWingtipAltitude);
+    Serial.print("\testimated altitude\t");
+    Seiral.print(estimated_altitude)
+        Serial.print("\taltitudeTypeDataLog \t");
+    Seiral.print(altitudeTypeDataLog);
+#elif TEST_HORIZONTAL_MOTION
+
+    // outputs horizontal motion of the uav
+    Serial.print("AccX\t");
+    Serial.print(AccX);
+    Serial.print("\tAccY\t");
+    Serial.print(AccY);
+    Serial.print("\tAccZ\t");
+    Serial.print(AccZ);
+    Serial.print("\thorizontal accel:\t")
+        Serial.print(DS_horizontal_accel);
+    Serial.print("\thorizontal vel:\t")
+        Serial.print(DS_horizontal_accel);
+    Serial.print("\thorizontal pos:\t")
+        Serial.print(DS_horizontal_pos);
+
+#else
 
     // Flight modes based on mode switch
     if (mode_2_channel < 1500)
@@ -384,6 +751,17 @@ void loop()
         coord_integral = 0;
         altitude_integral = 0;
         horiz_vel_integral = 0;
+
+        // Log data to RAM slowly because not in DS flight
+        if (loopCounter > (2000 / dataLogRateSlow))
+        {
+            logDataToRAM(); // Logs the data to Teensy 4.1 RAM via a 2D array
+            loopCounter = 0;
+        }
+        else
+        {
+            loopCounter++;
+        }
     }
     else if (flight_mode == stabilized_flight)
     {
@@ -398,9 +776,22 @@ void loop()
         s4_command_scaled = rudderCoordinatedCommand; // Between -1 and 1
 
         DSifFirstRun = true; // Resets the DS variable while not in the DS flight mode
+
+        // Log data to RAM slowly because not in DS flight
+        if (loopCounter > (2000 / dataLogRateSlow))
+        {
+            logDataToRAM(); // Logs the data to Teensy 4.1 RAM via a 2D array
+            loopCounter = 0;
+        }
+        else
+        {
+            loopCounter++;
+        }
     }
+
     else if (flight_mode == dynamic_soaring_flight)
     {
+
         // Flight mode 3 (Dynamic soaring)
         horizontal();            // Estimates the global horizontal acceleration, velocity, and position of the UAV
         dynamicSoar();           // Creates the dynamic soaring setpoints
@@ -427,6 +818,7 @@ void loop()
             loopCounter++;
         }
     }
+#endif
     else
     {
         // Stop all UAV activity after landed, and log data
@@ -435,18 +827,16 @@ void loop()
         s3_command_scaled = 0;
         s4_command_scaled = 0;
         s5_command_PWM = 90;
-#if DATALOG
         writeDataToSD();
         clearDataInRAM();
         currentRow = 0;
-#endif
     }
 
-    scaleCommands(); // Scales commands to values that the servo and ESC can understand
+    scaleCommands();                     // Scales commands to values that the servo and ESC can understand
 #if MOTOR_ACTIVE
-    ESC.write(s1_command_PWM); // ESC active
+    ESC.write(s1_command_PWM);           // ESC active
 #else
-    ESC.write(-100);  // ESC inactive
+    ESC.write(-100); // ESC inactive
 #endif
     aileronServo.write(s2_command_PWM);  // aileron
     elevatorServo.write(s3_command_PWM); // elevator
@@ -457,13 +847,37 @@ void loop()
     loopBlink();    // Blink every 1.5 seconds to indicate main loop
     loopRate(2000); // Loop runs at 2000 Hz
 }
-
+#endif
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
 // DYNAMIC SOARING CONTROLLER FUNCTIONS
 
 // This function manages the phases of DS flight. It generates the setpoints (airspeed,altitude, and global horizontal motion) for each DS phase, and provides the conditions to move to the next phase
 void dynamicSoar()
 {
+
+#if LOW_ALTITUDE_HORIZ_FLIGHT
+    DS_altitude_in_wind = DS_altitude_terrain_following; // Effectively creates no vertical motion
+#endif
+
+#if LOW_ALTITUDE_FLIGHT
+    // UAV does the DS at low altitude, straight forwards
+
+    // Ground following setpoints
+    DS_altitude_setpoint = DS_altitude_terrain_following;          // Fly below the wind shear layer
+    DS_altitude_error_prev = DS_altitude_error;                    // Set the previous error before recalculating the new error
+    DS_altitude_error = DS_altitude_setpoint - estimated_altitude; // Calculate the error
+
+    // Global horizontal motion setpoints
+    horiz_setpoint_type = setpoint_horiz_vel;                             // Setpoint is based on horizontal velocity
+    DS_horizontal_setpoint = 0;                                           // Fly straight forwards
+    DS_horizontal_vel_error = DS_horizontal_setpoint - DS_horizontal_vel; // Calculate the error
+
+    // Airspeed setpoint
+    motorOn = true;
+    airspeed_setpoint = flight_speed; // Fly at normal flight speed
+
+#else
+
     // Detects the first time the DS switch is activated by the pilot
     if (DSifFirstRun)
     {
@@ -623,6 +1037,7 @@ void dynamicSoar()
 
         break;
     }
+#endif
 }
 
 // This function creates the desired attitude (roll, pitch, and yaw angles) to meet the setpoint altitude and setpoint horizontal motion in a coordinated fashion to dynamic soar (keep in mind, this controller controlls the setpoint for the actual PID controller, and thus often does not need to be as complicated)
@@ -708,19 +1123,18 @@ void throttleController()
 void horizontal()
 {
 
-    //Use Kalman Filter libary to estimate horizontal velocity. Will need to test which horizontal it is, and if it needs to be rotated. 
+    // Use Kalman Filter libary to estimate horizontal velocity. Will need to test which horizontal it is, and if it needs to be rotated.
     float accelData[3] = {AccX, AccY, AccZ};
     float gyroData[3] = {GyroX * DEG_TO_RAD, GyroY * DEG_TO_RAD, GyroZ * DEG_TO_RAD};
     float horizontal_acceleration_magnitude_any_direction;
     float angle_of_horizontal_acceleration;
-    kalmanHoriz.estimateHorizontal(accelData, gyroData, dt, horizontal_acceleration_magnitude_any_direction,angle_of_horizontal_acceleration);
+    kalmanHoriz.estimateHorizontal(accelData, gyroData, dt, horizontal_acceleration_magnitude_any_direction, angle_of_horizontal_acceleration);
 
-    //Calculate horizontal accel perpendicular to the DS flight path, assumed to be directly into the wind and assumed to be 0 degrees yaw angle relative to staring position
-    DS_horizontal_accel = cos(angle_of_horizontal_acceleration)*horizontal_acceleration_magnitude_any_direction;
+    // Calculate horizontal accel perpendicular to the DS flight path, assumed to be directly into the wind and assumed to be 0 degrees yaw angle relative to staring position
+    DS_horizontal_accel = cos(angle_of_horizontal_acceleration) * horizontal_acceleration_magnitude_any_direction;
     // integrate to get horizontal velocity:
     DS_horizontal_vel += DS_horizontal_accel * dt;
     DS_horizontal_pos += DS_horizontal_vel * dt;
-
 
     // Integrate velocity and position using the Runge-Kutta method NOT USED RIGHT NOW
     /*
@@ -750,7 +1164,7 @@ void estimateAltitude()
     ToFaltitude = (distance_LP / 1000.0) * cos(pitch_IMU_rad); // Find the altitude of the UAV in meters based on the ToF sensor. Accounts for pitch.
     // also need to figure out how to get the range of the ToF sensor to 4m
     // If the distance being read is a valid number (it returns -1 if it cannot detect anything, and has a range up to 4m), use the ToF sensor as the altitude
-    if (ToFaltitude < 4.0 && ToFaltitude > 0.0)
+    if (ToFaltitude < 4.0 && distance > 0.0)
     {
         // Recalibrate the barometer based on the ToF sensor. Every 10 readings, find the offset and average
         if (offset_loop_counter < altitude_offset_num_vals)
@@ -863,20 +1277,37 @@ void setupSD()
 
 void logDataToRAM()
 {
-    // fill out the enitre row of data
-    dataLogArray[currentRow][0] = timeInMillis;
-    dataLogArray[currentRow][1] = roll_IMU;
-    dataLogArray[currentRow][2] = pitch_IMU;
-    dataLogArray[currentRow][3] = yaw_IMU;
-    dataLogArray[currentRow][4] = DS_phase;
-    dataLogArray[currentRow][5] = DS_horizontal_pos;
-    dataLogArray[currentRow][6] = DS_horizontal_vel;
-    dataLogArray[currentRow][7] = DS_horizontal_accel;
-    dataLogArray[currentRow][8] = estimated_altitude;
-    dataLogArray[currentRow][9] = altitudeTypeDataLog;
-    dataLogArray[currentRow][10] = airspeed_adjusted;
-    dataLogArray[currentRow][11] = throttle_PID;
-    currentRow++; // Increment counter
+    if (currentRow < ROWS)
+    {
+        if (flight_mode == dynamic_soaring_flight)
+        {
+            // fill out the enitre row of data
+            dataLogArray[currentRow][0] = timeInMillis;
+            dataLogArray[currentRow][1] = roll_IMU;
+            dataLogArray[currentRow][2] = pitch_IMU;
+            dataLogArray[currentRow][3] = yaw_IMU;
+            dataLogArray[currentRow][4] = DS_phase;
+            dataLogArray[currentRow][5] = DS_horizontal_pos;
+            dataLogArray[currentRow][6] = DS_horizontal_vel;
+            dataLogArray[currentRow][7] = DS_horizontal_accel;
+            dataLogArray[currentRow][8] = estimated_altitude;
+            dataLogArray[currentRow][9] = altitudeTypeDataLog;
+            dataLogArray[currentRow][10] = airspeed_adjusted;
+            dataLogArray[currentRow][11] = throttle_PID;
+        }
+        else
+        {
+            dataLogArray[currentRow][0] = timeInMillis;
+            dataLogArray[currentRow][1] = roll_IMU;
+            dataLogArray[currentRow][2] = pitch_IMU;
+            dataLogArray[currentRow][3] = yaw_IMU;
+            dataLogArray[currentRow][4] = flight_mode;
+            dataLogArray[currentRow][8] = estimated_altitude;
+            dataLogArray[currentRow][9] = altitudeTypeDataLog;
+            dataLogArray[currentRow][10] = airspeed_adjusted;
+        }
+        currentRow++; // Increment counter
+    }
 }
 
 void clearDataInRAM() // set all values to 0
