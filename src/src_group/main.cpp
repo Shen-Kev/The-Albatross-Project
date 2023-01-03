@@ -80,7 +80,7 @@
 #define TEST_TOF FALSE      // Time of flight sensor test
 #define TEST_AIRSPEED FALSE // Airspeed sensor test
 #define TEST_IMU FALSE      // IMU sensor test
-#define TEST_BARO FALSE     // barometer sensor test
+#define TEST_BARO TRUE     // barometer sensor test
 #define TEST_RADIO FALSE    // radio sensor test
 #define TEST_SERVO FALSE    // servo test
 #define TEST_SERIAL FALSE   // serial output test
@@ -392,7 +392,7 @@ void loop()
     // Serial.print(" ");
     Serial.print(altitudeMeasured);
     Serial.print(" ");
-    Serial.print(altitude);
+    Serial.print(altitude_baro);
     Serial.println();
 }
 
