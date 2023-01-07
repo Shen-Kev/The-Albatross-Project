@@ -77,14 +77,16 @@
 // Set only one of the below to TRURE to test. If all are false it runs the standard setup and loop. Can use this to test all systems, and also test flight mode 1 and 2 (servos, ESC, radio, PID, coordinated turns)
 
 // Basic, individual systems ground test programs (with serial connection). Mostly for troubleshooting individual components
-#define TEST_TOF FALSE      // Time of flight sensor test
-#define TEST_AIRSPEED FALSE // Airspeed sensor test
-#define TEST_IMU FALSE      // IMU sensor test
-#define TEST_BARO TRUE     // barometer sensor test
-#define TEST_RADIO FALSE    // radio sensor test
-#define TEST_SERVO FALSE    // servo test
-#define TEST_SERIAL FALSE   // serial output test
-#define TEST_SD FALSE       // SD write test
+#define TEST_TOF FALSE            // Time of flight sensor test
+#define TEST_AIRSPEED FALSE       // Airspeed sensor test
+#define TEST_IMU FALSE            // IMU sensor test
+#define TEST_BARO FALSE           // barometer sensor test
+#define TEST_RADIO FALSE          // radio sensor test
+#define TEST_RADIO_TO_SERVO FALSE // servo test
+#define TEST_SERIAL FALSE         // serial output test
+#define TEST_SD FALSE             // SD write test
+
+#define TEST_DREHMFLIGHT FALSE
 
 // Combined systems ground test programs with serial connection
 #define TEST_ON_GIMBAL_RIG FALSE     // Uses the gimbal rig to tune PID pitch and roll loops, and validate/tune airspeed, but monitor the throttle PID
@@ -254,7 +256,7 @@ KalmanFilter kalmanHoriz(0.5, 0.01942384099, 0.001002176158); // Kalman filter f
 
 // Data logging variables
 const int COLUMNS = 12;            // Columns in the datalog array
-const int ROWS = 8600;             // Rows in the datalog array
+const int ROWS = 6000;             // Rows in the datalog array
 float dataLogArray[ROWS][COLUMNS]; // Create the datalog array. Columns are the variables being printed, and rows are logs at different times
 int currentRow = 0;                // Keeps track of the row the data should be logged into
 const int datalogRate = 50;        // NEEDS TO BE ADJUSTED: Data logging rate in Hz
@@ -275,6 +277,10 @@ enum flight_modes
     dynamic_soaring_flight = 2,
     log_data_to_SD = 3
 };
+
+// Timing variables
+unsigned long test_time_in_micros;
+unsigned long test_time_in_micros_start;
 
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
 // FUNCTION DECLARATIONS (in this order)
@@ -424,6 +430,56 @@ void loop()
     Serial.print(mode2_channel);
     Serial.println();
 }
+#elif TEST_RADIO_TO_SERVO
+
+void setup()
+{
+    Serial.begin(500000);
+    radioSetup();
+    // Attach actuators to PWM pins
+    ESC.attach(ESCpin, 900, 2100);
+    aileronServo.attach(aileronServoPin, 900, 2100);
+    elevatorServo.attach(elevatorServoPin, 900, 2100);
+    rudderServo.attach(rudderServoPin, 900, 2100);
+    gimbalServo.attach(gimbal1ServoPin, 900, 2100);
+}
+
+void loop()
+{
+    prev_time = current_time;
+    current_time = micros();
+    dt = (current_time - prev_time) / 1000000.0;
+    getCommands();
+    getDesState();
+    s1_command_scaled = thro_des;        // Between 0 and 1
+    s2_command_scaled = roll_passthru;   // Between -0.5 and 0.5
+    s3_command_scaled = pitch_passthru;  // Between -0.5 and 0.5
+    s4_command_scaled = yaw_passthru;    // Between -0.5 and 0.5
+    scaleCommands();                     // Scales commands to values that the servo and ESC can understand
+    aileronServo.write(s2_command_PWM);  // aileron
+    elevatorServo.write(s3_command_PWM); // elevator
+    rudderServo.write(s4_command_PWM);   // rudder
+    gimbalServo.write(s5_command_PWM);   // gimbal
+    loopRate(2000);
+
+    Serial.print("channel 1: ");
+    Serial.print(thro_des);
+    // Serial.print("channel 2: ");
+    // Serial.print(roll_passthru);
+    // Serial.print("channel 3: ");
+    // Serial.print(pitch_passthru);
+    // Serial.print("channel 4: ");
+    // Serial.print(yaw_passthru);
+
+    Serial.print("channel 2: ");
+    Serial.print(s2_command_PWM);
+    Serial.print("channel 3: ");
+    Serial.print(s3_command_PWM);
+    Serial.print("channel 4: ");
+    Serial.print(s4_command_PWM);
+
+    Serial.println();
+}
 
 #elif TEST_SERIAL
 void setup()
@@ -454,6 +510,129 @@ void loop()
     dataFile.println();
     dataFile.close();
 }
+#elif TEST_DREHMFLIGHT
+
+void setup()
+{
+    Serial.begin(500000); // USB serial
+    delay(500);
+    Wire.begin();
+    Wire.setClock(1000000); // Note this is 2.5 times the spec sheet 400 kHz max...
+
+    // ESC.attach(ESCpin, 900, 2100); // Pin, min PWM value, max PWM value
+    aileronServo.attach(aileronServoPin, 900, 2100);
+    elevatorServo.attach(elevatorServoPin, 900, 2100);
+    rudderServo.attach(rudderServoPin, 900, 2100);
+    gimbalServo.attach(gimbal1ServoPin, 900, 2100);
+    servo6.attach(gimbal2ServoPin, 900, 2100);
+    servo7.attach(servo7Pin, 900, 2100);
+
+    // Set built in LED to turn on to signal startup
+    digitalWrite(13, HIGH);
+
+    delay(5);
+
+    // Initialize radio communication
+    radioSetup();
+
+    // Set radio channels to default (safe) values before entering main loop
+    throttle_channel = throttle_fs;
+    roll_channel = roll_fs;
+    pitch_channel = pitch_fs;
+    yaw_channel = yaw_fs;
+    mode1_channel = mode1_fs;
+    mode2_channel = mode2_fs;
+
+    // Initialize IMU communication
+    IMUinit();
+
+    delay(5);
+
+    // Get IMU error to zero accelerometer and gyro readings, assuming vehicle is level when powered up
+    calculate_IMU_error(); // Calibration parameters printed to serial monitor. Paste these in the user specified variables section, then comment this out forever.
+    delay(10000);
+    // Arm servo channels
+    ESC.write(0);           // Command servo angle from 0-180 degrees (1000 to 2000 PWM)
+    aileronServo.write(0);  // Set these to 90 for servos if you do not want them to briefly max out on startup
+    elevatorServo.write(0); // Keep these at 0 if you are using servo outputs for motors
+    rudderServo.write(0);
+    gimbalServo.write(0);
+    servo6.write(0);
+    servo7.write(0);
+
+    delay(5);
+
+    // calibrateESCs(); //PROPS OFF. Uncomment this to calibrate your ESCs by setting throttle stick to max, powering on, and lowering throttle to zero after the beeps
+    // Code will not proceed past here if this function is uncommented!
+
+    // Indicate entering main loop with 3 quick blinks
+    setupBlink(3, 160, 70); // numBlinks, upTime (ms), downTime (ms)
+
+    // If using MPU9250 IMU, uncomment for one-time magnetometer calibration (may need to repeat for new locations)
+    // calibrateMagnetometer(); //Generates magentometer error and scale factors to be pasted in user-specified variables section
+}
+
+void loop() // for the setup and loop, ill prob just use this as the start for the actual setup and
+{
+    // Keep track of what time it is and how much time has elapsed since the last loop
+    prev_time = current_time;
+    current_time = micros();
+    dt = (current_time - prev_time) / 1000000.0;
+
+    loopBlink(); // Indicate we are in main loop with short blink every 1.5 seconds
+
+    // Print data at 100hz (uncomment one at a time for troubleshooting) - SELECT ONE:
+    // printRadioData();     //Prints radio pwm values (expected: 1000 to 2000)
+    // printDesiredState();  //Prints desired vehicle state commanded in either degrees or deg/sec (expected: +/- maxAXIS for roll, pitch, yaw; 0 to 1 for throttle)
+    // printGyroData();      //Prints filtered gyro data direct from IMU (expected: ~ -250 to 250, 0 at rest)
+    // printAccelData();     //Prints filtered accelerometer data direct from IMU (expected: ~ -2 to 2; x,y 0 when level, z 1 when level)
+    // printMagData();       //Prints filtered magnetometer data direct from IMU (expected: ~ -300 to 300)
+    // printRollPitchYaw();  //Prints roll, pitch, and yaw angles in degrees from Madgwick filter (expected: degrees, 0 when level)
+    // printPIDoutput();     //Prints computed stabilized PID variables from controller and desired setpoint (expected: ~ -1 to 1)
+    // printMotorCommands(); //Prints the values being written to the motors (expected: 120 to 250)
+    // printServoCommands(); //Prints the values being written to the servos (expected: 0 to 180)
+    // printLoopRate();      //Prints the time between loops in microseconds (expected: microseconds between loop iterations)
+
+    // Get vehicle state
+
+    test_time_in_micros_start = micros();
+    getIMUdata(); // Pulls raw gyro, accelerometer, and magnetometer data from IMU and LP filters to remove noise
+    test_time_in_micros = micros() - test_time_in_micros_start;
+    Madgwick(GyroX, -GyroY, -GyroZ, -AccX, AccY, AccZ, MagY, -MagX, MagZ, dt); // Updates roll_IMU, pitch_IMU, and yaw_IMU angle estimates (degrees)
+
+    // Compute desired state
+    getDesState(); // Convert raw commands to normalized values based on saturated control limits
+
+    // PID Controller - SELECT ONE:
+    controlANGLE(); // Stabilize on angle setpoint
+    // controlANGLE2(); //Stabilize on angle setpoint using cascaded method. Rate controller must be tuned well first!
+    // controlRATE(); //Stabilize on rate setpoint
+
+    // Actuator mixing and scaling to PWM values
+    controlMixer();  // Mixes PID outputs to scaled actuator commands -- custom mixing assignments done here
+    scaleCommands(); // Scales motor commands to 125 to 250 range (oneshot125 protocol) and servo PWM commands to 0 to 180 (for servo library)
+
+    // Throttle cut check
+    // throttleCut(); // Directly sets motor commands to low based on state of ch5
+
+    // Command actuators
+    // commandMotors();           // Sends command pulses to each motor pin using OneShot125 protocol
+    // ESC.write(s1_command_PWM); // Writes PWM value to servo object
+    aileronServo.write(s2_command_PWM);
+    elevatorServo.write(s3_command_PWM);
+    rudderServo.write(s4_command_PWM);
+    gimbalServo.write(s5_command_PWM);
+    servo6.write(s6_command_PWM);
+    servo7.write(s7_command_PWM);
+
+    // Get vehicle commands for next loop iteration
+    getCommands(); // Pulls current available radio commands
+    failSafe();    // Prevent failures in event of bad receiver connection, defaults to failsafe values assigned in setup
+                   // printLoopRate();
+    Serial.println(test_time_in_micros);
+    // Regulate loop rate
+    loopRate(2000); // Do not exceed 2000Hz, all filter parameters tuned to 2000Hz by default
+}
 
 #else
 
@@ -461,6 +640,11 @@ void loop()
 // MICROCONTROLLER SETUP
 void setup()
 {
+    Serial.begin(500000); // USB serial
+    Serial.println("serial works");
+    Wire.begin();
+    Wire.setClock(1000000); // Note this is 2.5 times the spec sheet 400 kHz max...
+
     delay(5 * 1000); // Delay to have enough time to push reset, close hatch, and place UAV flat on the ground and into the wind
 
     pinMode(13, OUTPUT); // LED on the Teensy 4.1 set to output
@@ -471,16 +655,24 @@ void setup()
     elevatorServo.attach(elevatorServoPin, 900, 2100);
     rudderServo.attach(rudderServoPin, 900, 2100);
     gimbalServo.attach(gimbal1ServoPin, 900, 2100);
+    Serial.println("passed attach");
 
     delay(100);
 
     // Setup and calibrate communciations
-    radioSetup();          // R/c reciever
-    IMUinit();             // IMU init
+    radioSetup(); // R/c reciever
+    Serial.println("passed radio setup");
+    IMUinit(); // IMU init
+    Serial.println("passed IMU init");
     calculate_IMU_error(); // IMU calibrate
-    BMP180setup();         // Barometer init and calibrate
-    VL53L1Xsetup();        // ToF sensor init
-    pitotSetup();          // Airspeed sensor init and calibrate
+    Serial.println("passed IMU calibration");
+
+    BMP180setup(); // Barometer init and calibrate
+    Serial.println("passed baro setup");
+    VL53L1Xsetup(); // ToF sensor init
+    Serial.println("passed ToF setup");
+    pitotSetup(); // Airspeed sensor init and calibrate
+    Serial.println("passed pitot");
 #if DATALOG
     clearDataInRAM();
     setupSD(); // microSD card read/write unit
@@ -492,6 +684,7 @@ void setup()
     pitch_channel = pitch_fs;
     yaw_channel = yaw_fs;
     mode1_channel = mode1_fs;
+    mode2_channel = mode2_fs;
 
     delay(100);
 
@@ -520,6 +713,7 @@ void setup()
 
 void loop()
 {
+
     // Timing
     prev_time = current_time;
     current_time = micros();
@@ -527,13 +721,19 @@ void loop()
     timeInMillis = millis();
 
     // Retrieve sensor data
-    getIMUdata();                                                              // Retrieves gyro and accelerometer data from IMU and LP filters
+    test_time_in_micros_start = micros();
+    getIMUdata(); // Pulls raw gyro, accelerometer, and magnetometer data from IMU and LP filters to remove noise
+    test_time_in_micros = micros() - test_time_in_micros_start;
     Madgwick(GyroX, -GyroY, -GyroZ, -AccX, AccY, AccZ, MagY, -MagX, MagZ, dt); // Updates roll_IMU, pitch_IMU, and yaw_IMU angle estimates (in deg)
-    BMP180loop();                                                              // Retrieves barometric altitude and LP filters
-    VL35L1Xloop();                                                             // Retrieves ToF sensor distance
-    pitotLoop();                                                               // Retrieves pitot tube airspeed
-    getCommands();                                                             // Retrieves radio commands
-    failSafe();                                                                // Failsafe in case of radio connection loss
+
+    //BMP180loop(); // Retrieves barometric altitude and LP filters
+
+    // VL35L1Xloop(); // Retrieves ToF sensor distance
+
+    pitotLoop(); // Retrieves pitot tube airspeed
+
+    getCommands(); // Retrieves radio commands
+    failSafe();    // Failsafe in case of radio connection loss
 
     // Convert roll, pitch, and yaw from degrees to radians
     pitch_IMU_rad = pitch_IMU * DEG_TO_RAD;
@@ -732,7 +932,7 @@ void loop()
 #else
 
     // Flight modes based on mode switch
-    if (mode_2_channel < 1500)
+    if (mode2_channel < 1500)
     {
         flight_mode = log_data_to_SD; // If datalog is less than 1500 (switch indicates flight is over, or lost connection) log all the data to the SD card (on top of already logged data, if it exists) and clear the data array.
     }
@@ -749,8 +949,11 @@ void loop()
         flight_mode = dynamic_soaring_flight;
     }
 
+    // reciever_time = micros() - sensor_time;
+
     if (flight_mode == manual_flight)
     {
+
         // Flight mode 1 (manual flight). Directly puts the servo commands to the commands from the radio
         s1_command_scaled = thro_des;       // Between 0 and 1
         s2_command_scaled = roll_passthru;  // Between -0.5 and 0.5
@@ -834,7 +1037,6 @@ void loop()
             loopCounter++;
         }
     }
-#endif
     else
     {
         // Stop all UAV activity after landed, and log data
@@ -847,6 +1049,7 @@ void loop()
         clearDataInRAM();
         currentRow = 0;
     }
+#endif
 
     scaleCommands();                     // Scales commands to values that the servo and ESC can understand
 #if MOTOR_ACTIVE
@@ -858,6 +1061,12 @@ void loop()
     elevatorServo.write(s3_command_PWM); // elevator
     rudderServo.write(s4_command_PWM);   // rudder
     gimbalServo.write(s5_command_PWM);   // gimbal
+
+    Serial.print(" test time: ");
+    Serial.print(test_time_in_micros);
+    Serial.print(" microseconds per loop: ");
+    Serial.println(dt * 1000000);
+    //    printLoopRate();
 
     // Regulate loop rate
     loopBlink();    // Blink every 1.5 seconds to indicate main loop
@@ -906,13 +1115,13 @@ void dynamicSoar()
     case DS_phase_0:
         // Phase 0 autonomously flies the UAV to be ready for dynamic soaring, but does not actually dynamic soar.
         // To safely activate the dynamic soaring cycle, the UAV must meet the following conditions, and the rest of DS Phase 0 is trying to meet these conditions.
-        //Some conditions have been limited for reliability. Also, this is assuming that the low altitude is in range of the ToF sensor, or it will not DS at the right altitude.
-        if (//yaw_IMU < DS_heading - heading_setup_tolerance || yaw_IMU > DS_heading + heading_setup_tolerance // The UAV must be flying at the DS heading (within a tolerance), perpendicular to the wind, flying right (just using the IMU for yaw for now. If compass implemented, then the best estimate for heading will be used)
-            //|| abs(GyroZ) > heading_rate_of_change_setup_tolerance                                           // The UAV must not be changing yaw direciton (within a tolerance)
-            abs(DS_altitude_error) > DS_altitude_tolerance                                                // The UAV must be within the tolerance for terrain following altitude
+        // Some conditions have been limited for reliability. Also, this is assuming that the low altitude is in range of the ToF sensor, or it will not DS at the right altitude.
+        if (                                               // yaw_IMU < DS_heading - heading_setup_tolerance || yaw_IMU > DS_heading + heading_setup_tolerance // The UAV must be flying at the DS heading (within a tolerance), perpendicular to the wind, flying right (just using the IMU for yaw for now. If compass implemented, then the best estimate for heading will be used)
+                                                           //|| abs(GyroZ) > heading_rate_of_change_setup_tolerance                                           // The UAV must not be changing yaw direciton (within a tolerance)
+            abs(DS_altitude_error) > DS_altitude_tolerance // The UAV must be within the tolerance for terrain following altitude
             //|| abs(GyroY) > pitch_rate_of_change_setup_tolerance                                             // The UAV must not be chaning pitch (within a tolerance)
-            || abs(DS_horizontal_vel) > horizontal_vel_tolerance                                             // The UAV must not be moving horizontally (within a tolerance)
-            || abs(airspeed_error) > airspeed_error_tolerance)                                               // The UAV must not be moving too fast or too slow (within a tolerance)
+            || abs(DS_horizontal_vel) > horizontal_vel_tolerance // The UAV must not be moving horizontally (within a tolerance)
+            || abs(airspeed_error) > airspeed_error_tolerance)   // The UAV must not be moving too fast or too slow (within a tolerance)
         {
             // Ground following setpoints in DS Phase 0
             DS_altitude_setpoint = DS_altitude_terrain_following;          // Fly below the wind shear layer
@@ -1258,12 +1467,13 @@ void pitotLoop()
 // This function sets up and calibrates the barometric pressure sensor, and on startup offests the raw data to say the starting position is 0m
 void BMP180setup()
 {
-    if (!bmp.begin())
+    if (!bmp.begin(0))
     {
         while (1)
         {
         }
     }
+
     for (int i = 0; i < altitude_offset_num_vals; i++)
     {
         altitude_offset_sum += bmp.readAltitude();
