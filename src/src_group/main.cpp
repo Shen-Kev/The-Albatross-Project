@@ -134,7 +134,7 @@ float altitude_prev;                     // The previous reading of the barometr
 float altitude_LP_param = 0.05;          // The low pass filter parameter for altitude (smaller values means a more smooth signal but higher delay time)
 float altitudeMeasured;                  // The raw altitude reading from the barometric pressure sensor (in m)
 double pressure;                         // Pressure measured by the BMP180
-double temperature = 0.0;                      // 
+double temperature = 0.0;                      //set temperature just to make bmp180 happy, in reality its replaced by the offset feature
 double baseline_pressure;                // Pressure measured by the BMP180 at startup
 
 float ToFaltitude; // The estimated altitude by the Time of Flight sensor (in m). Derived from distance_LP, and therefore has low pass filter applied. Works up to 4m, but NEED TO TEST RANGE
@@ -1093,17 +1093,20 @@ void loop()
     gimbalServo.write(s5_command_PWM);   // gimbal
 
     Serial.print(" baro reading: \t");
+    Serial.print(altitudeMeasured);
+    Serial.print(" baro reading LP: \t");
     Serial.print(altitude_baro);
-    Serial.print(" tof test time: \t");
-    Serial.print(ToF_test_time_in_micros);
-    Serial.print("\t baro test time: \t");
-    Serial.print(baro_test_time_in_micros);
-    Serial.print("\t imu test time: \t");
-    Serial.print(IMU_test_time_in_micros);
-    Serial.print("\t pitot test time: \t");
-    Serial.print(pitot_test_time_in_micros);
-    Serial.print("\t microseconds per loop: ");
-    Serial.println(dt * 1000000);
+    Serial.println();
+    // Serial.print(" tof test time: \t");
+    // Serial.print(ToF_test_time_in_micros);
+    // Serial.print("\t baro test time: \t");
+    // Serial.print(baro_test_time_in_micros);
+    // Serial.print("\t imu test time: \t");
+    // Serial.print(IMU_test_time_in_micros);
+    // Serial.print("\t pitot test time: \t");
+    // Serial.print(pitot_test_time_in_micros);
+    // Serial.print("\t microseconds per loop: ");
+    // Serial.println(dt * 1000000);
     //    printLoopRate();
 
     // Regulate loop rate
@@ -1537,11 +1540,10 @@ void BMP180setup()
         delay(100);
     }
     altitude_offset = altitude_offset_sum / ((float)altitude_offset_num_vals);
-    Serial.println(baseline_pressure);
-    Serial.println(altitude_offset);
+
     delay(10000);
 }
-
+//
 // This function offsets and low pass filters the barometric altitude reading
 void BMP180loop()
 {
