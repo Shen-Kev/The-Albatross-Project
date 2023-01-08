@@ -24,7 +24,7 @@
                                    //  Email: nrehm@umd.edu
                                    //
 
-#include "BMP180/BMP085.h"
+#include "BMP180nonblocking/BMP085NB.h"
 #include <Wire.h>
 #include "pololuVL53L1x/VL53L1X.h"       //https://github.com/pololu/vl53l1x-arduino
 #include "ASPD4525.h"                    //Library to interface with the ASPD4525 airspeed sensor
@@ -132,8 +132,8 @@ float altitude_baro;                     // The altitude estimated from the baro
 float altitude_prev;                     // The previous reading of the barometric pressure sensor
 float altitude_LP_param = 0.05;          // The low pass filter parameter for altitude (smaller values means a more smooth signal but higher delay time)
 float altitudeMeasured;                  // The raw altitude reading from the barometric pressure sensor (in m)
-double pressure;                         // Pressure measured by the BMP180
-double temperature = 0.0;                // set temperature just to make bmp180 happy, in reality its replaced by the offset feature
+long pressure;                           // Pressure measured by the BMP180
+int temperature = 0.0;                   // set temperature just to make bmp180 happy, in reality its replaced by the offset feature
 double referencePressure;                // Pressure measured by the BMP180 at startup
 
 float ToFaltitude; // The estimated altitude by the Time of Flight sensor (in m). Derived from distance_LP, and therefore has low pass filter applied. Works up to 4m, but NEED TO TEST RANGE
@@ -263,7 +263,7 @@ float pitch_IMU_rad, roll_IMU_rad, yaw_IMU_rad;
 // float k1_vel, k1_pos, k2_vel, k2_pos, k3_vel, k3_pos, k4_vel, k4_pos;
 
 // Program Objects
-BMP085 bmp;
+BMP085NB bmp;
 File dataFile;                                                // Object to interface with the microSD card
 KalmanFilter kalmanHoriz(0.5, 0.01942384099, 0.001002176158); // Kalman filter for the horizontal
 // Adafruit_VL53L1X vl53 = Adafruit_VL53L1X(XSHUTpin, IRQpin);
@@ -1097,12 +1097,12 @@ void loop()
     Serial.print(altitude_baro);
     // Serial.print(" tof test time: \t");
     // Serial.print(ToF_test_time_in_micros);
-     Serial.print("\t baro test time: \t");
-     Serial.print(baro_test_time_in_micros);
-     Serial.print("\t imu test time: \t");
-     Serial.print(IMU_test_time_in_micros);
-     Serial.print("\t pitot test time: \t");
-     Serial.print(pitot_test_time_in_micros);
+    Serial.print("\t baro test time: \t");
+    Serial.print(baro_test_time_in_micros);
+    Serial.print("\t imu test time: \t");
+    Serial.print(IMU_test_time_in_micros);
+    Serial.print("\t pitot test time: \t");
+    Serial.print(pitot_test_time_in_micros);
     // Serial.print("\t microseconds per loop: ");
     // Serial.print(dt * 1000000);
     //    printLoopRate();
@@ -1507,24 +1507,18 @@ void pitotLoop()
 // This function sets up and calibrates the barometric pressure sensor, and on startup offests the raw data to say the starting position is 0m
 void BMP180setup()
 {
-    while (!bmp.begin(BMP085_ULTRA_LOW_POWER))
-    {
-        Serial.println("Could not find a valid BMP085 or BMP180 sensor, check wiring!");
-        delay(500);
-    }
-    //     bmp180.begin();
-    //     if (bmp180.startPressure() == 0)
-    //     {
-    //         while (1)
-    //             ;
-    //     }
+    bmp.initialize();
+    // bmp.setSeaLevelPressure(100600);
 
     // Get average offset, which should be close to 0. This is done because the offset will need to change, while the baseline pressure can't.
     for (int i = 0; i < altitude_offset_num_vals; i++)
     {
-
-        pressure = bmp.readPressure();
-        altitude_offset_sum += bmp.getAltitude(pressure);
+        while (!bmp.newData)
+        {
+            bmp.pollData(&temperature, &pressure, &altitudeMeasured);
+        }
+        bmp.pollData(&temperature, &pressure, &altitudeMeasured);
+        altitude_offset_sum += altitudeMeasured;
         delay(100);
     }
     altitude_offset = altitude_offset_sum / ((float)altitude_offset_num_vals);
@@ -1535,14 +1529,13 @@ void BMP180setup()
 // This function offsets and low pass filters the barometric altitude reading
 void BMP180loop()
 {
-    //   //  bmp180.startTemperature();
-    //     bmp180.startPressure();
-    //   //  bmp180.getTemperature(temperature);
-    //     bmp180.getPressure(pressure, temperature);
-    pressure = bmp.readPressure();
-    altitudeMeasured = bmp.getAltitude(pressure) - altitude_offset;
-    altitude_baro = (1.0 - altitude_LP_param) * altitude_prev + altitude_LP_param * altitudeMeasured;
-    altitude_prev = altitude_baro;
+    bmp.pollData(&temperature, &pressure, &altitudeMeasured);
+    if (bmp.newData)
+    {
+        altitudeMeasured = altitudeMeasured - altitude_offset;
+        altitude_baro = (1.0 - altitude_LP_param) * altitude_prev + altitude_LP_param * altitudeMeasured;
+        altitude_prev = altitude_baro;
+    }
 }
 
 void VL53L1Xsetup()
