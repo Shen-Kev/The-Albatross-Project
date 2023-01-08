@@ -1543,7 +1543,7 @@ void BMP180setup()
 
     delay(10000);
 }
-//
+
 // This function offsets and low pass filters the barometric altitude reading
 void BMP180loop()
 {
