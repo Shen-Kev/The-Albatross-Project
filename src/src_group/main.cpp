@@ -24,7 +24,7 @@
                                    //  Email: nrehm@umd.edu
                                    //
 
-#include "BMP180nonblocking/BMP085NB.h"
+#include "BMP180nonblocking/BMP085NB.h" //https://github.com/Lithium366/BMP085
 #include <Wire.h>
 #include "pololuVL53L1x/VL53L1X.h"       //https://github.com/pololu/vl53l1x-arduino
 #include "ASPD4525.h"                    //Library to interface with the ASPD4525 airspeed sensor
@@ -125,7 +125,7 @@ float airspeed_adjusted_prev;         // the previous airspeed adjusted reading.
 
 // Variables for altitde sensing
 float altitude_offset;                   // The difference between the barometer's altitude reading and the 'real' altitude (in m) which is assumed to be 0 at ground level
-const int altitude_offset_num_vals = 10; // The number of sensor readings that get averaged to adjust the altitude offset
+const int altitude_offset_num_vals = 1000; // The number of sensor readings that get averaged to adjust the altitude offset
 int offset_loop_counter = 0;             // Tracks the number of sensor readings so far
 float altitude_offset_sum = 0.0;         // Tracks the sum of all the sensor reading so far
 float altitude_baro;                     // The altitude estimated from the barometer, with a low pass filter and offset adjustment applied
@@ -1091,22 +1091,33 @@ void loop()
     rudderServo.write(s4_command_PWM);   // rudder
     gimbalServo.write(s5_command_PWM);   // gimbal
 
-    Serial.print(" baro reading: \t");
-    Serial.print(altitudeMeasured);
-    Serial.print(" baro reading LP: \t");
-    Serial.print(altitude_baro);
-    // Serial.print(" tof test time: \t");
-    // Serial.print(ToF_test_time_in_micros);
-    Serial.print("\t baro test time: \t");
-    Serial.print(baro_test_time_in_micros);
-    Serial.print("\t imu test time: \t");
-    Serial.print(IMU_test_time_in_micros);
-    Serial.print("\t pitot test time: \t");
-    Serial.print(pitot_test_time_in_micros);
+    // Serial.print(" baro reading: \t");
+    // Serial.print(altitudeMeasured);
+    // Serial.print(" baro reading LP: \t");
+    // Serial.print(altitude_baro);
+    //  Serial.print(" tof test time: \t");
+    //  Serial.print(ToF_test_time_in_micros);
+    // Serial.print("\t baro test time: \t");
+    // Serial.print(baro_test_time_in_micros);
+    // Serial.print("\t imu test time: \t");
+    // Serial.print(IMU_test_time_in_micros);
+
+    if (bmp.newData)
+    {
+        Serial.print("\t baro pressure: \t");
+        Serial.print(pressure);
+        // Serial.print("\t baro temp: \t");
+        // Serial.print(temperature);
+         Serial.print(" \t baro reading: \t");
+         Serial.print(altitudeMeasured);
+        // Serial.print(" baro reading LP: \t");
+        // Serial.print(altitude_baro);
+        Serial.println();
+    }
+
     // Serial.print("\t microseconds per loop: ");
     // Serial.print(dt * 1000000);
     //    printLoopRate();
-    Serial.println();
 
     // Regulate loop rate
     loopBlink();    // Blink every 1.5 seconds to indicate main loop
@@ -1519,10 +1530,10 @@ void BMP180setup()
         }
         bmp.pollData(&temperature, &pressure, &altitudeMeasured);
         altitude_offset_sum += altitudeMeasured;
-        delay(100);
+        Serial.println(i);
     }
     altitude_offset = altitude_offset_sum / ((float)altitude_offset_num_vals);
-
+    Serial.println(altitude_offset);
     delay(1000);
 }
 
