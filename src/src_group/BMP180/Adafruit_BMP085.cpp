@@ -33,25 +33,31 @@
 
 Adafruit_BMP085::Adafruit_BMP085() { i2c_dev = nullptr; }
 
-bool Adafruit_BMP085::begin(uint8_t mode, TwoWire *wire) {
+bool Adafruit_BMP085::begin(uint8_t mode, TwoWire *wire)
+{
+
   if (mode > BMP085_ULTRAHIGHRES)
     mode = BMP085_ULTRAHIGHRES;
   oversampling = mode;
 
-  if (i2c_dev) {
+  if (i2c_dev)
+  {
     delete i2c_dev; // remove old interface
   }
 
   i2c_dev = new Adafruit_I2CDevice(BMP085_I2CADDR, wire);
 
-  if (!i2c_dev->begin()) {
+  // THIS IS THE CULPRIT RIGHT HERE MAUAHAHHA I FOUND YOU YOU COULD NEVER RUN:
+  if (!i2c_dev->begin())
+  {
     return false;
   }
+  
 
   if (read8(0xD0) != 0x55)
     return false;
 
-  /* read calibration data */
+  // read calibration data
   ac1 = read16(BMP085_CAL_AC1);
   ac2 = read16(BMP085_CAL_AC2);
   ac3 = read16(BMP085_CAL_AC3);
@@ -95,13 +101,15 @@ bool Adafruit_BMP085::begin(uint8_t mode, TwoWire *wire) {
   return true;
 }
 
-int32_t Adafruit_BMP085::computeB5(int32_t UT) {
+int32_t Adafruit_BMP085::computeB5(int32_t UT)
+{
   int32_t X1 = (UT - (int32_t)ac6) * ((int32_t)ac5) >> 15;
   int32_t X2 = ((int32_t)mc << 11) / (X1 + (int32_t)md);
   return X1 + X2;
 }
 
-uint16_t Adafruit_BMP085::readRawTemperature(void) {
+uint16_t Adafruit_BMP085::readRawTemperature(void)
+{
   write8(BMP085_CONTROL, BMP085_READTEMPCMD);
   delay(5);
 #if BMP085_DEBUG == 1
@@ -111,7 +119,8 @@ uint16_t Adafruit_BMP085::readRawTemperature(void) {
   return read16(BMP085_TEMPDATA);
 }
 
-uint32_t Adafruit_BMP085::readRawPressure(void) {
+uint32_t Adafruit_BMP085::readRawPressure(void)
+{
   uint32_t raw;
 
   write8(BMP085_CONTROL, BMP085_READPRESSURECMD + (oversampling << 6));
@@ -146,7 +155,8 @@ uint32_t Adafruit_BMP085::readRawPressure(void) {
   return raw;
 }
 
-int32_t Adafruit_BMP085::readPressure(void) {
+int32_t Adafruit_BMP085::readPressure(void)
+{
   int32_t UT, UP, B3, B5, B6, X1, X2, X3, p;
   uint32_t B4, B7;
 
@@ -216,9 +226,12 @@ int32_t Adafruit_BMP085::readPressure(void) {
   Serial.println(B7);
 #endif
 
-  if (B7 < 0x80000000) {
+  if (B7 < 0x80000000)
+  {
     p = (B7 * 2) / B4;
-  } else {
+  }
+  else
+  {
     p = (B7 / B4) * 2;
   }
   X1 = (p >> 8) * (p >> 8);
@@ -242,12 +255,14 @@ int32_t Adafruit_BMP085::readPressure(void) {
   return p;
 }
 
-int32_t Adafruit_BMP085::readSealevelPressure(float altitude_meters) {
+int32_t Adafruit_BMP085::readSealevelPressure(float altitude_meters)
+{
   float pressure = readPressure();
   return (int32_t)(pressure / pow(1.0 - altitude_meters / 44330, 5.255));
 }
 
-float Adafruit_BMP085::readTemperature(void) {
+float Adafruit_BMP085::readTemperature(void)
+{
   int32_t UT, B5; // following ds convention
   float temp;
 
@@ -269,7 +284,8 @@ float Adafruit_BMP085::readTemperature(void) {
   return temp;
 }
 
-float Adafruit_BMP085::readAltitude(float sealevelPressure) {
+float Adafruit_BMP085::readAltitude(float sealevelPressure)
+{
   float altitude;
 
   float pressure = readPressure();
@@ -281,7 +297,8 @@ float Adafruit_BMP085::readAltitude(float sealevelPressure) {
 
 /*********************************************************************/
 
-uint8_t Adafruit_BMP085::read8(uint8_t a) {
+uint8_t Adafruit_BMP085::read8(uint8_t a)
+{
   uint8_t ret;
 
   // send 1 byte, reset i2c, read 1 byte
@@ -290,7 +307,8 @@ uint8_t Adafruit_BMP085::read8(uint8_t a) {
   return ret;
 }
 
-uint16_t Adafruit_BMP085::read16(uint8_t a) {
+uint16_t Adafruit_BMP085::read16(uint8_t a)
+{
   uint8_t retbuf[2];
   uint16_t ret;
 
@@ -305,7 +323,8 @@ uint16_t Adafruit_BMP085::read16(uint8_t a) {
   return ret;
 }
 
-void Adafruit_BMP085::write8(uint8_t a, uint8_t d) {
+void Adafruit_BMP085::write8(uint8_t a, uint8_t d)
+{
   // send d prefixed with a (a d [stop])
   i2c_dev->write(&d, 1, true, &a, 1);
 }

@@ -15,16 +15,19 @@
 
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
 // INCLUDE FILES AND LIBRARIES
-#include <Arduino.h>                     //  Standard Arduino file
-#include "src_group/dRehmFlight.h"       //  Modified and used dRehmFlight: https://github.com/nickrehm/dRehmFlight
-                                         //  Credit to: Nicholas Rehm
-                                         //  Department of Aerospace Engineering
-                                         //  University of Maryland
-                                         //  College Park 20742
-                                         //  Email: nrehm@umd.edu
-                                         //
-#include "src_group/ToF/VL53L1X.h"       // Library to interface with the time-of-flight sensor VL53L1X
-#include "BMP180/Adafruit_BMP085.h"      // Library to interface with the barometric sensor BMP180
+#include <Arduino.h>                        //  Standard Arduino file
+#include "src_group/dRehmFlight.h"          //  Modified and used dRehmFlight: https://github.com/nickrehm/dRehmFlight
+                                            //  Credit to: Nicholas Rehm
+                                            //  Department of Aerospace Engineering
+                                            //  University of Maryland
+                                            //  College Park 20742
+                                            //  Email: nrehm@umd.edu
+                                            //
+#include "src_group/ToF/Adafruit_VL53L1X.h" // Library to interface with the time-of-flight sensor VL53L1X
+#include "BMP180/Adafruit_BMP085.h"         // Library to interface with the barometric sensor BMP180
+#include <Adafruit_I2CDevice.h>
+// #include <Wire.h>
+// #include "pololuVL53L1x/VL53L1X.h"
 #include "ASPD4525.h"                    //Library to interface with the ASPD4525 airspeed sensor
                                          // Sensor originally meant to work with Ardupilot flight computers, and thus needed to be experimentally tuned
 #include <SD.h>                          // Library to read and write to the microSD card port
@@ -129,9 +132,15 @@ float altitude_prev;                     // The previous reading of the barometr
 float altitude_LP_param = 0.05;          // The low pass filter parameter for altitude (smaller values means a more smooth signal but higher delay time)
 float altitudeMeasured;                  // The raw altitude reading from the barometric pressure sensor (in m)
 
-float ToFaltitude;          // The estimated altitude by the Time of Flight sensor (in m). Derived from distance_LP, and therefore has low pass filter applied. Works up to 4m, but NEED TO TEST RANGE
+float ToFaltitude; // The estimated altitude by the Time of Flight sensor (in m). Derived from distance_LP, and therefore has low pass filter applied. Works up to 4m, but NEED TO TEST RANGE
+int16_t distance;
+float distance_LP_param = 0.5;
+float distancePrev;
+float distance_LP;
 float leftWingtipAltitude;  // The estimated and calculated altitude of the left wingtip based on roll angle and the ToF sensor
 float rightWingtipAltitude; // The estimated and calculated altitude of the right wingtip based on roll angle and the ToF sensor
+const int IRQpin = 35;
+const int XSHUTpin = 34;
 
 // float IMU_vertical_accel, IMU_vertical_vel, IMU_vertical_pos;       // the vertical acceleration, velocity, and position estimated by the IMU
 // float IMU_horizontal_accel, IMU_horizontal_vel, IMU_horizontal_pos; // the horizontal acceleration, velocity, and position estimated by the IMU
@@ -253,6 +262,7 @@ float pitch_IMU_rad, roll_IMU_rad, yaw_IMU_rad;
 Adafruit_BMP085 bmp;                                          // Object to interface with the BMP180 barometric pressure sensor
 File dataFile;                                                // Object to interface with the microSD card
 KalmanFilter kalmanHoriz(0.5, 0.01942384099, 0.001002176158); // Kalman filter for the horizontal
+Adafruit_VL53L1X vl53 = Adafruit_VL53L1X(XSHUTpin, IRQpin);
 
 // Data logging variables
 const int COLUMNS = 12;            // Columns in the datalog array
@@ -279,11 +289,17 @@ enum flight_modes
 };
 
 // Timing variables
-unsigned long test_time_in_micros;
-unsigned long test_time_in_micros_start;
+unsigned long ToF_test_time_in_micros;
+unsigned long ToF_test_start_time;
+unsigned long IMU_test_start_time;
+unsigned long IMU_test_time_in_micros;
+unsigned long baro_test_start_time;
+unsigned long baro_test_time_in_micros;
+unsigned long pitot_test_start_time;
+unsigned long pitot_test_time_in_micros;
 
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
-// FUNCTION DECLARATIONS (in this order)
+// FUNCTION DECLARATIONS
 
 void dynamicSoar();
 void DSattitude();
@@ -299,6 +315,8 @@ void setupSD();
 void logDataToRAM();
 void clearDataInRAM();
 void writeDataToSD();
+void VL53L1Xsetup();
+void VL53L1Xloop();
 
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
 // INDIVIDUAL TEST PROGRAMS
@@ -645,7 +663,7 @@ void setup()
     Wire.begin();
     Wire.setClock(1000000); // Note this is 2.5 times the spec sheet 400 kHz max...
 
-    delay(5 * 1000); // Delay to have enough time to push reset, close hatch, and place UAV flat on the ground and into the wind
+    //    delay(5 * 1000); // Delay to have enough time to push reset, close hatch, and place UAV flat on the ground and into the wind
 
     pinMode(13, OUTPUT); // LED on the Teensy 4.1 set to output
 
@@ -667,8 +685,8 @@ void setup()
     calculate_IMU_error(); // IMU calibrate
     Serial.println("passed IMU calibration");
 
-    BMP180setup(); // Barometer init and calibrate
-    Serial.println("passed baro setup");
+    //    BMP180setup(); // Barometer init and calibrate
+    //    Serial.println("passed baro setup");
     VL53L1Xsetup(); // ToF sensor init
     Serial.println("passed ToF setup");
     pitotSetup(); // Airspeed sensor init and calibrate
@@ -721,16 +739,22 @@ void loop()
     timeInMillis = millis();
 
     // Retrieve sensor data
-    test_time_in_micros_start = micros();
-    getIMUdata(); // Pulls raw gyro, accelerometer, and magnetometer data from IMU and LP filters to remove noise
-    test_time_in_micros = micros() - test_time_in_micros_start;
+    IMU_test_start_time = micros();
+    getIMUdata();                                                              // Pulls raw gyro, accelerometer, and magnetometer data from IMU and LP filters to remove noise
     Madgwick(GyroX, -GyroY, -GyroZ, -AccX, AccY, AccZ, MagY, -MagX, MagZ, dt); // Updates roll_IMU, pitch_IMU, and yaw_IMU angle estimates (in deg)
+    IMU_test_time_in_micros = micros() - IMU_test_start_time;
 
-    //BMP180loop(); // Retrieves barometric altitude and LP filters
+    baro_test_start_time = micros();
+    // BMP180loop(); // Retrieves barometric altitude and LP filters
+    baro_test_time_in_micros = micros() - baro_test_start_time;
 
+    ToF_test_start_time = micros();
     // VL35L1Xloop(); // Retrieves ToF sensor distance
+    ToF_test_time_in_micros = micros() - ToF_test_start_time;
 
+    pitot_test_start_time = micros();
     pitotLoop(); // Retrieves pitot tube airspeed
+    pitot_test_time_in_micros = micros() - pitot_test_start_time;
 
     getCommands(); // Retrieves radio commands
     failSafe();    // Failsafe in case of radio connection loss
@@ -1062,9 +1086,15 @@ void loop()
     rudderServo.write(s4_command_PWM);   // rudder
     gimbalServo.write(s5_command_PWM);   // gimbal
 
-    Serial.print(" test time: ");
-    Serial.print(test_time_in_micros);
-    Serial.print(" microseconds per loop: ");
+    Serial.print(" tof test time: \t");
+    Serial.print(ToF_test_time_in_micros);
+    Serial.print("\t baro test time: \t");
+    Serial.print(baro_test_time_in_micros);
+    Serial.print("\t imu test time: \t");
+    Serial.print(IMU_test_time_in_micros);
+    Serial.print("\t pitot test time: \t");
+    Serial.print(pitot_test_time_in_micros);
+    Serial.print("\t microseconds per loop: ");
     Serial.println(dt * 1000000);
     //    printLoopRate();
 
@@ -1473,12 +1503,13 @@ void BMP180setup()
         {
         }
     }
-
-    for (int i = 0; i < altitude_offset_num_vals; i++)
-    {
-        altitude_offset_sum += bmp.readAltitude();
-    }
-    altitude_offset = altitude_offset_sum / ((float)altitude_offset_num_vals);
+    /*
+        for (int i = 0; i < altitude_offset_num_vals; i++)
+        {
+            altitude_offset_sum += bmp.readAltitude();
+        }
+        altitude_offset = altitude_offset_sum / ((float)altitude_offset_num_vals);
+    */
 }
 
 // This function offsets and low pass filters the barometric altitude reading
@@ -1487,6 +1518,45 @@ void BMP180loop()
     altitudeMeasured = bmp.readAltitude() - altitude_offset;
     altitude_baro = (1.0 - altitude_LP_param) * altitude_prev + altitude_LP_param * altitudeMeasured;
     altitude_prev = altitude_baro;
+}
+
+void VL53L1Xsetup()
+{
+    // THIS IS THE CULPRIT AGAIN
+    if (!vl53.begin(0x29, &Wire))
+    {
+        while (1)
+            ;
+    }
+
+    if (!vl53.startRanging())
+    {
+        while (1)
+            ;
+    }
+
+    // Valid timing budgets: 15, 20, 33, 50, 100, 200 and 500ms!
+    vl53.setTimingBudget(20);
+
+    // vl53.VL53L1X_SetDistanceThreshold(10, 1000, 3, 1);
+    // vl53.VL53L1X_SetInterruptPolarity(0);
+}
+
+void VL35L1Xloop()
+{
+    if (vl53.dataReady())
+    {
+        // new measurement for the taking!
+        distance = vl53.distance();
+        if (distance == -1)
+        {
+            return;
+        }
+        // data is read out, time for another reading!
+        distance_LP = (1.0 - distance_LP_param) * distancePrev + distance_LP_param * distance;
+        distancePrev = distance_LP;
+        vl53.clearInterrupt();
+    }
 }
 
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
