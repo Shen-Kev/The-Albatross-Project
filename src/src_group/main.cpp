@@ -124,19 +124,21 @@ float airspeed_adjusted;              // the airspeed adjusted to be as accurate
 float airspeed_adjusted_prev;         // the previous airspeed adjusted reading. Used to estimate the derivative (slope of secant line) in the PID loop
 
 // Variables for altitde sensing
-float altitude_offset;                   // The difference between the barometer's altitude reading and the 'real' altitude (in m) which is assumed to be 0 at ground level
-const int altitude_offset_num_vals = 1000; // The number of sensor readings that get averaged to adjust the altitude offset
-int offset_loop_counter = 0;             // Tracks the number of sensor readings so far
-float altitude_offset_sum = 0.0;         // Tracks the sum of all the sensor reading so far
-float altitude_baro;                     // The altitude estimated from the barometer, with a low pass filter and offset adjustment applied
-float altitude_prev;                     // The previous reading of the barometric pressure sensor
-float altitude_LP_param = 0.05;          // The low pass filter parameter for altitude (smaller values means a more smooth signal but higher delay time)
-float altitudeMeasured;                  // The raw altitude reading from the barometric pressure sensor (in m)
-long pressure;                           // Pressure measured by the BMP180
-int temperature = 0.0;                   // set temperature just to make bmp180 happy, in reality its replaced by the offset feature
-double referencePressure;                // Pressure measured by the BMP180 at startup
+// float altitude_offset;                   // The difference between the barometer's altitude reading and the 'real' altitude (in m) which is assumed to be 0 at ground level
+// const int altitude_offset_num_vals = 1000; // The number of sensor readings that get averaged to adjust the altitude offset
+// int offset_loop_counter = 0;             // Tracks the number of sensor readings so far
+// float altitude_offset_sum = 0.0;         // Tracks the sum of all the sensor reading so far
+// float altitude_baro;                     // The altitude estimated from the barometer, with a low pass filter and offset adjustment applied
+// float altitude_prev;                     // The previous reading of the barometric pressure sensor
+// float altitude_LP_param = 0.05;          // The low pass filter parameter for altitude (smaller values means a more smooth signal but higher delay time)
+// float altitudeMeasured;                  // The raw altitude reading from the barometric pressure sensor (in m)
+// long pressure;                           // Pressure measured by the BMP180
+// int temperature = 0.0;                   // set temperature just to make bmp180 happy, in reality its replaced by the offset feature
+// double referencePressure;                // Pressure measured by the BMP180 at startup
 
+//ToF altitude sensing
 float ToFaltitude; // The estimated altitude by the Time of Flight sensor (in m). Derived from distance_LP, and therefore has low pass filter applied. Works up to 4m, but NEED TO TEST RANGE
+float prevToFaltitude;
 int16_t distance;
 float distance_LP_param = 0.5;
 float distancePrev;
@@ -146,11 +148,11 @@ float rightWingtipAltitude; // The estimated and calculated altitude of the righ
 const int IRQpin = 35;
 const int XSHUTpin = 34;
 
-// float IMU_vertical_accel, IMU_vertical_vel, IMU_vertical_pos;       // the vertical acceleration, velocity, and position estimated by the IMU
+float IMU_vertical_accel, IMU_vertical_vel, IMU_vertical_pos;       // the vertical acceleration, velocity, and position estimated by the IMU
 // float IMU_horizontal_accel, IMU_horizontal_vel, IMU_horizontal_pos; // the horizontal acceleration, velocity, and position estimated by the IMU
 
 float estimated_altitude; // The estimated altitude of the UAV, as a combination of the ToF, IMU, and baro sensor
-int altitudeTypeDataLog;  // To record the type of altitude the UAV is using as its estimated altitude. 0 is ToF within gimbal range, 1 is ToF too far left, 2 is ToF too far right, and 3 is using IMU and barometer
+int altitudeTypeDataLog;  // To record the type of altitude the UAV is using as its estimated altitude. 0 is ToF within gimbal range, 1 is ToF too far left, 2 is ToF too far right, and 3 is using IMU only
 
 float timeInMillis;  // Time in milliseconds since the flight controller was reset
 int loopCounter = 0; // A counter used to log data every certain number of loops
@@ -267,6 +269,7 @@ BMP085NB bmp;
 File dataFile;                                                // Object to interface with the microSD card
 KalmanFilter kalmanHoriz(0.5, 0.01942384099, 0.001002176158); // Kalman filter for the horizontal
 // Adafruit_VL53L1X vl53 = Adafruit_VL53L1X(XSHUTpin, IRQpin);
+KalmanFilter kalmanVert(0.5, 0.01942384099, 0.001002176158); // Kalman filter for the vertical position
 VL53L1X sensor;
 
 // Data logging variables
@@ -277,11 +280,11 @@ int currentRow = 0;                // Keeps track of the row the data should be 
 const int datalogRate = 50;        // NEEDS TO BE ADJUSTED: Data logging rate in Hz
 const int dataLogRateSlow = 1;     // Data logging rate when not important, just to show the different phases of flight
 // Altitude estimator to combine barometric pressure sensor (with low pass filter applied) with the gyroscope and acclerometer
-AltitudeEstimator altitudeLPbaro = AltitudeEstimator(0.001002176158, // Sigma (standard deviation of) the accelerometer
-                                                     0.01942384099,  // Sigma (standard deviation of) the gyroscope
-                                                     0.1674466677,   // sigma (standard deviation of) the barometer
-                                                     0.5,            // ca (don't touch)
-                                                     0.1);           // accel threshold (if there are many IMU acceleration values below this value, it is assumed the aircraft is not moving vertically)
+// AltitudeEstimator altitudeLPbaro = AltitudeEstimator(0.001002176158, // Sigma (standard deviation of) the accelerometer
+//                                                      0.01942384099,  // Sigma (standard deviation of) the gyroscope
+//                                                      0.1674466677,   // sigma (standard deviation of) the barometer
+//                                                      0.5,            // ca (don't touch)
+//                                                      0.1);           // accel threshold (if there are many IMU acceleration values below this value, it is assumed the aircraft is not moving vertically)
 
 // Flight mode variables
 int flight_mode; // The flight mode (manual, stabilized, DS)
@@ -314,8 +317,8 @@ void horizontal();
 void estimateAltitude();
 void pitotSetup();
 void pitotLoop();
-void BMP180setup();
-void BMP180loop();
+// void BMP180setup();
+// void BMP180loop();
 void setupSD();
 void logDataToRAM();
 void clearDataInRAM();
@@ -400,6 +403,7 @@ void loop()
     Serial.println(yaw_IMU);
 }
 
+/*
 #elif TEST_BARO
 void setup()
 {
@@ -424,7 +428,7 @@ void loop()
     Serial.print(altitude_baro);
     Serial.println();
 }
-
+*/
 #elif TEST_RADIO
 void setup()
 {
@@ -690,8 +694,8 @@ void setup()
     calculate_IMU_error(); // IMU calibrate
     Serial.println("passed IMU calibration");
 
-    BMP180setup(); // Barometer init and calibrate
-    Serial.println("passed baro setup");
+    // BMP180setup(); // Barometer init and calibrate
+    // Serial.println("passed baro setup");
     VL53L1Xsetup(); // ToF sensor init
     Serial.println("passed ToF setup");
     pitotSetup(); // Airspeed sensor init and calibrate
@@ -749,9 +753,9 @@ void loop()
     Madgwick(GyroX, -GyroY, -GyroZ, -AccX, AccY, AccZ, MagY, -MagX, MagZ, dt); // Updates roll_IMU, pitch_IMU, and yaw_IMU angle estimates (in deg)
     IMU_test_time_in_micros = micros() - IMU_test_start_time;
 
-    baro_test_start_time = micros();
-    BMP180loop(); // Retrieves barometric altitude and LP filters
-    baro_test_time_in_micros = micros() - baro_test_start_time;
+    // baro_test_start_time = micros();
+    // BMP180loop(); // Retrieves barometric altitude and LP filters
+    // baro_test_time_in_micros = micros() - baro_test_start_time;
 
     ToF_test_start_time = micros();
     VL53L1Xloop(); // Retrieves ToF sensor distance
@@ -763,6 +767,8 @@ void loop()
 
     getCommands(); // Retrieves radio commands
     failSafe();    // Failsafe in case of radio connection loss
+
+    estimateAltitude();
 
     // Convert roll, pitch, and yaw from degrees to radians
     pitch_IMU_rad = pitch_IMU * DEG_TO_RAD;
@@ -1102,18 +1108,18 @@ void loop()
     // Serial.print("\t imu test time: \t");
     // Serial.print(IMU_test_time_in_micros);
 
-    if (bmp.newData)
-    {
-        Serial.print("\t baro pressure: \t");
-        Serial.print(pressure);
-        // Serial.print("\t baro temp: \t");
-        // Serial.print(temperature);
-         Serial.print(" \t baro reading: \t");
-         Serial.print(altitudeMeasured);
-        // Serial.print(" baro reading LP: \t");
-        // Serial.print(altitude_baro);
-        Serial.println();
-    }
+    // if (bmp.newData)
+    // {
+    //     Serial.print("\t baro pressure: \t");
+    //     Serial.print(pressure);
+    //     // Serial.print("\t baro temp: \t");
+    //     // Serial.print(temperature);
+    //      Serial.print(" \t baro reading: \t");
+    //      Serial.print(altitudeMeasured);
+    //     // Serial.print(" baro reading LP: \t");
+    //     // Serial.print(altitude_baro);
+    //     Serial.println();
+    // }
 
     // Serial.print("\t microseconds per loop: ");
     // Serial.print(dt * 1000000);
@@ -1405,7 +1411,7 @@ void horizontal()
     float gyroData[3] = {GyroX * DEG_TO_RAD, GyroY * DEG_TO_RAD, GyroZ * DEG_TO_RAD};
     float horizontal_acceleration_magnitude_any_direction;
     float angle_of_horizontal_acceleration;
-    kalmanHoriz.estimateHorizontal(accelData, gyroData, dt, horizontal_acceleration_magnitude_any_direction, angle_of_horizontal_acceleration);
+    kalmanHoriz.estimateHorizontal(gyroData, accelData, dt, horizontal_acceleration_magnitude_any_direction, angle_of_horizontal_acceleration);
 
     // Calculate horizontal accel perpendicular to the DS flight path, assumed to be directly into the wind and assumed to be 0 degrees yaw angle relative to staring position
     DS_horizontal_accel = cos(angle_of_horizontal_acceleration) * horizontal_acceleration_magnitude_any_direction;
@@ -1434,7 +1440,11 @@ void estimateAltitude()
     // Use the Kalman filter to estimate the altitude of the UAV using only the IMU and barometer (both after having a low pass filter applied)
     float accelData[3] = {AccX, AccY, AccZ};
     float gyroData[3] = {GyroX * DEG_TO_RAD, GyroY * DEG_TO_RAD, GyroZ * DEG_TO_RAD};
-    altitudeLPbaro.estimate(accelData, gyroData, altitudeMeasured - altitude_offset, dt);
+    IMU_vertical_accel = kalmanVert.estimate(gyroData, accelData, dt);
+    IMU_vertical_vel += IMU_vertical_accel/dt;
+    IMU_vertical_pos += IMU_vertical_vel/dt;
+
+    // altitudeLPbaro.estimate(accelData, gyroData, altitudeMeasured - altitude_offset, dt);
 
     s5_command_PWM = roll_IMU * gimbalServoGain; // Rotate the gimbal servo to point the ToF sensor straight down
 
@@ -1443,18 +1453,22 @@ void estimateAltitude()
     // If the distance being read is a valid number (it returns -1 if it cannot detect anything, and has a range up to 4m), use the ToF sensor as the altitude
     if (ToFaltitude < 4.0 && distance > 0.0)
     {
-        // Recalibrate the barometer based on the ToF sensor. Every 10 readings, find the offset and average
-        if (offset_loop_counter < altitude_offset_num_vals)
-        {
-            offset_loop_counter++;
-            altitude_offset_sum += altitudeMeasured - ToFaltitude;
-        }
-        else
-        {
-            offset_loop_counter = 0;
-            altitude_offset = (altitude_offset_sum / altitude_offset_num_vals);
-            altitude_offset_sum = 0;
-        }
+        // // Recalibrate the barometer based on the ToF sensor. Every 10 readings, find the offset and average
+        // if (offset_loop_counter < altitude_offset_num_vals)
+        // {
+        //     offset_loop_counter++;
+        //     altitude_offset_sum += altitudeMeasured - ToFaltitude;
+        // }
+        // else
+        // {
+        //     offset_loop_counter = 0;
+        //     altitude_offset = (altitude_offset_sum / altitude_offset_num_vals);
+        //     altitude_offset_sum = 0;
+        // }
+
+        //recalibrate IMU
+        IMU_vertical_pos = ToFaltitude;
+        IMU_vertical_vel = (ToFaltitude-prevToFaltitude)/dt;
 
         // Calculate the distance of the wingtip to the ground. The UAV has a wingspan of 1.5m and the ToF sensor is located 0.14m to the left of the center of the fuselage
         if (roll_IMU > gimbalRightBoundAngle && roll_IMU < gimbalLeftBoundAngle)
@@ -1486,8 +1500,8 @@ void estimateAltitude()
     else
     {
         // If the ToF sensor is out of range, estimate the altitude with the IMU and barometer only
-        estimated_altitude = altitudeLPbaro.getAltitude();
-        altitudeTypeDataLog = 3; // Let the flight data show that the altitude is based on the IMU and barometer only
+        estimated_altitude = IMU_vertical_pos;
+        altitudeTypeDataLog = 3; // Let the flight data show that the altitude is based on the IMU only
     }
 }
 
@@ -1515,6 +1529,7 @@ void pitotLoop()
     airspeed_adjusted = (airspeed_unadjusted - airspeed_offset) * airspeed_scalar;
 }
 
+/*
 // This function sets up and calibrates the barometric pressure sensor, and on startup offests the raw data to say the starting position is 0m
 void BMP180setup()
 {
@@ -1548,6 +1563,7 @@ void BMP180loop()
         altitude_prev = altitude_baro;
     }
 }
+*/
 
 void VL53L1Xsetup()
 {
