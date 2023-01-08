@@ -23,11 +23,11 @@
                                             //  College Park 20742
                                             //  Email: nrehm@umd.edu
                                             //
-#include "src_group/ToF/Adafruit_VL53L1X.h" // Library to interface with the time-of-flight sensor VL53L1X
+//#include "src_group/ToF/Adafruit_VL53L1X.h" // Library to interface with the time-of-flight sensor VL53L1X
 #include "BMP180/Adafruit_BMP085.h"         // Library to interface with the barometric sensor BMP180
 #include <Adafruit_I2CDevice.h>
-// #include <Wire.h>
-// #include "pololuVL53L1x/VL53L1X.h"
+#include <Wire.h>
+#include "pololuVL53L1x/VL53L1X.h"
 #include "ASPD4525.h"                    //Library to interface with the ASPD4525 airspeed sensor
                                          // Sensor originally meant to work with Ardupilot flight computers, and thus needed to be experimentally tuned
 #include <SD.h>                          // Library to read and write to the microSD card port
@@ -262,7 +262,8 @@ float pitch_IMU_rad, roll_IMU_rad, yaw_IMU_rad;
 Adafruit_BMP085 bmp;                                          // Object to interface with the BMP180 barometric pressure sensor
 File dataFile;                                                // Object to interface with the microSD card
 KalmanFilter kalmanHoriz(0.5, 0.01942384099, 0.001002176158); // Kalman filter for the horizontal
-Adafruit_VL53L1X vl53 = Adafruit_VL53L1X(XSHUTpin, IRQpin);
+// Adafruit_VL53L1X vl53 = Adafruit_VL53L1X(XSHUTpin, IRQpin);
+VL53L1X sensor;
 
 // Data logging variables
 const int COLUMNS = 12;            // Columns in the datalog array
@@ -333,7 +334,7 @@ void loop()
     current_time = micros();
     dt = (current_time - prev_time) / 1000000.0;
     loopRate(2000);
-    VL35L1Xloop();
+    V53L1Xloop();
     if (loopCounter > 50)
     {
         Serial.print(" Distance: ");
@@ -749,7 +750,7 @@ void loop()
     baro_test_time_in_micros = micros() - baro_test_start_time;
 
     ToF_test_start_time = micros();
-    // VL35L1Xloop(); // Retrieves ToF sensor distance
+    VL53L1Xloop(); // Retrieves ToF sensor distance
     ToF_test_time_in_micros = micros() - ToF_test_start_time;
 
     pitot_test_start_time = micros();
@@ -1086,6 +1087,8 @@ void loop()
     rudderServo.write(s4_command_PWM);   // rudder
     gimbalServo.write(s5_command_PWM);   // gimbal
 
+    Serial.print(" tof reading: \t");
+    Serial.print(distance_LP);
     Serial.print(" tof test time: \t");
     Serial.print(ToF_test_time_in_micros);
     Serial.print("\t baro test time: \t");
@@ -1522,6 +1525,7 @@ void BMP180loop()
 
 void VL53L1Xsetup()
 {
+    /*
     // THIS IS THE CULPRIT AGAIN
     if (!vl53.begin(0x29, &Wire))
     {
@@ -1539,11 +1543,33 @@ void VL53L1Xsetup()
     vl53.setTimingBudget(20);
 
     // vl53.VL53L1X_SetDistanceThreshold(10, 1000, 3, 1);
-    // vl53.VL53L1X_SetInterruptPolarity(0);
+    // vl53.VL53L1X_SetInterruptPolarity(0);*/
+
+    sensor.setTimeout(500);
+    if (!sensor.init())
+    {
+        Serial.println("Failed to detect and initialize sensor!");
+        while (1)
+            ;
+    }
+
+    // Use long distance mode and allow up to 50000 us (50 ms) for a measurement.
+    // You can change these settings to adjust the performance of the sensor, but
+    // the minimum timing budget is 20 ms for short distance mode and 33 ms for
+    // medium and long distance modes. See the VL53L1X datasheet for more
+    // information on range and timing limits.
+    sensor.setDistanceMode(VL53L1X::Short);
+    sensor.setMeasurementTimingBudget(20000);
+
+    // Start continuous readings at a rate of one measurement every 50 ms (the
+    // inter-measurement period). This period should be at least as long as the
+    // timing budget.
+    sensor.startContinuous(50);
 }
 
-void VL35L1Xloop()
+void VL53L1Xloop()
 {
+    /*
     if (vl53.dataReady())
     {
         // new measurement for the taking!
@@ -1556,7 +1582,11 @@ void VL35L1Xloop()
         distance_LP = (1.0 - distance_LP_param) * distancePrev + distance_LP_param * distance;
         distancePrev = distance_LP;
         vl53.clearInterrupt();
-    }
+    }*/
+    distance = sensor.read(false);
+    distance_LP = (1.0 - distance_LP_param) * distancePrev + distance_LP_param * distance;
+    distancePrev = distance_LP;
+
 }
 
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
