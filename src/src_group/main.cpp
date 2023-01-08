@@ -23,7 +23,6 @@
                                             //  College Park 20742
                                             //  Email: nrehm@umd.edu
                                             //
-//#include "src_group/ToF/Adafruit_VL53L1X.h" // Library to interface with the time-of-flight sensor VL53L1X
 #include "BMP180/Adafruit_BMP085.h"         // Library to interface with the barometric sensor BMP180
 #include <Adafruit_I2CDevice.h>
 #include <Wire.h>
@@ -1525,25 +1524,6 @@ void BMP180loop()
 
 void VL53L1Xsetup()
 {
-    /*
-    // THIS IS THE CULPRIT AGAIN
-    if (!vl53.begin(0x29, &Wire))
-    {
-        while (1)
-            ;
-    }
-
-    if (!vl53.startRanging())
-    {
-        while (1)
-            ;
-    }
-
-    // Valid timing budgets: 15, 20, 33, 50, 100, 200 and 500ms!
-    vl53.setTimingBudget(20);
-
-    // vl53.VL53L1X_SetDistanceThreshold(10, 1000, 3, 1);
-    // vl53.VL53L1X_SetInterruptPolarity(0);*/
 
     sensor.setTimeout(500);
     if (!sensor.init())
@@ -1569,20 +1549,7 @@ void VL53L1Xsetup()
 
 void VL53L1Xloop()
 {
-    /*
-    if (vl53.dataReady())
-    {
-        // new measurement for the taking!
-        distance = vl53.distance();
-        if (distance == -1)
-        {
-            return;
-        }
-        // data is read out, time for another reading!
-        distance_LP = (1.0 - distance_LP_param) * distancePrev + distance_LP_param * distance;
-        distancePrev = distance_LP;
-        vl53.clearInterrupt();
-    }*/
+
     distance = sensor.read(false);
     distance_LP = (1.0 - distance_LP_param) * distancePrev + distance_LP_param * distance;
     distancePrev = distance_LP;
