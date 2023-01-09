@@ -77,6 +77,7 @@
 
 // Throttle cut for safety:
 #define MOTOR_ACTIVE FALSE
+#define DATALOG FALSE
 
 // Set only one of the below to TRURE to test. If all are false it runs the standard setup and loop. Can use this to test all systems, and also test flight mode 1 and 2 (servos, ESC, radio, PID, coordinated turns)
 
@@ -136,7 +137,7 @@ float airspeed_adjusted_prev;         // the previous airspeed adjusted reading.
 // int temperature = 0.0;                   // set temperature just to make bmp180 happy, in reality its replaced by the offset feature
 // double referencePressure;                // Pressure measured by the BMP180 at startup
 
-//ToF altitude sensing
+// ToF altitude sensing
 float ToFaltitude; // The estimated altitude by the Time of Flight sensor (in m). Derived from distance_LP, and therefore has low pass filter applied. Works up to 4m, but NEED TO TEST RANGE
 float prevToFaltitude;
 int16_t distance;
@@ -148,7 +149,7 @@ float rightWingtipAltitude; // The estimated and calculated altitude of the righ
 const int IRQpin = 35;
 const int XSHUTpin = 34;
 
-float IMU_vertical_accel, IMU_vertical_vel, IMU_vertical_pos;       // the vertical acceleration, velocity, and position estimated by the IMU
+float IMU_vertical_accel, IMU_vertical_vel, IMU_vertical_pos; // the vertical acceleration, velocity, and position estimated by the IMU
 // float IMU_horizontal_accel, IMU_horizontal_vel, IMU_horizontal_pos; // the horizontal acceleration, velocity, and position estimated by the IMU
 
 float estimated_altitude; // The estimated altitude of the UAV, as a combination of the ToF, IMU, and baro sensor
@@ -274,11 +275,11 @@ VL53L1X sensor;
 
 // Data logging variables
 const int COLUMNS = 12;            // Columns in the datalog array
-const int ROWS = 6000;             // Rows in the datalog array
+const int ROWS = 8500;             // Rows in the datalog array
 float dataLogArray[ROWS][COLUMNS]; // Create the datalog array. Columns are the variables being printed, and rows are logs at different times
 int currentRow = 0;                // Keeps track of the row the data should be logged into
 const int datalogRate = 50;        // NEEDS TO BE ADJUSTED: Data logging rate in Hz
-const int dataLogRateSlow = 1;     // Data logging rate when not important, just to show the different phases of flight
+const int dataLogRateSlow = 2;     // Data logging rate when not important, just to show the setup and different phases of flight
 // Altitude estimator to combine barometric pressure sensor (with low pass filter applied) with the gyroscope and acclerometer
 // AltitudeEstimator altitudeLPbaro = AltitudeEstimator(0.001002176158, // Sigma (standard deviation of) the accelerometer
 //                                                      0.01942384099,  // Sigma (standard deviation of) the gyroscope
@@ -305,6 +306,10 @@ unsigned long baro_test_start_time;
 unsigned long baro_test_time_in_micros;
 unsigned long pitot_test_start_time;
 unsigned long pitot_test_time_in_micros;
+unsigned long all_sensors_start_time;
+unsigned long all_sensors_time;
+
+boolean toggle = false; // toggle between ToF and airspeed
 
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
 // FUNCTION DECLARATIONS
@@ -747,26 +752,31 @@ void loop()
     dt = (current_time - prev_time) / 1000000.0; // Time between loop iterations, in seconds
     timeInMillis = millis();
 
+    all_sensors_start_time = micros();
     // Retrieve sensor data
-    IMU_test_start_time = micros();
-    getIMUdata();                                                              // Pulls raw gyro, accelerometer, and magnetometer data from IMU and LP filters to remove noise
-    Madgwick(GyroX, -GyroY, -GyroZ, -AccX, AccY, AccZ, MagY, -MagX, MagZ, dt); // Updates roll_IMU, pitch_IMU, and yaw_IMU angle estimates (in deg)
-    IMU_test_time_in_micros = micros() - IMU_test_start_time;
+    //  IMU_test_start_time = micros();
+    getIMUdata();                                               // Pulls raw gyro, accelerometer, and magnetometer data from IMU and LP filters to remove noise
+    Madgwick6DOF(GyroX, -GyroY, -GyroZ, -AccX, AccY, AccZ, dt); // Updates roll_IMU, pitch_IMU, and yaw_IMU angle estimates (in deg)
+                                                                //  IMU_test_time_in_micros = micros() - IMU_test_start_time;
 
     // baro_test_start_time = micros();
     // BMP180loop(); // Retrieves barometric altitude and LP filters
     // baro_test_time_in_micros = micros() - baro_test_start_time;
 
-    ToF_test_start_time = micros();
-    VL53L1Xloop(); // Retrieves ToF sensor distance
-    ToF_test_time_in_micros = micros() - ToF_test_start_time;
-
-    pitot_test_start_time = micros();
-    pitotLoop(); // Retrieves pitot tube airspeed
-    pitot_test_time_in_micros = micros() - pitot_test_start_time;
+    //toggles between the two functions every other loop
+    if (toggle)
+    {
+        VL53L1Xloop(); // Retrieves ToF sensor distance
+    }
+    else
+    {
+        pitotLoop(); // Retrieves pitot tube airspeed
+    }
+    toggle = !toggle;
 
     getCommands(); // Retrieves radio commands
     failSafe();    // Failsafe in case of radio connection loss
+    all_sensors_time = micros() - all_sensors_start_time;
 
     estimateAltitude();
 
@@ -1030,7 +1040,6 @@ void loop()
         s4_command_scaled = rudderCoordinatedCommand; // Between -1 and 1
 
         DSifFirstRun = true; // Resets the DS variable while not in the DS flight mode
-
         // Log data to RAM slowly because not in DS flight
         if (loopCounter > (2000 / dataLogRateSlow))
         {
@@ -1060,7 +1069,6 @@ void loop()
         s4_command_scaled = rudderCoordinatedCommand; // Between -1 and 1
 
         DSifFirstRun = false; // False after the first loop
-
         // Log data to RAM datalogRate times per second
         if (loopCounter > (2000 / datalogRate))
         {
@@ -1072,6 +1080,7 @@ void loop()
             loopCounter++;
         }
     }
+
     else
     {
         // Stop all UAV activity after landed, and log data
@@ -1080,9 +1089,11 @@ void loop()
         s3_command_scaled = 0;
         s4_command_scaled = 0;
         s5_command_PWM = 90;
+#if DATALOG
         writeDataToSD();
         clearDataInRAM();
         currentRow = 0;
+#endif
     }
 #endif
 
@@ -1101,13 +1112,18 @@ void loop()
     // Serial.print(altitudeMeasured);
     // Serial.print(" baro reading LP: \t");
     // Serial.print(altitude_baro);
-    //  Serial.print(" tof test time: \t");
-    //  Serial.print(ToF_test_time_in_micros);
-    // Serial.print("\t baro test time: \t");
-    // Serial.print(baro_test_time_in_micros);
+
+    // Serial.print(" tof test time: \t");
+    // Serial.print(ToF_test_time_in_micros);
+    // Serial.print("\t pitot test time: \t");
+    // Serial.print(pitot_test_time_in_micros);
     // Serial.print("\t imu test time: \t");
     // Serial.print(IMU_test_time_in_micros);
+    Serial.print(" tof  : \t");
+    Serial.print(distance_LP);
 
+    Serial.print("\t all sensors timme  : \t");
+    Serial.print(all_sensors_time);
     // if (bmp.newData)
     // {
     //     Serial.print("\t baro pressure: \t");
@@ -1121,10 +1137,10 @@ void loop()
     //     Serial.println();
     // }
 
-    // Serial.print("\t microseconds per loop: ");
-    // Serial.print(dt * 1000000);
+    Serial.print("\t microseconds per loop: ");
+    Serial.print(dt * 1000000);
     //    printLoopRate();
-
+    Serial.println();
     // Regulate loop rate
     loopBlink();    // Blink every 1.5 seconds to indicate main loop
     loopRate(2000); // Loop runs at 2000 Hz
@@ -1441,8 +1457,8 @@ void estimateAltitude()
     float accelData[3] = {AccX, AccY, AccZ};
     float gyroData[3] = {GyroX * DEG_TO_RAD, GyroY * DEG_TO_RAD, GyroZ * DEG_TO_RAD};
     IMU_vertical_accel = kalmanVert.estimate(gyroData, accelData, dt);
-    IMU_vertical_vel += IMU_vertical_accel/dt;
-    IMU_vertical_pos += IMU_vertical_vel/dt;
+    IMU_vertical_vel += IMU_vertical_accel / dt;
+    IMU_vertical_pos += IMU_vertical_vel / dt;
 
     // altitudeLPbaro.estimate(accelData, gyroData, altitudeMeasured - altitude_offset, dt);
 
@@ -1466,9 +1482,9 @@ void estimateAltitude()
         //     altitude_offset_sum = 0;
         // }
 
-        //recalibrate IMU
+        // recalibrate IMU
         IMU_vertical_pos = ToFaltitude;
-        IMU_vertical_vel = (ToFaltitude-prevToFaltitude)/dt;
+        IMU_vertical_vel = (ToFaltitude - prevToFaltitude) / dt;
 
         // Calculate the distance of the wingtip to the ground. The UAV has a wingspan of 1.5m and the ToF sensor is located 0.14m to the left of the center of the fuselage
         if (roll_IMU > gimbalRightBoundAngle && roll_IMU < gimbalLeftBoundAngle)
@@ -1581,12 +1597,13 @@ void VL53L1Xsetup()
     // the minimum timing budget is 20 ms for short distance mode and 33 ms for
     // medium and long distance modes. See the VL53L1X datasheet for more
     // information on range and timing limits.
-    sensor.setDistanceMode(VL53L1X::Short);
-    sensor.setMeasurementTimingBudget(20000);
+    sensor.setDistanceMode(VL53L1X::Long);
+    sensor.setMeasurementTimingBudget(50000);
 
     // Start continuous readings at a rate of one measurement every 50 ms (the
     // inter-measurement period). This period should be at least as long as the
     // timing budget.
+    // sensor.startContinuous(50);
     sensor.startContinuous(50);
 }
 

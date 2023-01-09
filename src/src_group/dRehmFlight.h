@@ -676,7 +676,7 @@ void getIMUdata()
 
 void calibrateAttitude()
 {
-  // DESCRIPTION: Used to warm up the main loop to allow the madwick filter to converge before commands can be sent to the actuators
+  // DESCRIPTION: Used to warm up the main loop to allow the madgwick filter to converge before commands can be sent to the actuators
   // Assuming vehicle is powered up on level surface!
   /*
    * This function is used on startup to warm up the attitude estimation and is what causes startup to take a few seconds
@@ -1223,7 +1223,7 @@ s4_command_scaled +=0.5;
   s2_command_PWM = s2_command_scaled * 180;
   s3_command_PWM = s3_command_scaled * 180;
   s4_command_PWM = s4_command_scaled * 180;
-  s5_command_PWM = s5_command_scaled * 180;
+  //s5_command_PWM = s5_command_scaled * 180;
   s6_command_PWM = s6_command_scaled * 180;
   s7_command_PWM = s7_command_scaled * 180;
   // Constrain commands to servos within servo library bounds
