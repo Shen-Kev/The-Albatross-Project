@@ -76,39 +76,39 @@
 // DEBUG AND TESTING #IFS
 
 // Throttle cut for safety:
-#define MOTOR_ACTIVE FALSE
-#define DATALOG FALSE
+#define MOTOR_ACTIVE 0
+#define DATALOG 0
 
 // Set only one of the below to TRURE to test. If all are false it runs the standard setup and loop. Can use this to test all systems, and also test flight mode 1 and 2 (servos, ESC, radio, PID, coordinated turns)
 
 // Basic, individual systems ground test programs (with serial connection). Mostly for troubleshooting individual components
-#define TEST_TOF FALSE            // Time of flight sensor test
-#define TEST_AIRSPEED FALSE       // Airspeed sensor test
-#define TEST_IMU FALSE            // IMU sensor test
-#define TEST_BARO FALSE           // barometer sensor test
-#define TEST_RADIO FALSE          // radio sensor test
-#define TEST_RADIO_TO_SERVO FALSE // servo test
-#define TEST_SERIAL FALSE         // serial output test
-#define TEST_SD FALSE             // SD write test
+#define TEST_TOF 0            // Time of flight sensor test
+#define TEST_AIRSPEED 0       // Airspeed sensor test
+#define TEST_IMU 1            // IMU sensor test
+#define TEST_BARO 0           // barometer sensor test
+#define TEST_RADIO 0          // radio sensor test
+#define TEST_RADIO_TO_SERVO 0 // servo test
+#define TEST_SERIAL 0         // serial output test
+#define TEST_SD 0             // SD write test
 
-#define TEST_DREHMFLIGHT FALSE
+#define TEST_DREHMFLIGHT 0
 
 // Combined systems ground test programs with serial connection
-#define TEST_ON_GIMBAL_RIG FALSE     // Uses the gimbal rig to tune PID pitch and roll loops, and validate/tune airspeed, but monitor the throttle PID
-#define TEST_ALTITUDE_RIG FALSE      // Uses the altitude rig to estimate the altitude of the UAV
-#define TEST_HORIZONTAL_MOTION FALSE // Tests the horizontal motion estimation
+#define TEST_ON_GIMBAL_RIG 0     // Uses the gimbal rig to tune PID pitch and roll loops, and validate/tune airspeed, but monitor the throttle PID
+#define TEST_ALTITUDE_RIG 0      // Uses the altitude rig to estimate the altitude of the UAV
+#define TEST_HORIZONTAL_MOTION 0 // Tests the horizontal motion estimation
 
 // DS flight test codes without serial connection. ALl of these are in flight mode 3 in the main flight code, flight mode 1 and 2 are standard and should be tested using the FULL_FLIGHT_CODE
-#define LOW_ALTITUDE_FLIGHT FALSE       // Flies the UAV constantly at the low altitude and at constant flight speed
-#define LOW_ALTITUDE_HORIZ_FLIGHT FALSE // FLies the UAV constantly at low altitude, and completes the horizontal maneuver
-#define DS_AT_ALTITUDE FALSE            // Flies the UAV as if it was DS, but at regular flight altitude
+#define LOW_ALTITUDE_FLIGHT 0       // Flies the UAV constantly at the low altitude and at constant flight speed
+#define LOW_ALTITUDE_HORIZ_FLIGHT 0 // FLies the UAV constantly at low altitude, and completes the horizontal maneuver
+#define DS_AT_ALTITUDE 0            // Flies the UAV as if it was DS, but at regular flight altitude
 
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
 // PROGRAM VARIABLES AND OBJECTS
 
 // Variables for the gimbaling servo that rotates the ToF sensor
-const float gimbalServoGain = 2;             // The ratio between the angle the servo head moves to the angle outputted to it
-const float gimbalServoTrim = 12;            // NEEDS TO BE ADJUSTED: Gimbal servo trim (degrees counterclockwise)
+const float gimbalServoGain = -2;            // The ratio between the angle the servo head moves to the angle outputted to it
+const float gimbalServoTrim = 0;             // NEEDS TO BE ADJUSTED: Gimbal servo trim (degrees counterclockwise)
 const float gimbalServoBound = 45;           // The angle the servo can rotate clockwise or counterclockwise from center (used to detect the gimbal 'maxing out')
 const float halfWingspan = 0.75;             // The wingspan of the UAV / 2 (in meters)
 const float gimbalDistanceFromCenter = 0.14; // The location of the ToF sensor and gimbal from the center of the wing (distance to the left in meters)
@@ -389,8 +389,15 @@ void loop()
 void setup()
 {
     Serial.begin(500000); // USB serial
+    Wire.begin();
+    Wire.setClock(1000000); // Note this is 2.5 times the spec sheet 400 kHz max...
+
     IMUinit();
+    delay(5);
+
     calculate_IMU_error();
+
+    delay(1000);
 }
 
 void loop()
@@ -400,12 +407,28 @@ void loop()
     dt = (current_time - prev_time) / 1000000.0;
     loopRate(2000);
     getIMUdata();
-    Madgwick(GyroX, -GyroY, -GyroZ, -AccX, AccY, AccZ, MagY, -MagX, MagZ, dt);
+
+    Madgwick6DOF(GyroX, -GyroY, -GyroZ, -AccX, AccY, AccZ, dt);
+  //  Madgwick6DOF(-GyroX, GyroY, GyroZ, AccX, -AccY, -AccZ, dt);
+
     Serial.print(roll_IMU);
     Serial.print(" ");
     Serial.print(pitch_IMU);
     Serial.print(" ");
-    Serial.println(yaw_IMU);
+    Serial.print(yaw_IMU);
+    Serial.print("    ");
+    Serial.print(AccX);
+    Serial.print(" ");
+    Serial.print(AccY);
+    Serial.print(" ");
+    Serial.print(AccZ);
+    Serial.print("    ");
+    Serial.print(GyroX);
+    Serial.print(" ");
+    Serial.print(GyroY);
+    Serial.print(" ");
+    Serial.print(GyroZ);
+    Serial.println();
 }
 
 /*
@@ -763,7 +786,7 @@ void loop()
     // BMP180loop(); // Retrieves barometric altitude and LP filters
     // baro_test_time_in_micros = micros() - baro_test_start_time;
 
-    //toggles between the two functions every other loop
+    // toggles between the two functions every other loop
     if (toggle)
     {
         VL53L1Xloop(); // Retrieves ToF sensor distance
@@ -781,9 +804,9 @@ void loop()
     estimateAltitude();
 
     // Convert roll, pitch, and yaw from degrees to radians
-    pitch_IMU_rad = pitch_IMU * DEG_TO_RAD;
-    roll_IMU_rad = roll_IMU * DEG_TO_RAD;
-    yaw_IMU_rad = yaw_IMU * DEG_TO_RAD;
+    pitch_IMU_rad = pitch_IMU * DEG_TO_RAD; // positive pitch is up
+    roll_IMU_rad = roll_IMU * DEG_TO_RAD;   // positive roll is roll to the right
+    yaw_IMU_rad = yaw_IMU * DEG_TO_RAD;     // positive yaw is yaw to the right
 
     getDesState(); // Scales throttle to between 0 and 1, and roll, pitch, and yaw to between -1 and 1. Produces thro_des, roll_des, pitch_des, yaw_des, roll_passthru, pitch_passthru, yaw_passthru
 
@@ -1019,7 +1042,9 @@ void loop()
         // Log data to RAM slowly because not in DS flight
         if (loopCounter > (2000 / dataLogRateSlow))
         {
+#if DATALOG
             logDataToRAM(); // Logs the data to Teensy 4.1 RAM via a 2D array
+#endif
             loopCounter = 0;
         }
         else
@@ -1043,12 +1068,16 @@ void loop()
         // Log data to RAM slowly because not in DS flight
         if (loopCounter > (2000 / dataLogRateSlow))
         {
+#if DATALOG
             logDataToRAM(); // Logs the data to Teensy 4.1 RAM via a 2D array
+#endif
             loopCounter = 0;
         }
         else
         {
+#if DATALOG
             loopCounter++;
+#endif
         }
     }
 
@@ -1070,6 +1099,7 @@ void loop()
 
         DSifFirstRun = false; // False after the first loop
         // Log data to RAM datalogRate times per second
+#if DATALOG
         if (loopCounter > (2000 / datalogRate))
         {
             logDataToRAM(); // Logs the data to Teensy 4.1 RAM via a 2D array
@@ -1079,6 +1109,8 @@ void loop()
         {
             loopCounter++;
         }
+
+#endif
     }
 
     else
@@ -1115,15 +1147,15 @@ void loop()
 
     // Serial.print(" tof test time: \t");
     // Serial.print(ToF_test_time_in_micros);
-    // Serial.print("\t pitot test time: \t");
-    // Serial.print(pitot_test_time_in_micros);
+    //  Serial.print("\t airspeed: \t");
+    //  Serial.print(airspeed_adjusted);
     // Serial.print("\t imu test time: \t");
     // Serial.print(IMU_test_time_in_micros);
-    Serial.print(" tof  : \t");
-    Serial.print(distance_LP);
+    //  Serial.print(" tof  : \t");
+    //  Serial.print(distance_LP);
 
-    Serial.print("\t all sensors timme  : \t");
-    Serial.print(all_sensors_time);
+    // Serial.print("\t all sensors timme  : \t");
+    // Serial.print(all_sensors_time);
     // if (bmp.newData)
     // {
     //     Serial.print("\t baro pressure: \t");
@@ -1137,10 +1169,16 @@ void loop()
     //     Serial.println();
     // }
 
+    Serial.print(roll_IMU);
+    Serial.print(" ");
+    Serial.print(pitch_IMU);
+    Serial.print(" ");
+    Serial.print(yaw_IMU);
+
     Serial.print("\t microseconds per loop: ");
     Serial.print(dt * 1000000);
     //    printLoopRate();
-    Serial.println();
+    Serial.println(currentRow);
     // Regulate loop rate
     loopBlink();    // Blink every 1.5 seconds to indicate main loop
     loopRate(2000); // Loop runs at 2000 Hz
@@ -1462,7 +1500,7 @@ void estimateAltitude()
 
     // altitudeLPbaro.estimate(accelData, gyroData, altitudeMeasured - altitude_offset, dt);
 
-    s5_command_PWM = roll_IMU * gimbalServoGain; // Rotate the gimbal servo to point the ToF sensor straight down
+    s5_command_PWM = roll_IMU * gimbalServoGain + 90; // Rotate the gimbal servo to point the ToF sensor straight down
 
     ToFaltitude = (distance_LP / 1000.0) * cos(pitch_IMU_rad); // Find the altitude of the UAV in meters based on the ToF sensor. Accounts for pitch.
     // also need to figure out how to get the range of the ToF sensor to 4m

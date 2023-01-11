@@ -105,12 +105,12 @@ MPU9250 mpu9250(SPI2, 36);
 //========================================================================================================================//
 
 // Radio failsafe values for every channel in the event that bad reciever data is detected. Recommended defaults:
-unsigned long throttle_fs = 1000;  // thro
-unsigned long roll_fs = 1500;      // ail
-unsigned long pitch_fs = 1500;     // elev
-unsigned long yaw_fs = 1500;       // rudd
-unsigned long mode1_fs = 1000;     //  mode: position 1: full manual: position 2: stabilized flight : position 3: dynamic soar activated
-unsigned long mode2_fs = 2000; //
+unsigned long throttle_fs = 1000; // thro
+unsigned long roll_fs = 1500;     // ail
+unsigned long pitch_fs = 1500;    // elev
+unsigned long yaw_fs = 1500;      // rudd
+unsigned long mode1_fs = 1000;    //  mode: position 1: full manual: position 2: stabilized flight : position 3: dynamic soar activated
+unsigned long mode2_fs = 2000;    //
 
 // Filter parameters - Defaults tuned for 2kHz loop rate; Do not touch unless you know what you are doing:
 float B_madgwick = 0.04; // Madgwick filter parameter
@@ -141,19 +141,18 @@ float maxRoll = 30.0;  // Max roll angle in degrees for angle mode (maximum ~70 
 float maxPitch = 30.0; // Max pitch angle in degrees for angle mode (maximum ~70 degrees), deg/sec for rate mode
 float maxYaw = 160.0;  // Max yaw rate in deg/sec
 
-//IMPORTANT ONES HERE___________________________________________________________________________________
-float Kp_roll_angle = 1.0;   // Roll P-gain - angle mode (DEFAULT 0.2)
-float Ki_roll_angle = 0.0;   // Roll I-gain - angle mode (DEFAULT 0.3)
-float Kd_roll_angle = 0.0;  // Roll D-gain - angle mode (has no effect on controlANGLE2) (DEFAULT: 0.05)
+// IMPORTANT ONES HERE////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+float Kp_roll_angle = 1.0; // Roll P-gain - angle mode (DEFAULT 0.2)
+float Ki_roll_angle = 0.0; // Roll I-gain - angle mode (DEFAULT 0.3)
+float Kd_roll_angle = 0.0; // Roll D-gain - angle mode (has no effect on controlANGLE2) (DEFAULT: 0.05)
 
-
-float Kp_pitch_angle = 1.0;  // Pitch P-gain - angle mode (DEFAULT 0.2)
-float Ki_pitch_angle = 0.0;  // Pitch I-gain - angle mode (DEFAULT 0.3)
+float Kp_pitch_angle = 1.0; // Pitch P-gain - angle mode (DEFAULT 0.2)
+float Ki_pitch_angle = 0.0; // Pitch I-gain - angle mode (DEFAULT 0.3)
 float Kd_pitch_angle = 0.0; // Pitch D-gain - angle mode (has no effect on controlANGLE2) (DEFAULT 0.05)
-//___________________________________________________________________________________________________________
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-float B_loop_roll = 0.9;     // Roll damping term for controlANGLE2(), lower is more damping (must be between 0 to 1)
-float B_loop_pitch = 0.9;    // Pitch damping term for controlANGLE2(), lower is more damping (must be between 0 to 1)
+float B_loop_roll = 0.9;  // Roll damping term for controlANGLE2(), lower is more damping (must be between 0 to 1)
+float B_loop_pitch = 0.9; // Pitch damping term for controlANGLE2(), lower is more damping (must be between 0 to 1)
 
 float Kp_roll_rate = 0.15;    // Roll P-gain - rate mode
 float Ki_roll_rate = 0.2;     // Roll I-gain - rate mode
@@ -178,7 +177,7 @@ const int rollChannelPin = 3;     // ail
 const int pitchChannelPin = 4;    // ele
 const int yawChannelPin = 5;      // rudd
 const int mode1ChannelPin = 6;    // mode: position 1: full manual: position 2: stabilized flight : position 3: dynamic soar activate
-const int mode2ChannelPin = 7;    // 
+const int mode2ChannelPin = 7;    //
 const int PPM_Pin = 23;
 // OneShot125 ESC pin outputs: NOT USED
 const int m1Pin = 100;
@@ -562,6 +561,12 @@ void calculate_IMU_error()
     GyroX = GyX / GYRO_SCALE_FACTOR;
     GyroY = GyY / GYRO_SCALE_FACTOR;
     GyroZ = GyZ / GYRO_SCALE_FACTOR;
+  
+  //FLIPPITY WHIPPITY
+    AccY = -AccY;
+    AccZ = -AccZ;
+    GyroY = -GyroY;
+    GyroZ = -GyroZ;
 
     // Sum all readings
     AccErrorX = AccErrorX + AccX;
@@ -572,6 +577,7 @@ void calculate_IMU_error()
     GyroErrorZ = GyroErrorZ + GyroZ;
     c++;
   }
+
   // Divide the sum by 12000 to get the error value
   AccErrorX = AccErrorX / c;
   AccErrorY = AccErrorY / c;
@@ -626,11 +632,15 @@ void getIMUdata()
   AccX = AcX / ACCEL_SCALE_FACTOR; // G's
   AccY = AcY / ACCEL_SCALE_FACTOR;
   AccZ = AcZ / ACCEL_SCALE_FACTOR;
+
+//FLIPPITY WHIPPITY
+  AccY = -AccY;
+  AccZ = -AccZ;
+
   // Correct the outputs with the calculated error values
   AccX = AccX - AccErrorX;
   AccY = AccY - AccErrorY;
   AccZ = AccZ - AccErrorZ;
-
 
   // LP filter accelerometer data
   AccX = (1.0 - B_accel) * AccX_prev + B_accel * AccX;
@@ -644,6 +654,11 @@ void getIMUdata()
   GyroX = GyX / GYRO_SCALE_FACTOR; // deg/sec
   GyroY = GyY / GYRO_SCALE_FACTOR;
   GyroZ = GyZ / GYRO_SCALE_FACTOR;
+
+//FLIPPITY WHIPPITY
+  GyroY = -GyroY;
+  GyroZ = -GyroZ;
+
   // Correct the outputs with the calculated error values
   GyroX = GyroX - GyroErrorX;
   GyroY = GyroY - GyroErrorY;
@@ -655,6 +670,9 @@ void getIMUdata()
   GyroX_prev = GyroX;
   GyroY_prev = GyroY;
   GyroZ_prev = GyroZ;
+
+  // //UPSIDE DOWN FLIPPY WHIPPY
+
   /*
     // Magnetometer
     MagX = MgX / 6.0; // uT
@@ -915,18 +933,15 @@ void getDesState()
   roll_des = (roll_channel - 1500.0) / 500.0;      // Between -1 and 1
   pitch_des = (pitch_channel - 1500.0) / 500.0;    // Between -1 and 1
   yaw_des = (yaw_channel - 1500.0) / 500.0;        // Between -1 and 1
-  
-  //flip the channels
+
+  // flip the channels
   roll_des = -roll_des;
   pitch_des = -pitch_des;
   yaw_des = -yaw_des;
 
-
-  roll_passthru = roll_des / 2.0;                  // Between -0.5 and 0.5
-  pitch_passthru = pitch_des / 2.0;                // Between -0.5 and 0.5
-  yaw_passthru = yaw_des / 2.0;                    // Between -0.5 and 0.5
-
-  
+  roll_passthru = roll_des / 2.0;   // Between -0.5 and 0.5
+  pitch_passthru = pitch_des / 2.0; // Between -0.5 and 0.5
+  yaw_passthru = yaw_des / 2.0;     // Between -0.5 and 0.5
 
   // Constrain within normalized bounds
   thro_des = constrain(thro_des, 0.0, 1.0);               // Between 0 and 1
@@ -986,7 +1001,7 @@ void controlANGLE()
 void controlANGLEWithIntegralWindupPreventionNotUsedThough()
 {
   // DESCRIPTION: Computes control commands based on state error (angle)
-  
+
    * Basic PID control to stablize on angle setpoint based on desired states roll_des, pitch_des, and yaw_des computed in
    * getDesState(). Error is simply the desired state minus the actual state (ex. roll_des - roll_IMU). Two safety features
    * are implimented here regarding the I terms. The I terms are saturated within specified limits on startup to prevent
@@ -995,7 +1010,7 @@ void controlANGLEWithIntegralWindupPreventionNotUsedThough()
    * if the throttle is at the minimum setting. This means the motors will not start spooling up on the ground, and the I
    * terms will always start from 0 on takeoff. This function updates the variables roll_PID, pitch_PID, and yaw_PID which
    * can be thought of as 1-D stablized signals. They are mixed to the configuration of the vehicle in controlMixer().
-   
+
 
   // Roll
   error_roll = roll_des - roll_IMU;
@@ -1209,21 +1224,20 @@ void scaleCommands()
   m6_command_PWM = constrain(m6_command_PWM, 125, 250);
 */
 
-//rudder and elevator reversed
-s3_command_scaled = -s3_command_scaled;
-s4_command_scaled = -s4_command_scaled;
+  // rudder and elevator reversed
+  s3_command_scaled = -s3_command_scaled;
+  s4_command_scaled = -s4_command_scaled;
 
-s2_command_scaled +=0.5; //center back on 0.5
-s3_command_scaled += 0.5; 
-s4_command_scaled +=0.5;
-
+  s2_command_scaled += 0.5; // center back on 0.5
+  s3_command_scaled += 0.5;
+  s4_command_scaled += 0.5;
 
   // Scaled to 0-180 for servo library
   s1_command_PWM = s1_command_scaled * 180;
   s2_command_PWM = s2_command_scaled * 180;
   s3_command_PWM = s3_command_scaled * 180;
   s4_command_PWM = s4_command_scaled * 180;
-  //s5_command_PWM = s5_command_scaled * 180;
+  // s5_command_PWM = s5_command_scaled * 180;
   s6_command_PWM = s6_command_scaled * 180;
   s7_command_PWM = s7_command_scaled * 180;
   // Constrain commands to servos within servo library bounds
