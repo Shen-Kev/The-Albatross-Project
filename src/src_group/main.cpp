@@ -284,6 +284,7 @@ float dataLogArray[ROWS][COLUMNS]; // Create the datalog array. Columns are the 
 int currentRow = 0;                // Keeps track of the row the data should be logged into
 const int datalogRate = 50;        // NEEDS TO BE ADJUSTED: Data logging rate in Hz
 const int dataLogRateSlow = 2;     // Data logging rate when not important, just to show the setup and different phases of flight
+boolean dataLogged = false;
 // Altitude estimator to combine barometric pressure sensor (with low pass filter applied) with the gyroscope and acclerometer
 // AltitudeEstimator altitudeLPbaro = AltitudeEstimator(0.001002176158, // Sigma (standard deviation of) the accelerometer
 //                                                      0.01942384099,  // Sigma (standard deviation of) the gyroscope
@@ -576,7 +577,7 @@ void loop()
     dataFile.println();
     dataFile.close();
 }
-#elif TEST_DREHMFLIGHT //THIS IS OUT OF DATE< WILL NOT WORK
+#elif TEST_DREHMFLIGHT // THIS IS OUT OF DATE< WILL NOT WORK
 
 void setup()
 {
@@ -763,8 +764,8 @@ void setup()
     // run the code a bunch of times to let IMU settle
     for (int i = 0; i < 1000; i++)
     {
-        getIMUdata();                                               // Pulls raw gyro, accelerometer, and magnetometer data from IMU and LP filters to remove noise
-    Madgwick6DOF(GyroX, GyroY, GyroZ, -AccX, AccY, AccZ, dt);
+        getIMUdata(); // Pulls raw gyro, accelerometer, and magnetometer data from IMU and LP filters to remove noise
+        Madgwick6DOF(GyroX, GyroY, GyroZ, -AccX, AccY, AccZ, dt);
     }
     // BMP180setup(); // Barometer init and calibrate
     // Serial.println("passed baro setup");
@@ -822,9 +823,9 @@ void loop()
     all_sensors_start_time = micros();
     // Retrieve sensor data
     //  IMU_test_start_time = micros();
-    getIMUdata();                                               // Pulls raw gyro, accelerometer, and magnetometer data from IMU and LP filters to remove noise
+    getIMUdata(); // Pulls raw gyro, accelerometer, and magnetometer data from IMU and LP filters to remove noise
     Madgwick6DOF(GyroX, GyroY, GyroZ, -AccX, AccY, AccZ, dt);
-                                                                //  IMU_test_time_in_micros = micros() - IMU_test_start_time;
+    //  IMU_test_time_in_micros = micros() - IMU_test_start_time;
     accelData[0] = AccX;
     accelData[1] = AccY;
     accelData[2] = AccZ;
@@ -954,22 +955,38 @@ void loop()
         }
     }
 
-    // datalog system
+    // datalog system, takes around 0.13 seconds
     if (mode2_channel < 1500)
     {
-        // Stop all UAV activity after landed, and log data
-        s1_command_scaled = 0;
-        s2_command_scaled = 0;
-        s3_command_scaled = 0;
-        s4_command_scaled = 0;
-        s5_command_PWM = 90;
-        writeDataToSDgimbal();
-        clearDataInRAM();
-        currentRow = 0;
+        // s1_command_scaled = 0;
+        // s2_command_scaled = 0;
+        // s3_command_scaled = 0;
+        // s4_command_scaled = 0;
+        // s5_command_PWM = 90;
+        // float datalogtimer = micros();
+        // Serial.println("about to datalog");
+        if (!dataLogged)
+        {
+            writeDataToSDgimbal();
+            clearDataInRAM();
+        }
+        //  datalogtimer = micros() - datalogtimer;
+        //  Serial.println(datalogtimer);
+        //    delay(10000);
+        dataLogged = true;
     }
     else
     {
-        logDataToRAMgimbal(); // log motions of the UAV
+        dataLogged = false;
+        if (loopCounter > (2000 / datalogRate))
+        {
+            logDataToRAMgimbal(); // log motions of the UAV
+            loopCounter = 0;
+        }
+        else
+        {
+            loopCounter++;
+        }
     }
 
     controlANGLE(); // dRehmFlight for angle based (pitch and roll) PID loops
@@ -1060,12 +1077,7 @@ void loop()
 
 #else
 
-    // Flight modes based on mode switch
-    if (mode2_channel < 1500)
-    {
-        flight_mode = log_data_to_SD; // If datalog is less than 1500 (switch indicates flight is over, or lost connection) log all the data to the SD card (on top of already logged data, if it exists) and clear the data array.
-    }
-    else if (mode1_channel < 1400)
+    if (mode1_channel < 1400)
     {
         flight_mode = manual_flight;
     }
@@ -1175,21 +1187,23 @@ void loop()
 
 #endif
     }
-
-    else
-    {
-        // Stop all UAV activity after landed, and log data
-        s1_command_scaled = 0;
-        s2_command_scaled = 0;
-        s3_command_scaled = 0;
-        s4_command_scaled = 0;
-        s5_command_PWM = 90;
 #if DATALOG
-        writeDataToSD();
-        clearDataInRAM();
-        currentRow = 0;
-#endif
+
+    // Flight modes based on mode switch
+    if (mode2_channel < 1500)
+    {
+        if (!dataLogged)
+        {
+            writeDataToSDgimbal();
+            clearDataInRAM();
+        }
+        dataLogged = true;
     }
+    else {
+        datalogged = false;
+    }
+#endif
+
 #endif
 
     scaleCommands();                     // Scales commands to values that the servo and ESC can understand
@@ -1770,17 +1784,21 @@ void logDataToRAM()
 
 void logDataToRAMgimbal()
 {
-    dataLogArray[currentRow][0] = timeInMillis;
-    dataLogArray[currentRow][1] = roll_des;
-    dataLogArray[currentRow][2] = s2_command_PWM;
-    dataLogArray[currentRow][3] = roll_IMU;
-    dataLogArray[currentRow][4] = pitch_des;
-    dataLogArray[currentRow][5] = s3_command_PWM;
-    dataLogArray[currentRow][6] = pitch_IMU;
-    dataLogArray[currentRow][7] = airspeed_unadjusted;
-    dataLogArray[currentRow][8] = airspeed_adjusted;
-    dataLogArray[currentRow][9] = throttle_PID;
-    dataLogArray[currentRow][10] = s1_command_PWM;
+    if (currentRow < ROWS)
+    {
+        dataLogArray[currentRow][0] = timeInMillis;
+        dataLogArray[currentRow][1] = roll_des;
+        dataLogArray[currentRow][2] = s2_command_PWM;
+        dataLogArray[currentRow][3] = roll_IMU;
+        dataLogArray[currentRow][4] = pitch_des;
+        dataLogArray[currentRow][5] = s3_command_PWM;
+        dataLogArray[currentRow][6] = pitch_IMU;
+        dataLogArray[currentRow][7] = airspeed_unadjusted;
+        dataLogArray[currentRow][8] = airspeed_adjusted;
+        dataLogArray[currentRow][9] = throttle_PID;
+        dataLogArray[currentRow][10] = s1_command_PWM;
+        currentRow++;
+    }
 }
 
 void writeDataToSDgimbal()
@@ -1807,6 +1825,7 @@ void clearDataInRAM() // set all values to 0
             dataLogArray[i][j] = 0.0;
         }
     }
+    currentRow = 0;
 }
 
 // Writes the flight data in CSV format to the mciroSD card in this order by looping through the entire 2D array
