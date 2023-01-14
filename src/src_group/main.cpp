@@ -84,7 +84,7 @@
 // Basic, individual systems ground test programs (with serial connection). Mostly for troubleshooting individual components
 #define TEST_TOF 0            // Time of flight sensor test
 #define TEST_AIRSPEED 0       // Airspeed sensor test
-#define TEST_IMU 1            // IMU sensor test
+#define TEST_IMU 0            // IMU sensor test
 #define TEST_BARO 0           // barometer sensor test
 #define TEST_RADIO 0          // radio sensor test
 #define TEST_RADIO_TO_SERVO 0 // servo test
@@ -401,13 +401,13 @@ void setup()
     IMUinit();
     delay(5);
 
-    // calculate_IMU_error();
-    AccErrorY = 0.04;
-    AccErrorZ = 0.11;
-    GyroErrorX = -3.20;
-    GyroErrorY = -0.14;
-    GyroErrorZ = -1.40;
-    delay(1000);
+    calculate_IMU_error();
+    // AccErrorY = 0.04;
+    // AccErrorZ = 0.11;
+    // GyroErrorX = -3.20;
+    // GyroErrorY = -0.14;
+    // GyroErrorZ = -1.40;
+    // delay(1000);
 }
 
 void loop()
@@ -418,8 +418,7 @@ void loop()
     loopRate(2000);
     getIMUdata();
 
-       Madgwick6DOF(GyroX, GyroY, GyroZ, -AccX, AccY, AccZ, dt);
-  
+    Madgwick6DOF(GyroX, GyroY, GyroZ, -AccX, AccY, AccZ, dt);
 
     //  Madgwick6DOF(-GyroX, GyroY, GyroZ, AccX, -AccY, -AccZ, dt);
 
@@ -577,7 +576,7 @@ void loop()
     dataFile.println();
     dataFile.close();
 }
-#elif TEST_DREHMFLIGHT
+#elif TEST_DREHMFLIGHT //THIS IS OUT OF DATE< WILL NOT WORK
 
 void setup()
 {
@@ -719,7 +718,7 @@ void setup()
     Kd_roll_angle = 0.1;
 
     Kp_pitch_angle = 2.0;
-    Ki_pitch_angle = 0.3;
+    Ki_pitch_angle = 0.5;
     Kd_pitch_angle = 0.5;
 
     Kp_yaw = -0.3;
@@ -765,7 +764,7 @@ void setup()
     for (int i = 0; i < 1000; i++)
     {
         getIMUdata();                                               // Pulls raw gyro, accelerometer, and magnetometer data from IMU and LP filters to remove noise
-        Madgwick6DOF(GyroX, -GyroY, -GyroZ, -AccX, AccY, AccZ, dt); // Updates roll_IMU, pitch_IMU, and yaw_IMU angle estimates (in deg)
+    Madgwick6DOF(GyroX, GyroY, GyroZ, -AccX, AccY, AccZ, dt);
     }
     // BMP180setup(); // Barometer init and calibrate
     // Serial.println("passed baro setup");
@@ -824,7 +823,7 @@ void loop()
     // Retrieve sensor data
     //  IMU_test_start_time = micros();
     getIMUdata();                                               // Pulls raw gyro, accelerometer, and magnetometer data from IMU and LP filters to remove noise
-    Madgwick6DOF(GyroX, -GyroY, -GyroZ, -AccX, AccY, AccZ, dt); // Updates roll_IMU, pitch_IMU, and yaw_IMU angle estimates (in deg)
+    Madgwick6DOF(GyroX, GyroY, GyroZ, -AccX, AccY, AccZ, dt);
                                                                 //  IMU_test_time_in_micros = micros() - IMU_test_start_time;
     accelData[0] = AccX;
     accelData[1] = AccY;

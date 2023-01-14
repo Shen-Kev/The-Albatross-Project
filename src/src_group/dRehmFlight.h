@@ -566,8 +566,8 @@ void calculate_IMU_error()
     // FLIPPITY WHIPPITY
     AccY = -AccY;
     AccZ = -AccZ;
-    GyroY = -GyroY;
-    GyroZ = -GyroZ;
+    // GyroY = -GyroY;
+    // GyroZ = -GyroZ;
 
     // Sum all readings
     AccErrorX = AccErrorX + AccX;
@@ -657,8 +657,8 @@ void getIMUdata()
   GyroZ = GyZ / GYRO_SCALE_FACTOR;
 
   // FLIPPITY WHIPPITY
-  GyroY = -GyroY;
-  GyroZ = -GyroZ;
+  // GyroY = -GyroY;
+  // GyroZ = -GyroZ;
 
   // Correct the outputs with the calculated error values
   GyroX = GyroX - GyroErrorX;
@@ -918,8 +918,8 @@ void Madgwick6DOF(float gx, float gy, float gz, float ax, float ay, float az, fl
 
   // Compute angles
   roll_IMU = atan2(q0 * q1 + q2 * q3, 0.5f - q1 * q1 - q2 * q2) * 57.29577951; // degrees
-  pitch_IMU = -asin(-2.0f * (q1 * q3 - q0 * q2)) * 57.29577951;                // degrees
-  yaw_IMU = -atan2(q1 * q2 + q0 * q3, 0.5f - q2 * q2 - q3 * q3) * 57.29577951; // degrees
+  pitch_IMU = asin(-2.0f * (q1 * q3 - q0 * q2)) * 57.29577951;                // degrees
+  yaw_IMU = atan2(q1 * q2 + q0 * q3, 0.5f - q2 * q2 - q3 * q3) * 57.29577951; // degrees
 }
 
 void getDesState()
