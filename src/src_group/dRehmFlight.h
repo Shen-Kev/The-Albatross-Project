@@ -135,20 +135,24 @@ float GyroErrorY = 0.0;
 float GyroErrorZ = 0.0;
 // set this up so that it atuomatically calibrates each time
 
+// IMPORTANT ONES HERE, but values dont matter because they get changed in the main.cpp setup ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+float Kp_roll_angle = 0; // Roll P-gain - angle mode (DEFAULT 0.2)
+float Ki_roll_angle = 0; // Roll I-gain - angle mode (DEFAULT 0.3)
+float Kd_roll_angle = 0; // Roll D-gain - angle mode (has no effect on controlANGLE2) (DEFAULT: 0.05)
+
+float Kp_pitch_angle = 0; // Pitch P-gain - angle mode (DEFAULT 0.2)
+float Ki_pitch_angle = 0; // Pitch I-gain - angle mode (DEFAULT 0.3)
+float Kd_pitch_angle = 0; // Pitch D-gain - angle mode (has no effect on controlANGLE2) (DEFAULT 0.05)
+
+float Kp_yaw = 0; // Yaw P-gain (ORIGINAL 0.3)
+float Ki_yaw = 0; // Yaw I-gain (ORIGINAL 0.05)
+float Kd_yaw = 0; // Yaw D-gain (be careful when increasing too high, motors will begin to overheat!) (ORIGINAL 0.00015)
+
 // Controller parameters (take note of defaults before modifying!):
-float i_limit = 25.0;  // Integrator saturation level, mostly for safety (default 25.0)
+float i_limit = 20.0;  // Integrator saturation level, mostly for safety (default 25.0)
 float maxRoll = 30.0;  // Max roll angle in degrees for angle mode (maximum ~70 degrees), deg/sec for rate mode
 float maxPitch = 30.0; // Max pitch angle in degrees for angle mode (maximum ~70 degrees), deg/sec for rate mode
 float maxYaw = 160.0;  // Max yaw rate in deg/sec
-
-// IMPORTANT ONES HERE////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-float Kp_roll_angle = 1.0; // Roll P-gain - angle mode (DEFAULT 0.2)
-float Ki_roll_angle = 0.0; // Roll I-gain - angle mode (DEFAULT 0.3)
-float Kd_roll_angle = 0.0; // Roll D-gain - angle mode (has no effect on controlANGLE2) (DEFAULT: 0.05)
-
-float Kp_pitch_angle = 1.0; // Pitch P-gain - angle mode (DEFAULT 0.2)
-float Ki_pitch_angle = 0.0; // Pitch I-gain - angle mode (DEFAULT 0.3)
-float Kd_pitch_angle = 0.0; // Pitch D-gain - angle mode (has no effect on controlANGLE2) (DEFAULT 0.05)
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 float B_loop_roll = 0.9;  // Roll damping term for controlANGLE2(), lower is more damping (must be between 0 to 1)
@@ -160,10 +164,6 @@ float Kd_roll_rate = 0.0002;  // Roll D-gain - rate mode (be careful when increa
 float Kp_pitch_rate = 0.15;   // Pitch P-gain - rate mode
 float Ki_pitch_rate = 0.2;    // Pitch I-gain - rate mode
 float Kd_pitch_rate = 0.0002; // Pitch D-gain - rate mode (be careful when increasing too high, motors will begin to overheat!)
-
-float Kp_yaw = 0.3;     // Yaw P-gain
-float Ki_yaw = 0.05;    // Yaw I-gain
-float Kd_yaw = 0.00015; // Yaw D-gain (be careful when increasing too high, motors will begin to overheat!)
 
 //========================================================================================================================//
 //                                                     DECLARE PINS                                                       //
@@ -548,6 +548,7 @@ void calculate_IMU_error()
   // Read IMU values 12000 times
   int c = 0;
   while (c < 12000)
+
   {
 #if defined USE_MPU6050_I2C
     mpu6050.getMotion6(&AcX, &AcY, &AcZ, &GyX, &GyY, &GyZ);
@@ -561,8 +562,8 @@ void calculate_IMU_error()
     GyroX = GyX / GYRO_SCALE_FACTOR;
     GyroY = GyY / GYRO_SCALE_FACTOR;
     GyroZ = GyZ / GYRO_SCALE_FACTOR;
-  
-  //FLIPPITY WHIPPITY
+
+    // FLIPPITY WHIPPITY
     AccY = -AccY;
     AccZ = -AccZ;
     GyroY = -GyroY;
@@ -633,7 +634,7 @@ void getIMUdata()
   AccY = AcY / ACCEL_SCALE_FACTOR;
   AccZ = AcZ / ACCEL_SCALE_FACTOR;
 
-//FLIPPITY WHIPPITY
+  // FLIPPITY WHIPPITY
   AccY = -AccY;
   AccZ = -AccZ;
 
@@ -655,7 +656,7 @@ void getIMUdata()
   GyroY = GyY / GYRO_SCALE_FACTOR;
   GyroZ = GyZ / GYRO_SCALE_FACTOR;
 
-//FLIPPITY WHIPPITY
+  // FLIPPITY WHIPPITY
   GyroY = -GyroY;
   GyroZ = -GyroZ;
 
@@ -842,6 +843,8 @@ void Madgwick6DOF(float gx, float gy, float gz, float ax, float ay, float az, fl
    * See description of Madgwick() for more information. This is a 6DOF implimentation for when magnetometer data is not
    * available (for example when using the recommended MPU6050 IMU for the default setup).
    */
+
+
   float recipNorm;
   float s0, s1, s2, s3;
   float qDot1, qDot2, qDot3, qDot4;
@@ -980,6 +983,7 @@ void controlANGLE()
   integral_pitch = constrain(integral_pitch, -i_limit, i_limit); // Saturate integrator to prevent unsafe buildup
   derivative_pitch = GyroY;
   pitch_PID = .01 * (Kp_pitch_angle * error_pitch + Ki_pitch_angle * integral_pitch - Kd_pitch_angle * derivative_pitch); // Scaled by .01 to bring within -1 to 1 range
+
 
   // Yaw, stablize on rate from GyroZ
   error_yaw = yaw_des - GyroZ;

@@ -94,7 +94,7 @@
 #define TEST_DREHMFLIGHT 0
 
 // Combined systems ground test programs with serial connection
-#define TEST_ON_GIMBAL_RIG 0     // Uses the gimbal rig to tune PID pitch and roll loops, and validate/tune airspeed, but monitor the throttle PID
+#define TEST_ON_GIMBAL_RIG 1     // Uses the gimbal rig to tune PID pitch and roll loops, and validate/tune airspeed, but monitor the throttle PID
 #define TEST_ALTITUDE_RIG 0      // Uses the altitude rig to estimate the altitude of the UAV
 #define TEST_HORIZONTAL_MOTION 0 // Tests the horizontal motion estimation
 
@@ -107,7 +107,7 @@
 // PROGRAM VARIABLES AND OBJECTS
 
 // Variables for the gimbaling servo that rotates the ToF sensor
-const float gimbalServoGain = -2;            // The ratio between the angle the servo head moves to the angle outputted to it
+const float gimbalServoGain = -1.5;          // The ratio between the angle the servo head moves to the angle outputted to it
 const float gimbalServoTrim = 0;             // NEEDS TO BE ADJUSTED: Gimbal servo trim (degrees counterclockwise)
 const float gimbalServoBound = 45;           // The angle the servo can rotate clockwise or counterclockwise from center (used to detect the gimbal 'maxing out')
 const float halfWingspan = 0.75;             // The wingspan of the UAV / 2 (in meters)
@@ -155,8 +155,9 @@ float IMU_vertical_accel, IMU_vertical_vel, IMU_vertical_pos; // the vertical ac
 float estimated_altitude; // The estimated altitude of the UAV, as a combination of the ToF, IMU, and baro sensor
 int altitudeTypeDataLog;  // To record the type of altitude the UAV is using as its estimated altitude. 0 is ToF within gimbal range, 1 is ToF too far left, 2 is ToF too far right, and 3 is using IMU only
 
-float timeInMillis;  // Time in milliseconds since the flight controller was reset
-int loopCounter = 0; // A counter used to log data every certain number of loops
+float timeInMillis;      // Time in milliseconds since the flight controller was reset
+int loopCounter = 0;     // A counter used to log data every certain number of loops
+int loopCounterStep = 0; // counter used for gimbal mount test rig
 
 // Dynamic soaring state variables
 const float wind_heading = 0.0;                          // The heading the wind is coming from. For now it is assumed it is 0 degrees relative to the yaw IMU at startup. In the future can be manually set if absolute compass is added
@@ -273,6 +274,9 @@ KalmanFilter kalmanHoriz(0.5, 0.01942384099, 0.001002176158); // Kalman filter f
 KalmanFilter kalmanVert(0.5, 0.01942384099, 0.001002176158); // Kalman filter for the vertical position
 VL53L1X sensor;
 
+float accelData[3];
+float gyroData[3];
+
 // Data logging variables
 const int COLUMNS = 12;            // Columns in the datalog array
 const int ROWS = 8500;             // Rows in the datalog array
@@ -330,6 +334,8 @@ void clearDataInRAM();
 void writeDataToSD();
 void VL53L1Xsetup();
 void VL53L1Xloop();
+void logDataToRAMgimbal(); // log motions of the UAV
+void writeDataToSDgimbal();
 
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
 // INDIVIDUAL TEST PROGRAMS
@@ -395,8 +401,12 @@ void setup()
     IMUinit();
     delay(5);
 
-    calculate_IMU_error();
-
+    // calculate_IMU_error();
+    AccErrorY = 0.04;
+    AccErrorZ = 0.11;
+    GyroErrorX = -3.20;
+    GyroErrorY = -0.14;
+    GyroErrorZ = -1.40;
     delay(1000);
 }
 
@@ -408,8 +418,10 @@ void loop()
     loopRate(2000);
     getIMUdata();
 
-    Madgwick6DOF(GyroX, -GyroY, -GyroZ, -AccX, AccY, AccZ, dt);
-  //  Madgwick6DOF(-GyroX, GyroY, GyroZ, AccX, -AccY, -AccZ, dt);
+       Madgwick6DOF(GyroX, GyroY, GyroZ, -AccX, AccY, AccZ, dt);
+  
+
+    //  Madgwick6DOF(-GyroX, GyroY, GyroZ, AccX, -AccY, -AccZ, dt);
 
     Serial.print(roll_IMU);
     Serial.print(" ");
@@ -604,8 +616,13 @@ void setup()
     delay(5);
 
     // Get IMU error to zero accelerometer and gyro readings, assuming vehicle is level when powered up
-    calculate_IMU_error(); // Calibration parameters printed to serial monitor. Paste these in the user specified variables section, then comment this out forever.
-    delay(10000);
+    // calculate_IMU_error(); // Calibration parameters printed to serial monitor. Paste these in the user specified variables section, then comment this out forever.
+    AccErrorY = 0.04;
+    AccErrorZ = 0.11;
+    GyroErrorX = -3.20;
+    GyroErrorY = -0.14;
+    GyroErrorZ = -1.40;
+    // delay(10000);
     // Arm servo channels
     ESC.write(0);           // Command servo angle from 0-180 degrees (1000 to 2000 PWM)
     aileronServo.write(0);  // Set these to 90 for servos if you do not want them to briefly max out on startup
@@ -695,6 +712,20 @@ void loop() // for the setup and loop, ill prob just use this as the start for t
 // MICROCONTROLLER SETUP
 void setup()
 {
+
+    // orientation PID parameters
+    Kp_roll_angle = 0.5;
+    Ki_roll_angle = 0.2;
+    Kd_roll_angle = 0.1;
+
+    Kp_pitch_angle = 2.0;
+    Ki_pitch_angle = 0.3;
+    Kd_pitch_angle = 0.5;
+
+    Kp_yaw = -0.3;
+    Ki_yaw = 0.05;
+    Kd_yaw = 0.00015;
+
     Serial.begin(500000); // USB serial
     Serial.println("serial works");
     Wire.begin();
@@ -719,16 +750,30 @@ void setup()
     Serial.println("passed radio setup");
     IMUinit(); // IMU init
     Serial.println("passed IMU init");
-    calculate_IMU_error(); // IMU calibrate
-    Serial.println("passed IMU calibration");
+    // calculate_IMU_error(); // IMU calibrate
+    // Serial.println("passed IMU calibration");
 
+    // calibrated values on 1/12/23
+    AccErrorY = 0.04;
+    AccErrorZ = 0.11;
+    GyroErrorX = -3.20;
+    GyroErrorY = -0.14;
+    GyroErrorZ = -1.40;
+    delay(10000);
+
+    // run the code a bunch of times to let IMU settle
+    for (int i = 0; i < 1000; i++)
+    {
+        getIMUdata();                                               // Pulls raw gyro, accelerometer, and magnetometer data from IMU and LP filters to remove noise
+        Madgwick6DOF(GyroX, -GyroY, -GyroZ, -AccX, AccY, AccZ, dt); // Updates roll_IMU, pitch_IMU, and yaw_IMU angle estimates (in deg)
+    }
     // BMP180setup(); // Barometer init and calibrate
     // Serial.println("passed baro setup");
     VL53L1Xsetup(); // ToF sensor init
     Serial.println("passed ToF setup");
     pitotSetup(); // Airspeed sensor init and calibrate
     Serial.println("passed pitot");
-#if DATALOG
+#if DATALOG || TEST_ON_GIMBAL_RIG
     clearDataInRAM();
     setupSD(); // microSD card read/write unit
 #endif
@@ -781,7 +826,13 @@ void loop()
     getIMUdata();                                               // Pulls raw gyro, accelerometer, and magnetometer data from IMU and LP filters to remove noise
     Madgwick6DOF(GyroX, -GyroY, -GyroZ, -AccX, AccY, AccZ, dt); // Updates roll_IMU, pitch_IMU, and yaw_IMU angle estimates (in deg)
                                                                 //  IMU_test_time_in_micros = micros() - IMU_test_start_time;
+    accelData[0] = AccX;
+    accelData[1] = AccY;
+    accelData[2] = AccZ;
 
+    gyroData[0] = GyroX * DEG_TO_RAD;
+    gyroData[1] = GyroY * DEG_TO_RAD;
+    gyroData[2] = GyroZ * DEG_TO_RAD;
     // baro_test_start_time = micros();
     // BMP180loop(); // Retrieves barometric altitude and LP filters
     // baro_test_time_in_micros = micros() - baro_test_start_time;
@@ -836,6 +887,26 @@ void loop()
             {
                 Kd_roll_angle = Serial.parseFloat();
             }
+
+            dataFile = SD.open("PID.txt", FILE_WRITE);
+
+            dataFile.print("\t time:\t");
+            dataFile.print(timeInMillis);
+            dataFile.print("\troll P gain\t");
+            dataFile.print(Kp_roll_angle);
+            dataFile.print("\troll I gain \t");
+            dataFile.print(Ki_roll_angle);
+            dataFile.print("\troll D gain\t");
+            dataFile.print(Kd_roll_angle);
+            dataFile.print("\tpitch P gain\t");
+            dataFile.print(Kp_pitch_angle);
+            dataFile.print("\tpitch I gain \t");
+            dataFile.print(Ki_pitch_angle);
+            dataFile.print("\tpitch D gain\t");
+            dataFile.print(Kd_pitch_angle);
+            dataFile.println();
+
+            dataFile.close();
         }
         else if (axis == 'p')
         {
@@ -851,86 +922,94 @@ void loop()
             {
                 Kd_pitch_angle = Serial.parseFloat();
             }
+
+            dataFile = SD.open("PID.txt", FILE_WRITE);
+            dataFile.print("\t time:\t");
+            dataFile.print(timeInMillis);
+            dataFile.print("\troll P gain\t");
+            dataFile.print(Kp_roll_angle);
+            dataFile.print("\troll I gain \t");
+            dataFile.print(Ki_roll_angle);
+            dataFile.print("\troll D gain\t");
+            dataFile.print(Kd_roll_angle);
+            dataFile.print("\tpitch P gain\t");
+            dataFile.print(Kp_pitch_angle);
+            dataFile.print("\tpitch I gain \t");
+            dataFile.print(Ki_pitch_angle);
+            dataFile.print("\tpitch D gain\t");
+            dataFile.print(Kd_pitch_angle);
+            dataFile.println();
+
+            dataFile.close();
         }
-        else if (axis = 'A')
+        else if (axis == 'A')
         {
             dataFile = SD.open("airspeed.txt", FILE_WRITE);
-            dataFile.print("real airspeed inputted\t");
+            dataFile.print("\treal airspeed inputted\t");
             dataFile.print(Serial.parseFloat());
             dataFile.print("\tcurrent measured unadusted airspeed\t");
             dataFile.print(airspeed_unadjusted);
             dataFile.print("\tcurrent measured adusted airspeed\t");
             dataFile.print(airspeed_adjusted);
-            Serial.println("airspeed recorded");
+            dataFile.println("\tairspeed recorded\t");
         }
     }
 
-    // step function. angle 20, 0, -20 for roll and pitch, every 2 seconds
-    if (loopCounter < 4000)
+    // datalog system
+    if (mode2_channel < 1500)
     {
-        float roll_des = 20;
-        float pitch_des = 0;
-        loopCounter++;
-    }
-    else if (loopCounter < (8000))
-    {
-        float roll_des = -20;
-        float pitch_des = 0;
-        loopCounter++;
-    }
-    else if (loopCounter < (12000))
-    {
-        float roll_des = 0;
-        float pitch_des = 20;
-        loopCounter++;
-    }
-    else if (loopCounter < (16000))
-    {
-        float roll_des = 0;
-        float pitch_des = -20;
-        loopCounter++;
+        // Stop all UAV activity after landed, and log data
+        s1_command_scaled = 0;
+        s2_command_scaled = 0;
+        s3_command_scaled = 0;
+        s4_command_scaled = 0;
+        s5_command_PWM = 90;
+        writeDataToSDgimbal();
+        clearDataInRAM();
+        currentRow = 0;
     }
     else
     {
-        loopCounter = 0;
+        logDataToRAMgimbal(); // log motions of the UAV
     }
 
     controlANGLE(); // dRehmFlight for angle based (pitch and roll) PID loops
+    throttleController();
 
     s1_command_scaled = 0;
     s2_command_scaled = roll_PID;  // Between -1 and 1
     s3_command_scaled = pitch_PID; // Between -1 and 1
     s4_command_scaled = 0;
 
-    Serial.print("airspeed undjusted\t");
+    Serial.print("IAS: "); // indicated airspeed
     Serial.print(airspeed_unadjusted);
-    Serial.print("\tairspeed adjusted\t");
+    Serial.print(" TAS: "); // true airspeed
     Serial.print(airspeed_adjusted);
-    Serial.print("\troll setpoint\t");
+    Serial.print(" ROLL SET: ");
     Serial.print(roll_des);
-    Serial.print("roll command\t");
+    Serial.print(" ROLL CMD: ");
     Serial.print(s2_command_PWM);
-    Serial.print("\troll P gain\t");
+    Serial.print(" ROLL Kp: ");
     Serial.print(Kp_roll_angle);
-    Serial.print("\troll I gain \t");
+    Serial.print(" ROLL Ki: ");
     Serial.print(Ki_roll_angle);
     //  Serial.print("\troll I val \t");
     //  Serial.print(integral_roll);
-    Serial.print("\troll D gain\t");
+    Serial.print(" ROLL Kd: ");
     Serial.print(Kd_roll_angle);
     //  Serial.print("\troll D val\t");
     //  Serial.print(derivative_roll);
-    Serial.print("\troll setpoint\t");
-    Serial.print(roll_des);
-    Serial.print("\tpitch command\t");
+    Serial.print(" PITCH SET: ");
+    Serial.print(pitch_des);
+    Serial.print(" PITCH CMD: ");
     Serial.print(s3_command_PWM);
-    Serial.print("\tpitch P gain\t");
+    Serial.print(" PITCH Kp: ");
     Serial.print(Kp_pitch_angle);
-    Serial.print("\tpitch I gain \t");
+    Serial.print(" PITCH Ki: ");
     Serial.print(Ki_pitch_angle);
     //   Serial.print("\tpitch I val \t");
     //   Serial.print(integral_pitch);
-    Serial.print("\tpitch D gain\t");
+    Serial.print(" PITCH Kd: ");
     Serial.print(Kd_pitch_angle);
     //  Serial.print("\troll D val\t");
     // Serial.print(derivative_pitch);
@@ -939,23 +1018,6 @@ void loop()
     // write the most recent PID values
     if (loopCounter > (2000 / dataLogRateSlow))
     {
-        dataFile = SD.open("PID.txt", FILE_WRITE);
-
-        dataFile.print("\troll P gain\t");
-        dataFile.print(Kp_roll_angle);
-        dataFile.print("\troll I gain \t");
-        dataFile.print(Ki_roll_angle);
-        dataFile.print("\troll D gain\t");
-        dataFile.print(Kd_roll_angle);
-        dataFile.print("\tpitch P gain\t");
-        dataFile.print(Kp_pitch_angle);
-        dataFile.print("\tpitch I gain \t");
-        dataFile.print(Ki_pitch_angle);
-        dataFile.print("\tpitch D gain\t");
-        dataFile.print(Kd_pitch_angle);
-        dataFile.println();
-
-        dataFile.close();
 
         loopCounter = 0;
     }
@@ -1055,14 +1117,15 @@ void loop()
     else if (flight_mode == stabilized_flight)
     {
         // Flight mode 2 (stabilized flight, constant airspeed, and coordinated turns.
-        controlANGLE();          // dRehmFlight for angle based (pitch and roll) PID loops
-        throttleController();    // PID loop for throttle control
-        coordinatedController(); // PID loop for coordinated turns
+        controlANGLE();       // dRehmFlight for angle based (pitch and roll) PID loops
+        throttleController(); // PID loop for throttle control
+                              //  coordinatedController(); // PID loop for coordinated turns
 
-        s1_command_scaled = throttle_PID;             // Between 0 and 1
-        s2_command_scaled = roll_PID;                 // Between -1 and 1
-        s3_command_scaled = pitch_PID;                // Between -1 and 1
-        s4_command_scaled = rudderCoordinatedCommand; // Between -1 and 1
+        s1_command_scaled = throttle_PID; // Between 0 and 1
+        s2_command_scaled = roll_PID;     // Between -1 and 1
+        s3_command_scaled = pitch_PID;    // Between -1 and 1
+                                          // s4_command_scaled = rudderCoordinatedCommand; // Between -1 and 1
+        s4_command_scaled = yaw_PID;      // Between -1 and 1
 
         DSifFirstRun = true; // Resets the DS variable while not in the DS flight mode
         // Log data to RAM slowly because not in DS flight
@@ -1085,17 +1148,18 @@ void loop()
     {
 
         // Flight mode 3 (Dynamic soaring)
-        horizontal();            // Estimates the global horizontal acceleration, velocity, and position of the UAV
-        dynamicSoar();           // Creates the dynamic soaring setpoints
-        DSattitude();            // Converts dynamic soaring setpoints to desired angles
-        controlANGLE();          // dRehmFlight for angle based (pitch and roll) PID loops
-        throttleController();    // PID loop for throttle control
-        coordinatedController(); // PID loop for coordinated turns
+        horizontal();         // Estimates the global horizontal acceleration, velocity, and position of the UAV
+        dynamicSoar();        // Creates the dynamic soaring setpoints
+        DSattitude();         // Converts dynamic soaring setpoints to desired angles
+        controlANGLE();       // dRehmFlight for angle based (pitch and roll) PID loops
+        throttleController(); // PID loop for throttle control
+                              //  coordinatedController(); // PID loop for coordinated turns
 
-        s1_command_scaled = throttle_PID;             // Between 0 and 1
-        s2_command_scaled = roll_PID;                 // Between -1 and 1
-        s3_command_scaled = pitch_PID;                // Between -1 and 1
-        s4_command_scaled = rudderCoordinatedCommand; // Between -1 and 1
+        s1_command_scaled = throttle_PID; // Between 0 and 1
+        s2_command_scaled = roll_PID;     // Between -1 and 1
+        s3_command_scaled = pitch_PID;    // Between -1 and 1
+                                          // s4_command_scaled = rudderCoordinatedCommand; // Between -1 and 1
+        s4_command_scaled = yaw_PID;      // Between -1 and 1
 
         DSifFirstRun = false; // False after the first loop
         // Log data to RAM datalogRate times per second
@@ -1140,6 +1204,12 @@ void loop()
     rudderServo.write(s4_command_PWM);   // rudder
     gimbalServo.write(s5_command_PWM);   // gimbal
 
+    //   Serial.print(roll_IMU);
+    //   Serial.print(" ");
+    //   Serial.print(pitch_IMU);
+    //   Serial.print(" ");
+    //   Serial.println(yaw_IMU);
+
     // Serial.print(" baro reading: \t");
     // Serial.print(altitudeMeasured);
     // Serial.print(" baro reading LP: \t");
@@ -1169,16 +1239,16 @@ void loop()
     //     Serial.println();
     // }
 
-    Serial.print(roll_IMU);
-    Serial.print(" ");
-    Serial.print(pitch_IMU);
-    Serial.print(" ");
-    Serial.print(yaw_IMU);
+    // Serial.print(roll_IMU);
+    // Serial.print(" ");
+    // Serial.print(pitch_IMU);
+    // Serial.print(" ");
+    // Serial.print(yaw_IMU);
 
-    Serial.print("\t microseconds per loop: ");
-    Serial.print(dt * 1000000);
-    //    printLoopRate();
-    Serial.println(currentRow);
+    // Serial.print("\t microseconds per loop: ");
+    // Serial.print(dt * 1000000);
+    // //    printLoopRate();
+    // Serial.println(currentRow);
     // Regulate loop rate
     loopBlink();    // Blink every 1.5 seconds to indicate main loop
     loopRate(2000); // Loop runs at 2000 Hz
@@ -1406,6 +1476,7 @@ void DSattitude()
 }
 
 // This function coordinates the UAV by to attempt to make the acceleration vector the UAV experinces point straight down about the roll axis. Outputs the rudder command rudderCoordinatedCommand
+/*
 void coordinatedController()
 {
     acceleration_downwards_angle = atan2(AccY, AccZ) * RAD_TO_DEG; // Calculate the angle of the downwards vector
@@ -1430,7 +1501,7 @@ void coordinatedController()
     {
         rudderCoordinatedCommand = 0; // If the vector is not good (if the UAV is momentarily in freefall and the wings aren't producing lift, there is nothing to coordinate) then set the rudder to the middle
     }
-}
+}*/
 
 // This function controlls the throttle to maintain airspeed
 void throttleController()
@@ -1461,8 +1532,6 @@ void horizontal()
 {
 
     // Use Kalman Filter libary to estimate horizontal velocity. Will need to test which horizontal it is, and if it needs to be rotated.
-    float accelData[3] = {AccX, AccY, AccZ};
-    float gyroData[3] = {GyroX * DEG_TO_RAD, GyroY * DEG_TO_RAD, GyroZ * DEG_TO_RAD};
     float horizontal_acceleration_magnitude_any_direction;
     float angle_of_horizontal_acceleration;
     kalmanHoriz.estimateHorizontal(gyroData, accelData, dt, horizontal_acceleration_magnitude_any_direction, angle_of_horizontal_acceleration);
@@ -1492,8 +1561,7 @@ void horizontal()
 void estimateAltitude()
 {
     // Use the Kalman filter to estimate the altitude of the UAV using only the IMU and barometer (both after having a low pass filter applied)
-    float accelData[3] = {AccX, AccY, AccZ};
-    float gyroData[3] = {GyroX * DEG_TO_RAD, GyroY * DEG_TO_RAD, GyroZ * DEG_TO_RAD};
+
     IMU_vertical_accel = kalmanVert.estimate(gyroData, accelData, dt);
     IMU_vertical_vel += IMU_vertical_accel / dt;
     IMU_vertical_pos += IMU_vertical_vel / dt;
@@ -1699,6 +1767,36 @@ void logDataToRAM()
         }
         currentRow++; // Increment counter
     }
+}
+
+void logDataToRAMgimbal()
+{
+    dataLogArray[currentRow][0] = timeInMillis;
+    dataLogArray[currentRow][1] = roll_des;
+    dataLogArray[currentRow][2] = s2_command_PWM;
+    dataLogArray[currentRow][3] = roll_IMU;
+    dataLogArray[currentRow][4] = pitch_des;
+    dataLogArray[currentRow][5] = s3_command_PWM;
+    dataLogArray[currentRow][6] = pitch_IMU;
+    dataLogArray[currentRow][7] = airspeed_unadjusted;
+    dataLogArray[currentRow][8] = airspeed_adjusted;
+    dataLogArray[currentRow][9] = throttle_PID;
+    dataLogArray[currentRow][10] = s1_command_PWM;
+}
+
+void writeDataToSDgimbal()
+{
+    dataFile = SD.open("gimbalData.txt", FILE_WRITE);
+    for (int i = 0; i < currentRow; i++)
+    {
+        for (int j = 0; j < COLUMNS; j++)
+        {
+            dataFile.print(dataLogArray[i][j]);
+            dataFile.print(",");
+        }
+        dataFile.println();
+    }
+    dataFile.close();
 }
 
 void clearDataInRAM() // set all values to 0
