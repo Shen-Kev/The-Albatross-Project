@@ -714,13 +714,13 @@ void loop() // for the setup and loop, ill prob just use this as the start for t
 void setup()
 {
     // orientation PID parameters
-    Kp_roll_angle = 0.5;
-    Ki_roll_angle = 0.2;
-    Kd_roll_angle = 0.1;
+    Kp_roll_angle = 2.0;
+    Ki_roll_angle = 0.0;
+    Kd_roll_angle = 0.0;
 
-    Kp_pitch_angle = 2.0;
-    Ki_pitch_angle = 0.5;
-    Kd_pitch_angle = 0.5;
+    Kp_pitch_angle = 4.0;
+    Ki_pitch_angle = 0.0;
+    Kd_pitch_angle = 0.0;
 
     Kp_yaw = -0.3;
     Ki_yaw = 0.05;
@@ -942,7 +942,7 @@ void loop()
 
             dataFile.close();
         }
-        else
+        else if (axis == 'A' && gain == 'A')
         {
             inputted_airspeed = Serial.parseFloat();
             dataFile = SD.open("airspeed.txt", FILE_WRITE);
