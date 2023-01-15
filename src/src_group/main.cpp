@@ -68,8 +68,7 @@
 // edit csv data analyzing tool in python
 // tune values that need to be tuned (also in drehmflight)
 // get compass working if needed
-//add feature to automatically datalog every little bit? if this works okay then i could log a bunch more data and write to SD every like 30 seconds
-
+// add feature to automatically datalog every little bit? if this works okay then i could log a bunch more data and write to SD every like 30 seconds
 
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
 // DEBUG AND TESTING #IFS
@@ -93,7 +92,7 @@
 #define TEST_DREHMFLIGHT 0
 
 // Combined systems ground test programs with serial connection
-#define TEST_ON_GIMBAL_RIG 0     // Uses the gimbal rig to tune PID pitch and roll loops, and validate/tune airspeed, but monitor the throttle PID
+#define TEST_ON_GIMBAL_RIG 1     // Uses the gimbal rig to tune PID pitch and roll loops, and validate/tune airspeed, but monitor the throttle PID
 #define TEST_ALTITUDE_RIG 0      // Uses the altitude rig to estimate the altitude of the UAV
 #define TEST_HORIZONTAL_MOTION 0 // Tests the horizontal motion estimation
 
@@ -196,19 +195,15 @@ enum horiz_setpoint_types
 // Dynamic soaring phase variables
 boolean DSifFirstRun = true; // The boolean which is true only if the mode switch goes from a non DS flight mode to the DS flight mode
 
-int DS_phase;  // The integer used to store the dynamic soaring phase
-enum DS_phases // The different phases of DS stored as names to be easier to understand. Stored in DS_phase
+// Flight mode variables
+int flight_phase; // The flight mode (manual, stabilized, DS)
+enum flight_phases
 {
     DS_phase_0 = 0, // DS Phase 0. UAV turns perpendicular to the wind flies low to the ground and stabilizes
     DS_phase_1 = 1, // DS Phase 1. UAV turns into the wind, but below the shear layer to build up enough horizontal velocity
     DS_phase_2 = 2, // DS Phase 2. Part of the DS cycle. UAV is facing the wind and above the shear layer, but is accelerating away from the wind, harvesting the wind's energy
     DS_phase_3 = 3, // DS Phase 3. Part of the DS cycle. UAV is now facing away from the wind and descending towards the shear layer. Still accelerating away from the wind, havesting energy
-    DS_phase_4 = 4  // DS Phase 4. Part of the DS cycle. UAV is facing away from the wind and under the shear layer, but turning back towards the wind to build up velocity to start the DS cycle over
-};
-// Flight mode variables
-int flight_mode; // The flight mode (manual, stabilized, DS)
-enum flight_modes
-{
+    DS_phase_4 = 4, // DS Phase 4. Part of the DS cycle. UAV is facing away from the wind and under the shear layer, but turning back towards the wind to build up velocity to start the DS cycle over
     manual_flight = 5,
     stabilized_flight = 6,
     dynamic_soaring_flight = 7,
@@ -286,8 +281,8 @@ float accelData[3];
 float gyroData[3];
 
 // Data logging variables
-const int COLUMNS = 12;            // Columns in the datalog array
-const int ROWS = 8500;             // Rows in the datalog array
+const int COLUMNS = 16;            // Columns in the datalog array
+const int ROWS = 6400;             // Rows in the datalog array
 float dataLogArray[ROWS][COLUMNS]; // Create the datalog array. Columns are the variables being printed, and rows are logs at different times
 int currentRow = 0;                // Keeps track of the row the data should be logged into
 const int datalogRate = 50;        // NEEDS TO BE ADJUSTED: Data logging rate in Hz
@@ -333,8 +328,6 @@ void clearDataInRAM();
 void writeDataToSD();
 void VL53L1Xsetup();
 void VL53L1Xloop();
-void logDataToRAMgimbal(); // log motions of the UAV
-void writeDataToSDgimbal();
 
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
 // INDIVIDUAL TEST PROGRAMS
@@ -493,18 +486,17 @@ void loop()
     // Serial.print(mode1_channel);
     // Serial.print(" channel 6: ");
     // Serial.print(mode2_channel);
-  Serial.print(" thro des: ");
-  Serial.print(thro_des);
-  Serial.print(" roll des: ");
-  Serial.print(roll_des);
-  Serial.print(" pitch des: ");
-  Serial.print(pitch_des);
-  Serial.print(" yaw des: ");
-  Serial.print(yaw_des);
-  Serial.println();
+    Serial.print(" thro des: ");
+    Serial.print(thro_des);
+    Serial.print(" roll des: ");
+    Serial.print(roll_des);
+    Serial.print(" pitch des: ");
+    Serial.print(pitch_des);
+    Serial.print(" yaw des: ");
+    Serial.print(yaw_des);
+    Serial.println();
     // Serial.println();
     loopRate(2000);
-
 }
 #elif TEST_RADIO_TO_SERVO
 
@@ -867,7 +859,7 @@ void loop()
     roll_IMU_rad = roll_IMU * DEG_TO_RAD;   // positive roll is roll to the right
     yaw_IMU_rad = yaw_IMU * DEG_TO_RAD;     // positive yaw is yaw to the right
 
-    getDesState(); //produces thro_des, roll_des, pitch_des, yaw_des, roll_passthru, pitch_passthru, yaw_passthru
+    getDesState(); // produces thro_des, roll_des, pitch_des, yaw_des, roll_passthru, pitch_passthru, yaw_passthru
 
 #if TEST_ON_GIMBAL_RIG
 
@@ -975,7 +967,7 @@ void loop()
         // Serial.println("about to datalog");
         if (!dataLogged)
         {
-            writeDataToSDgimbal();
+            writeDataToSD();
             clearDataInRAM();
         }
         //  datalogtimer = micros() - datalogtimer;
@@ -989,7 +981,7 @@ void loop()
     }
     if (loopCounter > (2000 / datalogRate))
     {
-        logDataToRAMgimbal(); // log motions of the UAV
+        logDataToRAM(); // log motions of the UAV
         loopCounter = 0;
     }
     else
@@ -1087,20 +1079,20 @@ void loop()
 
     if (mode1_channel < 1400)
     {
-        flight_mode = manual_flight;
+        flight_phase = manual_flight;
     }
     else if (mode1_channel < 1600)
     {
-        flight_mode = stabilized_flight;
+        flight_phase = stabilized_flight;
     }
     else
     {
-        flight_mode = dynamic_soaring_flight;
+        flight_phase = dynamic_soaring_flight;
     }
 
     // reciever_time = micros() - sensor_time;
 
-    if (flight_mode == manual_flight)
+    if (flight_phase == manual_flight)
     {
 
         // Flight mode 1 (manual flight). Directly puts the servo commands to the commands from the radio
@@ -1133,7 +1125,7 @@ void loop()
             loopCounter++;
         }
     }
-    else if (flight_mode == stabilized_flight)
+    else if (flight_phase == stabilized_flight)
     {
         // Flight mode 2 (stabilized flight, constant airspeed, and coordinated turns.
         controlANGLE();       // dRehmFlight for angle based (pitch and roll) PID loops
@@ -1163,7 +1155,7 @@ void loop()
         }
     }
 
-    else if (flight_mode == dynamic_soaring_flight)
+    else if (flight_phase == dynamic_soaring_flight)
     {
 
         // Flight mode 3 (Dynamic soaring)
@@ -1309,11 +1301,11 @@ void dynamicSoar()
     // Detects the first time the DS switch is activated by the pilot
     if (DSifFirstRun)
     {
-        DS_phase = DS_phase_0; // Go-ahead by the pilot to dynamic soar: activate DS Phase 0
+        flight_phase = DS_phase_0; // Go-ahead by the pilot to dynamic soar: activate DS Phase 0
     }
 
     // All the dynamic soaring phases in a switch function to be most computaitonally efficent
-    switch (DS_phase)
+    switch (flight_phase)
     {
     case DS_phase_0:
         // Phase 0 autonomously flies the UAV to be ready for dynamic soaring, but does not actually dynamic soar.
@@ -1342,7 +1334,7 @@ void dynamicSoar()
         }
         else
         {
-            DS_phase = DS_phase_1;
+            flight_phase = DS_phase_1;
         }
 
         break;
@@ -1367,8 +1359,8 @@ void dynamicSoar()
         // If the UAV is within horizontal velocity tolerance, proceed to the next DS phase. Making sure the velocity while under the shear layer is consistant is important because acceleration is used as the setpoint in the next to phases, and having significantly different sized DS cycles would not be good
         if (abs(DS_horizontal_vel) < horizontal_vel_tolerance)
         {
-            DS_phase = DS_phase_2; // Go the DS Phase 2, starting the DS cycle
-            DS_horizontal_pos = 0; // Because the UAV should cross the DS line at the right velocity, set the DS line to be right here
+            flight_phase = DS_phase_2; // Go the DS Phase 2, starting the DS cycle
+            DS_horizontal_pos = 0;     // Because the UAV should cross the DS line at the right velocity, set the DS line to be right here
         }
 
         break;
@@ -1402,7 +1394,7 @@ void dynamicSoar()
         // Once the UAV reverses direction and begins to fly back towards the DS line, proceed to Phase 3 and begin descent
         if (DS_horizontal_vel > 0.0)
         {
-            DS_phase = DS_phase_3;
+            flight_phase = DS_phase_3;
         }
 
         break;
@@ -1436,7 +1428,7 @@ void dynamicSoar()
         // Once the UAV passes the DS line and is below the shear layer, proceed to Phase 4 and begin to turn back to recover for leeway
         if (DS_horizontal_pos > 0.0 && abs(DS_altitude_error) < DS_altitude_tolerance)
         {
-            DS_phase = DS_phase_4;
+            flight_phase = DS_phase_4;
         }
 
         break;
@@ -1461,7 +1453,7 @@ void dynamicSoar()
         // If the UAV is within horizontal velocity tolerance and crossed the DS flight path, loop back to Phase 2 to restart the cycle
         if (abs(DS_horizontal_vel_error) < horizontal_vel_tolerance && DS_horizontal_pos < 0.0)
         {
-            DS_phase = DS_phase_2;
+            flight_phase = DS_phase_2;
         }
 
         break;
@@ -1760,69 +1752,31 @@ void logDataToRAM()
 {
     if (currentRow < ROWS)
     {
-        if (flight_mode == dynamic_soaring_flight)
-        {
-            // fill out the enitre row of data
-            dataLogArray[currentRow][0] = timeInMillis;
-            dataLogArray[currentRow][1] = roll_IMU;
-            dataLogArray[currentRow][2] = pitch_IMU;
-            dataLogArray[currentRow][3] = yaw_IMU;
-            dataLogArray[currentRow][4] = DS_phase;
-            dataLogArray[currentRow][5] = DS_horizontal_pos;
-            dataLogArray[currentRow][6] = DS_horizontal_vel;
-            dataLogArray[currentRow][7] = DS_horizontal_accel;
-            dataLogArray[currentRow][8] = estimated_altitude;
-            dataLogArray[currentRow][9] = altitudeTypeDataLog;
-            dataLogArray[currentRow][10] = airspeed_adjusted;
-            dataLogArray[currentRow][11] = throttle_PID;
-        }
-        else
-        {
-            dataLogArray[currentRow][0] = timeInMillis;
-            dataLogArray[currentRow][1] = roll_IMU;
-            dataLogArray[currentRow][2] = pitch_IMU;
-            dataLogArray[currentRow][3] = yaw_IMU;
-            dataLogArray[currentRow][4] = flight_mode;
-            dataLogArray[currentRow][8] = estimated_altitude;
-            dataLogArray[currentRow][9] = altitudeTypeDataLog;
-            dataLogArray[currentRow][10] = airspeed_adjusted;
-        }
+        // fill out the enitre row of data
+        dataLogArray[currentRow][0] = timeInMillis;
+        dataLogArray[currentRow][1] = flight_phase;
+
+        dataLogArray[currentRow][2] = roll_IMU;
+        dataLogArray[currentRow][3] = roll_des;
+        dataLogArray[currentRow][4] = roll_PID;
+
+        dataLogArray[currentRow][5] = pitch_IMU;
+        dataLogArray[currentRow][6] = pitch_des;
+        dataLogArray[currentRow][7] = pitch_PID;
+
+        dataLogArray[currentRow][8] = yaw_IMU;
+        dataLogArray[currentRow][9] = yaw_des;
+        dataLogArray[currentRow][10] = yaw_PID;
+
+        dataLogArray[currentRow][11] = airspeed_adjusted;
+        dataLogArray[currentRow][12] = airspeed_setpoint;
+        dataLogArray[currentRow][13] = throttle_PID;
+
+        dataLogArray[currentRow][14] = DS_horizontal_accel;
+        dataLogArray[currentRow][15] = estimated_altitude;
+
         currentRow++; // Increment counter
     }
-}
-
-void logDataToRAMgimbal()
-{
-    if (currentRow < ROWS)
-    {
-        dataLogArray[currentRow][0] = timeInMillis;
-        dataLogArray[currentRow][1] = roll_des;
-        dataLogArray[currentRow][2] = s2_command_PWM;
-        dataLogArray[currentRow][3] = roll_IMU;
-        dataLogArray[currentRow][4] = pitch_des;
-        dataLogArray[currentRow][5] = s3_command_PWM;
-        dataLogArray[currentRow][6] = pitch_IMU;
-        dataLogArray[currentRow][7] = airspeed_unadjusted;
-        dataLogArray[currentRow][8] = airspeed_adjusted;
-        dataLogArray[currentRow][9] = throttle_PID;
-        dataLogArray[currentRow][10] = s1_command_PWM;
-        currentRow++;
-    }
-}
-
-void writeDataToSDgimbal()
-{
-    dataFile = SD.open("gimbalData.txt", FILE_WRITE);
-    for (int i = 0; i < currentRow; i++)
-    {
-        for (int j = 0; j < COLUMNS; j++)
-        {
-            dataFile.print(dataLogArray[i][j]);
-            dataFile.print(",");
-        }
-        dataFile.println();
-    }
-    dataFile.close();
 }
 
 void clearDataInRAM() // set all values to 0
