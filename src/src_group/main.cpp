@@ -206,7 +206,15 @@ enum DS_phases // The different phases of DS stored as names to be easier to und
     DS_phase_3 = 3, // DS Phase 3. Part of the DS cycle. UAV is now facing away from the wind and descending towards the shear layer. Still accelerating away from the wind, havesting energy
     DS_phase_4 = 4  // DS Phase 4. Part of the DS cycle. UAV is facing away from the wind and under the shear layer, but turning back towards the wind to build up velocity to start the DS cycle over
 };
-
+// Flight mode variables
+int flight_mode; // The flight mode (manual, stabilized, DS)
+enum flight_modes
+{
+    manual_flight = 5,
+    stabilized_flight = 6,
+    dynamic_soaring_flight = 7,
+    log_data_to_SD = 8
+};
 // Horizontal PID controller values
 float K_horiz_accel = 1.0;                   //  NEEDS TO BE ADJUSTED: Global horizontal acceleration proportional gain
 float Kp_horiz_vel = 1.0;                    //  NEEDS TO BE ADJUSTED: Global horizontal velocity proportional gain
@@ -250,6 +258,7 @@ const float stall_speed = 10.0;             // NEEDS TO BE ADJUSTED: The airspee
 float airspeed_error;                       // The error between setpoint airspeed and current airspeed
 float airspeed_error_prev;                  // The previous error, used for derivative estimation
 const float airspeed_error_tolerance = 1.0; // NEEDS TO BE ADJUSTED: The range of airspeeds to be within to be 'close enough' to the setpoint
+float inputted_airspeed;
 
 const float Kp_throttle = 0.2;    //  NEEDS TO BE ADJUSTED:Throttle Proportional gain
 const float Ki_throttle = 0.3;    //  NEEDS TO BE ADJUSTED:Throttle Integral gain
@@ -291,16 +300,6 @@ boolean dataLogged = false;
 //                                                      0.1674466677,   // sigma (standard deviation of) the barometer
 //                                                      0.5,            // ca (don't touch)
 //                                                      0.1);           // accel threshold (if there are many IMU acceleration values below this value, it is assumed the aircraft is not moving vertically)
-
-// Flight mode variables
-int flight_mode; // The flight mode (manual, stabilized, DS)
-enum flight_modes
-{
-    manual_flight = 0,
-    stabilized_flight = 1,
-    dynamic_soaring_flight = 2,
-    log_data_to_SD = 3
-};
 
 // Timing variables
 unsigned long ToF_test_time_in_micros;
@@ -942,16 +941,16 @@ void loop()
 
             dataFile.close();
         }
-        else if (axis == 'A')
+        else
         {
+            inputted_airspeed = Serial.parseFloat();
             dataFile = SD.open("airspeed.txt", FILE_WRITE);
             dataFile.print("\treal airspeed inputted\t");
-            dataFile.print(Serial.parseFloat());
+            dataFile.print(inputted_airspeed);
             dataFile.print("\tcurrent measured unadusted airspeed\t");
             dataFile.print(airspeed_unadjusted);
             dataFile.print("\tcurrent measured adusted airspeed\t");
-            dataFile.print(airspeed_adjusted);
-            dataFile.println("\tairspeed recorded\t");
+            dataFile.println(airspeed_adjusted);
         }
     }
 
@@ -978,15 +977,15 @@ void loop()
     else
     {
         dataLogged = false;
-        if (loopCounter > (2000 / datalogRate))
-        {
-            logDataToRAMgimbal(); // log motions of the UAV
-            loopCounter = 0;
-        }
-        else
-        {
-            loopCounter++;
-        }
+    }
+    if (loopCounter > (2000 / datalogRate))
+    {
+        logDataToRAMgimbal(); // log motions of the UAV
+        loopCounter = 0;
+    }
+    else
+    {
+        loopCounter++;
     }
 
     controlANGLE(); // dRehmFlight for angle based (pitch and roll) PID loops
@@ -1031,16 +1030,16 @@ void loop()
     // Serial.print(derivative_pitch);
     Serial.println();
 
-    // write the most recent PID values
-    if (loopCounter > (2000 / dataLogRateSlow))
-    {
+    // // write the most recent PID values
+    // if (loopCounter > (2000 / dataLogRateSlow))
+    // {
 
-        loopCounter = 0;
-    }
-    else
-    {
-        loopCounter++;
-    }
+    //     loopCounter = 0;
+    // }
+    // else
+    // {
+    //     loopCounter++;
+    // }
 
 #elif TEST_ALTITUDE_RIG
 
@@ -1199,7 +1198,8 @@ void loop()
         }
         dataLogged = true;
     }
-    else {
+    else
+    {
         datalogged = false;
     }
 #endif
