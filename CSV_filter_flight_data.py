@@ -10,7 +10,7 @@ output_file = "flight_data/flight_data_example_filtered.csv"
 # For example, to include the first, second, and fifth columns, set column_indices = [0, 1, 4]
 column_indices = [0, 1, 4]
 
-# Set the range of rows to include in the output file
+# Set the range of rows to include in the output file. maybe only read the rows that have high airspeed?
 # For example, to include rows 2 through 10, set row_range = (1, 9)
 row_range = (1, 9)
 

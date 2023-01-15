@@ -248,7 +248,10 @@ float q2 = 0.0f;
 float q3 = 0.0f;
 
 // Normalized desired state:
-float thro_des, roll_des, pitch_des, yaw_des;
+float thro_des;  // BETWEEN 0 and 1, for power
+float roll_des;  // BETWEEN -30 and 30 DEGREES, which are the normalized bounds for roll.
+float pitch_des; // BETWEEN -30 and 30 DEGREES, which are the normalized bounds for pitch.
+float yaw_des;   // BETWEEN -160 and 160 DEGREES PER SECOND, which are the normalized bounds for roll.
 float roll_passthru, pitch_passthru, yaw_passthru;
 
 // Controller:
@@ -844,7 +847,6 @@ void Madgwick6DOF(float gx, float gy, float gz, float ax, float ay, float az, fl
    * available (for example when using the recommended MPU6050 IMU for the default setup).
    */
 
-
   float recipNorm;
   float s0, s1, s2, s3;
   float qDot1, qDot2, qDot3, qDot4;
@@ -918,8 +920,8 @@ void Madgwick6DOF(float gx, float gy, float gz, float ax, float ay, float az, fl
 
   // Compute angles
   roll_IMU = atan2(q0 * q1 + q2 * q3, 0.5f - q1 * q1 - q2 * q2) * 57.29577951; // degrees
-  pitch_IMU = asin(-2.0f * (q1 * q3 - q0 * q2)) * 57.29577951;                // degrees
-  yaw_IMU = atan2(q1 * q2 + q0 * q3, 0.5f - q2 * q2 - q3 * q3) * 57.29577951; // degrees
+  pitch_IMU = asin(-2.0f * (q1 * q3 - q0 * q2)) * 57.29577951;                 // degrees
+  yaw_IMU = atan2(q1 * q2 + q0 * q3, 0.5f - q2 * q2 - q3 * q3) * 57.29577951;  // degrees
 }
 
 void getDesState()
@@ -932,10 +934,17 @@ void getDesState()
    * (rate mode). yaw_des is scaled to be within max yaw in degrees/sec. Also creates roll_passthru, pitch_passthru, and
    * yaw_passthru variables, to be used in commanding motors/servos with direct unstabilized commands in controlMixer().
    */
-  thro_des = (throttle_channel - 1000.0) / 1000.0; // Between 0 and 1
-  roll_des = (roll_channel - 1500.0) / 500.0;      // Between -1 and 1
-  pitch_des = (pitch_channel - 1500.0) / 500.0;    // Between -1 and 1
-  yaw_des = (yaw_channel - 1500.0) / 500.0;        // Between -1 and 1
+  // ORIGINAL:
+  //  thro_des = (throttle_channel - 1000.0) / 1000.0; // Between 0 and 1
+  //  roll_des = (roll_channel - 1500.0) / 500.0;      // Between -1 and 1
+  //  pitch_des = (pitch_channel - 1500.0) / 500.0;    // Between -1 and 1
+  //  yaw_des = (yaw_channel - 1500.0) / 500.0;        // Between -1 and 1
+
+  // MODIFIED. all channels range from 1100-1900, not 1000-2000
+  thro_des = (throttle_channel - 1100.0) / 800.0; // Between 0 and 1
+  roll_des = (roll_channel - 1500.0) / 400.0;     // Between -1 and 1
+  pitch_des = (pitch_channel - 1500.0) / 400.0;   // Between -1 and 1
+  yaw_des = (yaw_channel - 1500.0) / 400.0;       // Between -1 and 1
 
   // flip the channels
   roll_des = -roll_des;
@@ -983,7 +992,6 @@ void controlANGLE()
   integral_pitch = constrain(integral_pitch, -i_limit, i_limit); // Saturate integrator to prevent unsafe buildup
   derivative_pitch = GyroY;
   pitch_PID = .01 * (Kp_pitch_angle * error_pitch + Ki_pitch_angle * integral_pitch - Kd_pitch_angle * derivative_pitch); // Scaled by .01 to bring within -1 to 1 range
-
 
   // Yaw, stablize on rate from GyroZ
   error_yaw = yaw_des - GyroZ;

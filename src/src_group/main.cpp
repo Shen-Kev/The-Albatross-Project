@@ -64,13 +64,12 @@
  */
 
 // THINGS TO DO:
-// finish implementing test programs
-// for the test program for PID, figure out how to change pid values using serial monitor
 // find what data visualization program BPS uses or how to make it fancy
 // edit csv data analyzing tool in python
 // tune values that need to be tuned (also in drehmflight)
 // get compass working if needed
-// test electronics with waterproofing, and in rigs, and in flight
+//add feature to automatically datalog every little bit? if this works okay then i could log a bunch more data and write to SD every like 30 seconds
+
 
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
 // DEBUG AND TESTING #IFS
@@ -94,7 +93,7 @@
 #define TEST_DREHMFLIGHT 0
 
 // Combined systems ground test programs with serial connection
-#define TEST_ON_GIMBAL_RIG 1     // Uses the gimbal rig to tune PID pitch and roll loops, and validate/tune airspeed, but monitor the throttle PID
+#define TEST_ON_GIMBAL_RIG 0     // Uses the gimbal rig to tune PID pitch and roll loops, and validate/tune airspeed, but monitor the throttle PID
 #define TEST_ALTITUDE_RIG 0      // Uses the altitude rig to estimate the altitude of the UAV
 #define TEST_HORIZONTAL_MOTION 0 // Tests the horizontal motion estimation
 
@@ -481,20 +480,31 @@ void loop()
     current_time = micros();
     dt = (current_time - prev_time) / 1000000.0;
     getCommands();
+    getDesState();
+    // Serial.print(" channel 1: ");
+    // Serial.print(throttle_channel);
+    // Serial.print(" channel 2: ");
+    // Serial.print(roll_channel);
+    // Serial.print(" channel 3: ");
+    // Serial.print(pitch_channel);
+    // Serial.print("channel 4: ");
+    // Serial.print(yaw_channel);
+    // Serial.print(" channel 5: ");
+    // Serial.print(mode1_channel);
+    // Serial.print(" channel 6: ");
+    // Serial.print(mode2_channel);
+  Serial.print(" thro des: ");
+  Serial.print(thro_des);
+  Serial.print(" roll des: ");
+  Serial.print(roll_des);
+  Serial.print(" pitch des: ");
+  Serial.print(pitch_des);
+  Serial.print(" yaw des: ");
+  Serial.print(yaw_des);
+  Serial.println();
+    // Serial.println();
     loopRate(2000);
-    Serial.print("channel 1: ");
-    Serial.print(throttle_channel);
-    Serial.print("channel 2: ");
-    Serial.print(roll_channel);
-    Serial.print("channel 3: ");
-    Serial.print(pitch_channel);
-    Serial.print("channel 4: ");
-    Serial.print(yaw_channel);
-    Serial.print("channel 5: ");
-    Serial.print(mode1_channel);
-    Serial.print("channel 6: ");
-    Serial.print(mode2_channel);
-    Serial.println();
+
 }
 #elif TEST_RADIO_TO_SERVO
 
