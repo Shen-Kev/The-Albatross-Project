@@ -721,7 +721,6 @@ void loop() // for the setup and loop, ill prob just use this as the start for t
 // MICROCONTROLLER SETUP
 void setup()
 {
-
     // orientation PID parameters
     Kp_roll_angle = 0.5;
     Ki_roll_angle = 0.2;
@@ -868,7 +867,7 @@ void loop()
     roll_IMU_rad = roll_IMU * DEG_TO_RAD;   // positive roll is roll to the right
     yaw_IMU_rad = yaw_IMU * DEG_TO_RAD;     // positive yaw is yaw to the right
 
-    getDesState(); // Scales throttle to between 0 and 1, and roll, pitch, and yaw to between -1 and 1. Produces thro_des, roll_des, pitch_des, yaw_des, roll_passthru, pitch_passthru, yaw_passthru
+    getDesState(); //produces thro_des, roll_des, pitch_des, yaw_des, roll_passthru, pitch_passthru, yaw_passthru
 
 #if TEST_ON_GIMBAL_RIG
 
@@ -965,7 +964,7 @@ void loop()
     }
 
     // datalog system, takes around 0.13 seconds
-    if (mode2_channel < 1500)
+    if (mode2_channel < 1500 || currentRow >= ROWS)
     {
         // s1_command_scaled = 0;
         // s2_command_scaled = 0;
@@ -1198,8 +1197,8 @@ void loop()
     }
 #if DATALOG
 
-    // Flight modes based on mode switch
-    if (mode2_channel < 1500)
+    // Flight modes based on mode switch, or if datalog gets full it automatically logs to avoid data loss
+    if (mode2_channel < 1500 || currentRow >= ROWS)
     {
         if (!dataLogged)
         {
