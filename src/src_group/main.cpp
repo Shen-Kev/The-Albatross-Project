@@ -51,7 +51,7 @@
  * Pitch channel: D4
  * Yaw channel: D5
  * Mode1: D6
- * Mode2: D7 
+ * Mode2: D7
  *
  * Actuator outputs:
  * Electronic Speed Controller (ESC): D8
@@ -1124,15 +1124,15 @@ void loop()
     controlANGLE(); // dRehmFlight for angle based (pitch and roll) PID loops
     throttleController();
 
-    s1_command_scaled = 0;
+    s1_command_scaled = throttle_PID;
     s2_command_scaled = roll_PID;  // Between -1 and 1
     s3_command_scaled = pitch_PID; // Between -1 and 1
-    s4_command_scaled = 0;
+    s4_command_scaled = yaw_PID;
 
-    Serial.print("IAS: "); // indicated airspeed
-    Serial.print(airspeed_unadjusted);
-    Serial.print(" TAS: "); // true airspeed
-    Serial.print(airspeed_adjusted);
+    // Serial.print("IAS: "); // indicated airspeed
+    // Serial.print(airspeed_unadjusted);
+    // Serial.print(" TAS: "); // true airspeed
+  //  Serial.print(airspeed_adjusted);
     Serial.print(" ROLL SET: ");
     Serial.print(roll_des);
     Serial.print(" ROLL CMD: ");
@@ -1141,10 +1141,11 @@ void loop()
     Serial.print(Kp_roll_angle);
     Serial.print(" ROLL Ki: ");
     Serial.print(Ki_roll_angle);
-    //  Serial.print("\troll I val \t");
-    //  Serial.print(integral_roll);
     Serial.print(" ROLL Kd: ");
     Serial.print(Kd_roll_angle);
+    //  Serial.print("\troll I val \t");
+    //  Serial.print(integral_roll);
+
     //  Serial.print("\troll D val\t");
     //  Serial.print(derivative_roll);
     Serial.print(" PITCH SET: ");
@@ -1155,12 +1156,36 @@ void loop()
     Serial.print(Kp_pitch_angle);
     Serial.print(" PITCH Ki: ");
     Serial.print(Ki_pitch_angle);
-    //   Serial.print("\tpitch I val \t");
-    //   Serial.print(integral_pitch);
     Serial.print(" PITCH Kd: ");
     Serial.print(Kd_pitch_angle);
+
+    Serial.print(" YAW SET: ");
+    Serial.print(yaw_des);
+    Serial.print(" YAW CMD: ");
+    Serial.print(rudder_command_PWM);
+    Serial.print(" YAW Kp: ");
+    Serial.print(Kp_yaw);
+    Serial.print(" YAW Ki: ");
+    Serial.print(Ki_yaw);
+    Serial.print(" YAW Kd: ");
+    Serial.print(Kd_yaw);
+
+    Serial.print(" THROTTLE SET: ");
+    Serial.print(airspeed_setpoint);
+    Serial.print(" THROTTLE CMD: ");
+    Serial.print(ESC_command_PWM);
+    Serial.print(" THROTTLE Kp: ");
+    Serial.print(Kp_throttle);
+    Serial.print(" THROTTLE Ki: ");
+    Serial.print(Ki_throttle);
+    Serial.print(" THROTTLE Kd: ");
+    Serial.print(Kd_throttle);
+    //   Serial.print("\tpitch I val \t");
+    //   Serial.print(integral_pitch);
+
     //  Serial.print("\troll D val\t");
     // Serial.print(derivative_pitch);
+
     Serial.println();
 
     // // write the most recent PID values
@@ -1353,7 +1378,7 @@ void loop()
     rudderServo.write(rudder_command_PWM);      // rudder
     gimbalServo.write(gimbalServo_command_PWM); // gimbal
 
-    Serial.println(ESC_command_PWM); // ESC active
+    //  Serial.println(ESC_command_PWM); // ESC active
     //   Serial.print(" ");
     //   Serial.print(pitch_IMU);
     //   Serial.print(" ");
