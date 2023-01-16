@@ -51,7 +51,7 @@
  * Pitch channel: D4
  * Yaw channel: D5
  * Mode1: D6
- * Mode2: D7 (currently unused)
+ * Mode2: D7 
  *
  * Actuator outputs:
  * Electronic Speed Controller (ESC): D8
@@ -60,7 +60,7 @@
  * Rudder servo: D24
  * Elevator servo: D25
  * Gimbal servo 1: D28
- * Gimbal servo 2: D29
+ * Gimbal servo 2: D29 (currently not used)
  */
 
 // THINGS TO DO:
@@ -68,14 +68,13 @@
 // edit csv data analyzing tool in python
 // tune values that need to be tuned (also in drehmflight)
 // get compass working if needed
-// add feature to automatically datalog every little bit? if this works okay then i could log a bunch more data and write to SD every like 30 seconds
 
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
 // DEBUG AND TESTING #IFS
 
 // Throttle cut for safety:
 #define MOTOR_ACTIVE 0
-#define DATALOG 0
+#define DATALOG 1
 
 // Set only one of the below to TRURE to test. If all are false it runs the standard setup and loop. Can use this to test all systems, and also test flight mode 1 and 2 (servos, ESC, radio, PID, coordinated turns)
 
@@ -92,7 +91,7 @@
 #define TEST_DREHMFLIGHT 0
 
 // Combined systems ground test programs with serial connection
-#define TEST_ON_GIMBAL_RIG 1     // Uses the gimbal rig to tune PID pitch and roll loops, and validate/tune airspeed, but monitor the throttle PID
+#define PID_TUNE 1               // Uses the gimbal rig to tune PID pitch and roll loops, and validate/tune airspeed, but monitor the throttle PID
 #define TEST_ALTITUDE_RIG 0      // Uses the altitude rig to estimate the altitude of the UAV
 #define TEST_HORIZONTAL_MOTION 0 // Tests the horizontal motion estimation
 
@@ -254,9 +253,9 @@ float airspeed_error_prev;                  // The previous error, used for deri
 const float airspeed_error_tolerance = 1.0; // NEEDS TO BE ADJUSTED: The range of airspeeds to be within to be 'close enough' to the setpoint
 float inputted_airspeed;
 
-const float Kp_throttle = 0.2;    //  NEEDS TO BE ADJUSTED:Throttle Proportional gain
-const float Ki_throttle = 0.3;    //  NEEDS TO BE ADJUSTED:Throttle Integral gain
-const float Kd_throttle = 0.0015; //  NEEDS TO BE ADJUSTED:Throttle Derivative gain
+float Kp_throttle; //  NEEDS TO BE ADJUSTED:Throttle Proportional gain
+float Ki_throttle; //  NEEDS TO BE ADJUSTED:Throttle Integral gain
+float Kd_throttle; //  NEEDS TO BE ADJUSTED:Throttle Derivative gain
 
 float throttle_integral = 0.0;                         // Throttle integral value (approximated with summation)
 float throttle_integral_prev = 0.0;                    // Throttle previous integral value to be integrated upon
@@ -364,6 +363,9 @@ void loop()
 void setup()
 {
     Serial.begin(500000); // USB serial
+    Wire.begin();
+    Wire.setClock(1000000); // Note this is 2.5 times the spec sheet 400 kHz max...
+
     pitotSetup();
 }
 
@@ -372,7 +374,6 @@ void loop()
     prev_time = current_time;
     current_time = micros();
     dt = (current_time - prev_time) / 1000000.0;
-    loopRate(2000);
     pitotLoop();
     Serial.print(" airspeed unadjusted m/s: ");
     Serial.print(airspeed_unadjusted);
@@ -381,6 +382,7 @@ void loop()
     Serial.print(" airspeed adjusted mph: ");
     Serial.print(airspeed_adjusted * 2.23694);
     Serial.println();
+    loopRate(2000);
 }
 #elif TEST_IMU
 
@@ -714,17 +716,21 @@ void loop() // for the setup and loop, ill prob just use this as the start for t
 void setup()
 {
     // orientation PID parameters
-    Kp_roll_angle = 2.0;
+    Kp_roll_angle = 0.0;
     Ki_roll_angle = 0.0;
     Kd_roll_angle = 0.0;
 
-    Kp_pitch_angle = 4.0;
+    Kp_pitch_angle = 0.0;
     Ki_pitch_angle = 0.0;
     Kd_pitch_angle = 0.0;
 
-    Kp_yaw = -0.3;
-    Ki_yaw = 0.05;
-    Kd_yaw = 0.00015;
+    Kp_yaw = 0.0;
+    Ki_yaw = 0.0;
+    Kd_yaw = 0.0;
+
+    Kp_throttle = 0.0;
+    Ki_throttle = 0.0;
+    Kd_throttle = 0.0;
 
     Serial.begin(500000); // USB serial
     Serial.println("serial works");
@@ -736,7 +742,7 @@ void setup()
     pinMode(13, OUTPUT); // LED on the Teensy 4.1 set to output
 
     // Attach actuators to PWM pins
-    ESC.attach(ESCpin, 900, 2100);
+    ESC.attach(ESCpin, 1100, 2100);
     aileronServo.attach(aileronServoPin, 900, 2100);
     elevatorServo.attach(elevatorServoPin, 900, 2100);
     rudderServo.attach(rudderServoPin, 900, 2100);
@@ -773,7 +779,7 @@ void setup()
     Serial.println("passed ToF setup");
     pitotSetup(); // Airspeed sensor init and calibrate
     Serial.println("passed pitot");
-#if DATALOG || TEST_ON_GIMBAL_RIG
+#if DATALOG || PID_TUNE
     clearDataInRAM();
     setupSD(); // microSD card read/write unit
 #endif
@@ -787,6 +793,8 @@ void setup()
     mode2_channel = mode2_fs;
 
     delay(100);
+
+    // calibrateESCs();
 
     // Set actuator values to safe values
     ESC.write(0); // ESC throttle off
@@ -861,18 +869,18 @@ void loop()
 
     getDesState(); // produces thro_des, roll_des, pitch_des, yaw_des, roll_passthru, pitch_passthru, yaw_passthru
 
-#if TEST_ON_GIMBAL_RIG
+#if PID_TUNE
 
     // use serial to get input. MAKE SURE USING "NO LINE ENDING" OPTION ON THE SERIAL MONITOR DROPDOWN
 
-    // write the axis(r or p) LOWERCASE then gain (P, I, D) UPPERCASE
-    // axis of A means input real airspeed
+    // write the axis(r for roll, p for pitch, y for yaw, t for throttle) LOWERCASE then gain (P, I, D) UPPERCASE
 
     char axis = Serial.read();
     char gain = Serial.read();
 
     if (Serial.available())
     {
+        // ROLL GAINS
         if (axis == 'r')
         {
             if (gain == 'P')
@@ -904,10 +912,23 @@ void loop()
             dataFile.print(Ki_pitch_angle);
             dataFile.print("\tpitch D gain\t");
             dataFile.print(Kd_pitch_angle);
+            dataFile.print("\tyaw P gain\t");
+            dataFile.print(Kp_yaw);
+            dataFile.print("\tyaw I gain \t");
+            dataFile.print(Ki_yaw);
+            dataFile.print("\tyaw D gain\t");
+            dataFile.print(Kd_yaw);
+            dataFile.print("\tthrottle P gain\t");
+            dataFile.print(Kp_throttle);
+            dataFile.print("\tthrottle I gain \t");
+            dataFile.print(Ki_throttle);
+            dataFile.print("\tthrottle D gain\t");
+            dataFile.print(Kd_throttle);
             dataFile.println();
 
             dataFile.close();
         }
+        // PITCH GAINS
         else if (axis == 'p')
         {
             if (gain == 'P')
@@ -924,6 +945,7 @@ void loop()
             }
 
             dataFile = SD.open("PID.txt", FILE_WRITE);
+
             dataFile.print("\t time:\t");
             dataFile.print(timeInMillis);
             dataFile.print("\troll P gain\t");
@@ -938,24 +960,134 @@ void loop()
             dataFile.print(Ki_pitch_angle);
             dataFile.print("\tpitch D gain\t");
             dataFile.print(Kd_pitch_angle);
+            dataFile.print("\tyaw P gain\t");
+            dataFile.print(Kp_yaw);
+            dataFile.print("\tyaw I gain \t");
+            dataFile.print(Ki_yaw);
+            dataFile.print("\tyaw D gain\t");
+            dataFile.print(Kd_yaw);
+            dataFile.print("\tthrottle P gain\t");
+            dataFile.print(Kp_throttle);
+            dataFile.print("\tthrottle I gain \t");
+            dataFile.print(Ki_throttle);
+            dataFile.print("\tthrottle D gain\t");
+            dataFile.print(Kd_throttle);
             dataFile.println();
 
             dataFile.close();
         }
-        else if (axis == 'A' && gain == 'A')
+        // YAW GAINS
+        else if (axis == 'y')
         {
-            inputted_airspeed = Serial.parseFloat();
-            dataFile = SD.open("airspeed.txt", FILE_WRITE);
-            dataFile.print("\treal airspeed inputted\t");
-            dataFile.print(inputted_airspeed);
-            dataFile.print("\tcurrent measured unadusted airspeed\t");
-            dataFile.print(airspeed_unadjusted);
-            dataFile.print("\tcurrent measured adusted airspeed\t");
-            dataFile.println(airspeed_adjusted);
+            if (gain == 'P')
+            {
+                Kp_yaw = Serial.parseFloat();
+            }
+            else if (gain == 'I')
+            {
+                Ki_yaw = Serial.parseFloat();
+            }
+            else if (gain == 'D')
+            {
+                Kd_yaw = Serial.parseFloat();
+            }
+
+            dataFile = SD.open("PID.txt", FILE_WRITE);
+
+            dataFile.print("\t time:\t");
+            dataFile.print(timeInMillis);
+            dataFile.print("\troll P gain\t");
+            dataFile.print(Kp_roll_angle);
+            dataFile.print("\troll I gain \t");
+            dataFile.print(Ki_roll_angle);
+            dataFile.print("\troll D gain\t");
+            dataFile.print(Kd_roll_angle);
+            dataFile.print("\tpitch P gain\t");
+            dataFile.print(Kp_pitch_angle);
+            dataFile.print("\tpitch I gain \t");
+            dataFile.print(Ki_pitch_angle);
+            dataFile.print("\tpitch D gain\t");
+            dataFile.print(Kd_pitch_angle);
+            dataFile.print("\tyaw P gain\t");
+            dataFile.print(Kp_yaw);
+            dataFile.print("\tyaw I gain \t");
+            dataFile.print(Ki_yaw);
+            dataFile.print("\tyaw D gain\t");
+            dataFile.print(Kd_yaw);
+            dataFile.print("\tthrottle P gain\t");
+            dataFile.print(Kp_throttle);
+            dataFile.print("\tthrottle I gain \t");
+            dataFile.print(Ki_throttle);
+            dataFile.print("\tthrottle D gain\t");
+            dataFile.print(Kd_throttle);
+            dataFile.println();
+
+            dataFile.close();
         }
+        // THROTTLE GAINS
+        else if (axis == 't')
+        {
+            if (gain == 'P')
+            {
+                Kp_throttle = Serial.parseFloat();
+            }
+            else if (gain == 'I')
+            {
+                Ki_throttle = Serial.parseFloat();
+            }
+            else if (gain == 'D')
+            {
+                Kd_throttle = Serial.parseFloat();
+            }
+
+            dataFile = SD.open("PID.txt", FILE_WRITE);
+
+            dataFile.print("\t time:\t");
+            dataFile.print(timeInMillis);
+            dataFile.print("\troll P gain\t");
+            dataFile.print(Kp_roll_angle);
+            dataFile.print("\troll I gain \t");
+            dataFile.print(Ki_roll_angle);
+            dataFile.print("\troll D gain\t");
+            dataFile.print(Kd_roll_angle);
+            dataFile.print("\tpitch P gain\t");
+            dataFile.print(Kp_pitch_angle);
+            dataFile.print("\tpitch I gain \t");
+            dataFile.print(Ki_pitch_angle);
+            dataFile.print("\tpitch D gain\t");
+            dataFile.print(Kd_pitch_angle);
+            dataFile.print("\tyaw P gain\t");
+            dataFile.print(Kp_yaw);
+            dataFile.print("\tyaw I gain \t");
+            dataFile.print(Ki_yaw);
+            dataFile.print("\tyaw D gain\t");
+            dataFile.print(Kd_yaw);
+            dataFile.print("\tthrottle P gain\t");
+            dataFile.print(Kp_throttle);
+            dataFile.print("\tthrottle I gain \t");
+            dataFile.print(Ki_throttle);
+            dataFile.print("\tthrottle D gain\t");
+            dataFile.print(Kd_throttle);
+            dataFile.println();
+
+            dataFile.close();
+        }
+
+        // AIRSPEED NOT USED ANYMORE
+        //  else if (axis == 'A' && gain == 'A')
+        //  {
+        //      inputted_airspeed = Serial.parseFloat();
+        //      dataFile = SD.open("airspeed.txt", FILE_WRITE);
+        //      dataFile.print("\treal airspeed inputted\t");
+        //      dataFile.print(inputted_airspeed);
+        //      dataFile.print("\tcurrent measured unadusted airspeed\t");
+        //      dataFile.print(airspeed_unadjusted);
+        //      dataFile.print("\tcurrent measured adusted airspeed\t");
+        //      dataFile.println(airspeed_adjusted);
+        //  }
     }
 
-    // datalog system, takes around 0.13 seconds
+    // log to SD card, takes around 0.13 seconds
     if (mode2_channel < 1500 || currentRow >= ROWS)
     {
         // s1_command_scaled = 0;
@@ -1004,7 +1136,7 @@ void loop()
     Serial.print(" ROLL SET: ");
     Serial.print(roll_des);
     Serial.print(" ROLL CMD: ");
-    Serial.print(s2_command_PWM);
+    Serial.print(aileron_command_PWM);
     Serial.print(" ROLL Kp: ");
     Serial.print(Kp_roll_angle);
     Serial.print(" ROLL Ki: ");
@@ -1018,7 +1150,7 @@ void loop()
     Serial.print(" PITCH SET: ");
     Serial.print(pitch_des);
     Serial.print(" PITCH CMD: ");
-    Serial.print(s3_command_PWM);
+    Serial.print(elevator_command_PWM);
     Serial.print(" PITCH Kp: ");
     Serial.print(Kp_pitch_angle);
     Serial.print(" PITCH Ki: ");
@@ -1194,31 +1326,34 @@ void loop()
     {
         if (!dataLogged)
         {
-            writeDataToSDgimbal();
+            writeDataToSD();
             clearDataInRAM();
         }
         dataLogged = true;
     }
     else
     {
-        datalogged = false;
+        dataLogged = false;
     }
 #endif
 
 #endif
 
-    scaleCommands();                     // Scales commands to values that the servo and ESC can understand
+    scaleCommands(); // Scales commands to values that the servo and ESC can understand
 #if MOTOR_ACTIVE
-    ESC.write(s1_command_PWM);           // ESC active
+
+    // EDITED SO THAT IT MAPS 15-170 TO 0-180
+    ESC_command_PWM = ESC_command_PWM * 0.861 + 14;
+    ESC.write(ESC_command_PWM);                 // ESC active
 #else
     ESC.write(-100); // ESC inactive
 #endif
-    aileronServo.write(s2_command_PWM);  // aileron
-    elevatorServo.write(s3_command_PWM); // elevator
-    rudderServo.write(s4_command_PWM);   // rudder
-    gimbalServo.write(s5_command_PWM);   // gimbal
+    aileronServo.write(aileron_command_PWM);    // aileron
+    elevatorServo.write(elevator_command_PWM);  // elevator
+    rudderServo.write(rudder_command_PWM);      // rudder
+    gimbalServo.write(gimbalServo_command_PWM); // gimbal
 
-    //   Serial.print(roll_IMU);
+    Serial.println(ESC_command_PWM); // ESC active
     //   Serial.print(" ");
     //   Serial.print(pitch_IMU);
     //   Serial.print(" ");
@@ -1582,7 +1717,7 @@ void estimateAltitude()
 
     // altitudeLPbaro.estimate(accelData, gyroData, altitudeMeasured - altitude_offset, dt);
 
-    s5_command_PWM = roll_IMU * gimbalServoGain + 90; // Rotate the gimbal servo to point the ToF sensor straight down
+    gimbalServo_command_PWM = roll_IMU * gimbalServoGain + 90; // Rotate the gimbal servo to point the ToF sensor straight down
 
     ToFaltitude = (distance_LP / 1000.0) * cos(pitch_IMU_rad); // Find the altitude of the UAV in meters based on the ToF sensor. Accounts for pitch.
     // also need to figure out how to get the range of the ToF sensor to 4m
@@ -1652,6 +1787,7 @@ void pitotSetup()
         PR = abs(PR);
         V = ((PR * 13789.5144) / 1.225);
         airspeed_offset += (sqrt((V)));
+        delay(100);
     }
     airspeed_offset = airspeed_offset / 10.0;
 }
@@ -1661,6 +1797,7 @@ void pitotLoop()
 {
     airspeed_unadjusted = (1.0 - airspeed_LP_param) * airspeed_prev + airspeed_LP_param * fetch_airspeed(&P_dat); // fetch_airspeed gets the raw airspeed
     airspeed_prev = airspeed_unadjusted;
+
     airspeed_adjusted_prev = airspeed_adjusted;
     airspeed_adjusted = (airspeed_unadjusted - airspeed_offset) * airspeed_scalar;
 }
@@ -1756,15 +1893,15 @@ void logDataToRAM()
         dataLogArray[currentRow][0] = timeInMillis;
         dataLogArray[currentRow][1] = flight_phase;
 
-        dataLogArray[currentRow][2] = roll_IMU;
-        dataLogArray[currentRow][3] = roll_des;
-        dataLogArray[currentRow][4] = roll_PID;
+        dataLogArray[currentRow][2] = roll_IMU; // in degrees
+        dataLogArray[currentRow][3] = roll_des; // in degrees
+        dataLogArray[currentRow][4] = roll_PID; // in degrees
 
         dataLogArray[currentRow][5] = pitch_IMU;
         dataLogArray[currentRow][6] = pitch_des;
         dataLogArray[currentRow][7] = pitch_PID;
 
-        dataLogArray[currentRow][8] = yaw_IMU;
+        dataLogArray[currentRow][8] = GyroZ;
         dataLogArray[currentRow][9] = yaw_des;
         dataLogArray[currentRow][10] = yaw_PID;
 

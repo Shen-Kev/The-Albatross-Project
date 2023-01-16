@@ -263,7 +263,7 @@ float error_yaw, error_yaw_prev, integral_yaw, integral_yaw_prev, derivative_yaw
 float m1_command_scaled, m2_command_scaled, m3_command_scaled, m4_command_scaled, m5_command_scaled, m6_command_scaled;
 int m1_command_PWM, m2_command_PWM, m3_command_PWM, m4_command_PWM, m5_command_PWM, m6_command_PWM;
 float s1_command_scaled, s2_command_scaled, s3_command_scaled, s4_command_scaled, s5_command_scaled, s6_command_scaled, s7_command_scaled; // 0 to 1
-int s1_command_PWM, s2_command_PWM, s3_command_PWM, s4_command_PWM, s5_command_PWM, s6_command_PWM, s7_command_PWM;
+int ESC_command_PWM, aileron_command_PWM, elevator_command_PWM, rudder_command_PWM, gimbalServo_command_PWM, s6_command_PWM, s7_command_PWM;
 
 // function prototypes https://forum.arduino.cc/t/functions-at-the-end-or-beggining/530377/5
 
@@ -429,11 +429,11 @@ void dRehmFlightLoop() // for the setup and loop, ill prob just use this as the 
 
   // Command actuators
   commandMotors();           // Sends command pulses to each motor pin using OneShot125 protocol
-  ESC.write(s1_command_PWM); // Writes PWM value to servo object
-  aileronServo.write(s2_command_PWM);
-  elevatorServo.write(s3_command_PWM);
-  rudderServo.write(s4_command_PWM);
-  gimbalServo.write(s5_command_PWM);
+  ESC.write(ESC_command_PWM); // Writes PWM value to servo object
+  aileronServo.write(aileron_command_PWM);
+  elevatorServo.write(elevator_command_PWM);
+  rudderServo.write(rudder_command_PWM);
+  gimbalServo.write(gimbalServo_command_PWM);
   servo6.write(s6_command_PWM);
   servo7.write(s7_command_PWM);
 
@@ -1245,19 +1245,19 @@ void scaleCommands()
   s4_command_scaled += 0.5;
 
   // Scaled to 0-180 for servo library
-  s1_command_PWM = s1_command_scaled * 180;
-  s2_command_PWM = s2_command_scaled * 180;
-  s3_command_PWM = s3_command_scaled * 180;
-  s4_command_PWM = s4_command_scaled * 180;
+  ESC_command_PWM = s1_command_scaled * 180;
+  aileron_command_PWM = s2_command_scaled * 180;
+  elevator_command_PWM = s3_command_scaled * 180;
+  rudder_command_PWM = s4_command_scaled * 180;
   // s5_command_PWM = s5_command_scaled * 180;
   s6_command_PWM = s6_command_scaled * 180;
   s7_command_PWM = s7_command_scaled * 180;
   // Constrain commands to servos within servo library bounds
-  s1_command_PWM = constrain(s1_command_PWM, 0, 180);
-  s2_command_PWM = constrain(s2_command_PWM, 0, 180);
-  s3_command_PWM = constrain(s3_command_PWM, 0, 180);
-  s4_command_PWM = constrain(s4_command_PWM, 0, 180);
-  s5_command_PWM = constrain(s5_command_PWM, 0, 180);
+  ESC_command_PWM = constrain(ESC_command_PWM, 0, 180);
+  aileron_command_PWM = constrain(aileron_command_PWM, 0, 180);
+  elevator_command_PWM = constrain(elevator_command_PWM, 0, 180);
+  rudder_command_PWM = constrain(rudder_command_PWM, 0, 180);
+  gimbalServo_command_PWM = constrain(gimbalServo_command_PWM, 0, 180);
   s6_command_PWM = constrain(s6_command_PWM, 0, 180);
   s7_command_PWM = constrain(s7_command_PWM, 0, 180);
 }
@@ -1467,7 +1467,7 @@ void calibrateESCs()
     current_time = micros();
     dt = (current_time - prev_time) / 1000000.0;
 
-    digitalWrite(13, HIGH); // LED on to indicate we are not in main loop
+//    digitalWrite(13, HIGH); // LED on to indicate we are not in main loop
 
     getCommands();                                                             // Pulls current available radio commands
     failSafe();                                                                // Prevent failures in event of bad receiver connection, defaults to failsafe values assigned in setup
@@ -1476,31 +1476,31 @@ void calibrateESCs()
     Madgwick(GyroX, -GyroY, -GyroZ, -AccX, AccY, AccZ, MagY, -MagX, MagZ, dt); // Updates roll_IMU, pitch_IMU, and yaw_IMU (degrees)
     getDesState();                                                             // Convert raw commands to normalized values based on saturated control limits
 
-    m1_command_scaled = thro_des;
-    m2_command_scaled = thro_des;
-    m3_command_scaled = thro_des;
-    m4_command_scaled = thro_des;
-    m5_command_scaled = thro_des;
-    m6_command_scaled = thro_des;
-    s1_command_scaled = thro_des;
-    s2_command_scaled = thro_des;
-    s3_command_scaled = thro_des;
-    s4_command_scaled = thro_des;
-    s5_command_scaled = thro_des;
-    s6_command_scaled = thro_des;
-    s7_command_scaled = thro_des;
+    // m1_command_scaled = thro_des;
+    // m2_command_scaled = thro_des;
+    // m3_command_scaled = thro_des;
+    // m4_command_scaled = thro_des;
+    // m5_command_scaled = thro_des;
+    // m6_command_scaled = thro_des;
+     s1_command_scaled = thro_des;
+    // s2_command_scaled = thro_des;
+    // s3_command_scaled = thro_des;
+    // s4_command_scaled = thro_des;
+    // s5_command_scaled = thro_des;
+    // s6_command_scaled = thro_des;
+    // s7_command_scaled = thro_des;
     scaleCommands(); // Scales motor commands to 125 to 250 range (oneshot125 protocol) and servo PWM commands to 0 to 180 (for servo library)
 
     // throttleCut(); //Directly sets motor commands to low based on state of ch5
 
-    ESC.write(s1_command_PWM);
-    aileronServo.write(s2_command_PWM);
-    elevatorServo.write(s3_command_PWM);
-    rudderServo.write(s4_command_PWM);
-    gimbalServo.write(s5_command_PWM);
-    servo6.write(s6_command_PWM);
-    servo7.write(s7_command_PWM);
-    commandMotors(); // Sends command pulses to each motor pin using OneShot125 protocol
+    ESC.write(ESC_command_PWM);
+    // aileronServo.write(aileron_command_PWM);
+    // elevatorServo.write(elevator_command_PWM);
+    // rudderServo.write(rudder_command_PWM);
+    // gimbalServo.write(gimbalServo_command_PWM);
+    // servo6.write(s6_command_PWM);
+    // servo7.write(s7_command_PWM);
+ //   commandMotors(); // Sends command pulses to each motor pin using OneShot125 protocol
 
     // printRadioData(); //Radio pwm values (expected: 1000 to 2000)
 
@@ -1849,15 +1849,15 @@ void printServoCommands()
   {
     print_counter = micros();
     Serial.print(F("s1_command: "));
-    Serial.print(s1_command_PWM);
+    Serial.print(ESC_command_PWM);
     Serial.print(F(" s2_command: "));
-    Serial.print(s2_command_PWM);
+    Serial.print(aileron_command_PWM);
     Serial.print(F(" s3_command: "));
-    Serial.print(s3_command_PWM);
+    Serial.print(elevator_command_PWM);
     Serial.print(F(" s4_command: "));
-    Serial.print(s4_command_PWM);
+    Serial.print(rudder_command_PWM);
     Serial.print(F(" s5_command: "));
-    Serial.print(s5_command_PWM);
+    Serial.print(gimbalServo_command_PWM);
     Serial.print(F(" s6_command: "));
     Serial.print(s6_command_PWM);
     Serial.print(F(" s7_command: "));
