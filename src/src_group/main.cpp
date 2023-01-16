@@ -73,7 +73,7 @@
 // DEBUG AND TESTING #IFS
 
 // Throttle cut for safety:
-#define MOTOR_ACTIVE 0
+#define MOTOR_ACTIVE 1
 #define DATALOG 1
 
 // Set only one of the below to TRURE to test. If all are false it runs the standard setup and loop. Can use this to test all systems, and also test flight mode 1 and 2 (servos, ESC, radio, PID, coordinated turns)
@@ -91,7 +91,7 @@
 #define TEST_DREHMFLIGHT 0
 
 // Combined systems ground test programs with serial connection
-#define PID_TUNE 1               // Uses the gimbal rig to tune PID pitch and roll loops, and validate/tune airspeed, but monitor the throttle PID
+#define PID_TUNE 0               // Uses the gimbal rig to tune PID pitch and roll loops, and validate/tune airspeed, but monitor the throttle PID
 #define TEST_ALTITUDE_RIG 0      // Uses the altitude rig to estimate the altitude of the UAV
 #define TEST_HORIZONTAL_MOTION 0 // Tests the horizontal motion estimation
 
@@ -115,7 +115,7 @@ float gimbalLeftBoundAngle;                  // The counterclockwise bound of th
 // Variables for sensing airspeed
 float airspeed_unadjusted;            // The raw airspeed reading from the ASPD4525 sensor, with a low pass filter applied
 float airspeed_prev;                  // The previous raw airspeed reading from the ASPD4525 sensor (used in the low pass filter)
-const float airspeed_LP_param = 0.05; // The low pass filter parameter for airspeed (smaller values means a more smooth signal but higher delay time)
+const float airspeed_LP_param = 0.02; // The low pass filter parameter for airspeed (smaller values means a more smooth signal but higher delay time)
 float airspeed_offset = 0;            // The amount of airspeed the airspeed sensor detects when real airspeed is 0m/s. Used to zero the airspeed sensor
 const float airspeed_scalar = 1.8;    // LIKELY NEEDS TO BE RE-ADJUSTED: The scalar applied to the unadjusted (but zeroed) airspeed to produce the adjusted airspeed
 float airspeed_adjusted;              // the airspeed adjusted to be as accurate as possible (tuned to be best around flight speed)
@@ -259,8 +259,10 @@ float Kd_throttle; //  NEEDS TO BE ADJUSTED:Throttle Derivative gain
 
 float throttle_integral = 0.0;                         // Throttle integral value (approximated with summation)
 float throttle_integral_prev = 0.0;                    // Throttle previous integral value to be integrated upon
-const float thorttle_integral_saturation_limit = 50.0; // NEEDS TO BE ADJUSTED: Throttle integral saturation limit to prevent integral windup
+const float throttle_integral_saturation_limit = 50.0; // NEEDS TO BE ADJUSTED: Throttle integral saturation limit to prevent integral windup
 float throttle_derivative;                             // Throttle derivative value
+float throttle_PID_prev;
+const float throttle_LP_param = 0.01;
 
 // Roll, pitch, and yaw angles but in radians for easier math
 float pitch_IMU_rad, roll_IMU_rad, yaw_IMU_rad;
@@ -716,20 +718,20 @@ void loop() // for the setup and loop, ill prob just use this as the start for t
 void setup()
 {
     // orientation PID parameters
-    Kp_roll_angle = 0.0;
-    Ki_roll_angle = 0.0;
-    Kd_roll_angle = 0.0;
+    Kp_roll_angle = 0.3;
+    Ki_roll_angle = 0.3;
+    Kd_roll_angle = 0.3;
 
-    Kp_pitch_angle = 0.0;
-    Ki_pitch_angle = 0.0;
-    Kd_pitch_angle = 0.0;
+    Kp_pitch_angle = 0.5;
+    Ki_pitch_angle = 0.3;
+    Kd_pitch_angle = 0.3;
 
-    Kp_yaw = 0.0;
-    Ki_yaw = 0.0;
-    Kd_yaw = 0.0;
+    Kp_yaw = 0.5;
+    Ki_yaw = 0.3;
+    Kd_yaw = 0.0015;
 
-    Kp_throttle = 0.0;
-    Ki_throttle = 0.0;
+    Kp_throttle = 5.0;
+    Ki_throttle = 1.0;
     Kd_throttle = 0.0;
 
     Serial.begin(500000); // USB serial
@@ -1121,6 +1123,9 @@ void loop()
         loopCounter++;
     }
 
+    airspeed_setpoint = 15;
+    motorOn = true;
+
     controlANGLE(); // dRehmFlight for angle based (pitch and roll) PID loops
     throttleController();
 
@@ -1131,45 +1136,47 @@ void loop()
 
     // Serial.print("IAS: "); // indicated airspeed
     // Serial.print(airspeed_unadjusted);
-    // Serial.print(" TAS: "); // true airspeed
-  //  Serial.print(airspeed_adjusted);
-    Serial.print(" ROLL SET: ");
-    Serial.print(roll_des);
-    Serial.print(" ROLL CMD: ");
-    Serial.print(aileron_command_PWM);
-    Serial.print(" ROLL Kp: ");
-    Serial.print(Kp_roll_angle);
-    Serial.print(" ROLL Ki: ");
-    Serial.print(Ki_roll_angle);
-    Serial.print(" ROLL Kd: ");
-    Serial.print(Kd_roll_angle);
-    //  Serial.print("\troll I val \t");
-    //  Serial.print(integral_roll);
+    Serial.print(" airspeed: "); // true airspeed
+    Serial.print(airspeed_adjusted);
 
-    //  Serial.print("\troll D val\t");
-    //  Serial.print(derivative_roll);
-    Serial.print(" PITCH SET: ");
-    Serial.print(pitch_des);
-    Serial.print(" PITCH CMD: ");
-    Serial.print(elevator_command_PWM);
-    Serial.print(" PITCH Kp: ");
-    Serial.print(Kp_pitch_angle);
-    Serial.print(" PITCH Ki: ");
-    Serial.print(Ki_pitch_angle);
-    Serial.print(" PITCH Kd: ");
-    Serial.print(Kd_pitch_angle);
+    /*
+      Serial.print(" ROLL SET: ");
+      Serial.print(roll_des);
+      Serial.print(" ROLL CMD: ");
+      Serial.print(aileron_command_PWM);
+      Serial.print(" ROLL Kp: ");
+      Serial.print(Kp_roll_angle);
+      Serial.print(" ROLL Ki: ");
+      Serial.print(Ki_roll_angle);
+      Serial.print(" ROLL Kd: ");
+      Serial.print(Kd_roll_angle);
+      //  Serial.print("\troll I val \t");
+      //  Serial.print(integral_roll);
 
-    Serial.print(" YAW SET: ");
-    Serial.print(yaw_des);
-    Serial.print(" YAW CMD: ");
-    Serial.print(rudder_command_PWM);
-    Serial.print(" YAW Kp: ");
-    Serial.print(Kp_yaw);
-    Serial.print(" YAW Ki: ");
-    Serial.print(Ki_yaw);
-    Serial.print(" YAW Kd: ");
-    Serial.print(Kd_yaw);
+      //  Serial.print("\troll D val\t");
+      //  Serial.print(derivative_roll);
+      Serial.print(" PITCH SET: ");
+      Serial.print(pitch_des);
+      Serial.print(" PITCH CMD: ");
+      Serial.print(elevator_command_PWM);
+      Serial.print(" PITCH Kp: ");
+      Serial.print(Kp_pitch_angle);
+      Serial.print(" PITCH Ki: ");
+      Serial.print(Ki_pitch_angle);
+      Serial.print(" PITCH Kd: ");
+      Serial.print(Kd_pitch_angle);
 
+      Serial.print(" YAW SET: ");
+      Serial.print(yaw_des);
+      Serial.print(" YAW CMD: ");
+      Serial.print(rudder_command_PWM);
+      Serial.print(" YAW Kp: ");
+      Serial.print(Kp_yaw);
+      Serial.print(" YAW Ki: ");
+      Serial.print(Ki_yaw);
+      Serial.print(" YAW Kd: ");
+      Serial.print(Kd_yaw);
+  */
     Serial.print(" THROTTLE SET: ");
     Serial.print(airspeed_setpoint);
     Serial.print(" THROTTLE CMD: ");
@@ -1687,10 +1694,13 @@ void throttleController()
         airspeed_error_prev = airspeed_error;
         airspeed_error = airspeed_setpoint - airspeed_adjusted;
         throttle_integral = throttle_integral_prev + airspeed_error * dt;
-        throttle_integral = constrain(throttle_integral, 0, thorttle_integral_saturation_limit);                                        // Saturate integrator to prevent unsafe buildup
-        throttle_derivative = (airspeed_error - airspeed_error_prev) / dt;                                                              // Derivative shouldn't need low pass filter becasuse the airspeed already has low pass filter on it
-        throttle_PID = 0.01 * (Kp_roll_angle * airspeed_error + Ki_throttle * throttle_integral - Kd_roll_angle * throttle_derivative); // Scaled by .01 to bring within -1 to 1 range
-        throttle_PID = map(throttle_PID, -1, 1, 0, 1);                                                                                  // Scale to 0 to 1 range.
+        throttle_integral = constrain(throttle_integral, 0, throttle_integral_saturation_limit);                                    // Saturate integrator to prevent unsafe buildup
+        throttle_derivative = (airspeed_error - airspeed_error_prev) / dt;                                                          // Derivative shouldn't need low pass filter becasuse the airspeed already has low pass filter on it
+        throttle_PID = 0.01 * (Kp_throttle * airspeed_error + Ki_throttle * throttle_integral - Kd_throttle * throttle_derivative); // Scaled by .01 to bring within -1 to 1 range
+                                                                                                                                    // throttle_PID = (throttle_PID/2)+0.5;                                                                                  // Scale to 0 to 1 range.
+
+        throttle_PID = (1.0 - throttle_LP_param) * throttle_PID_prev + throttle_LP_param * throttle_PID; // fetch_airspeed gets the raw airspeed
+        throttle_PID_prev = throttle_PID;
     }
     else
     {
