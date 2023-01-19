@@ -73,7 +73,7 @@
 // DEBUG AND TESTING #IFS
 
 // Throttle cut for safety:
-#define MOTOR_ACTIVE 1
+#define MOTOR_ACTIVE 0
 #define DATALOG 1
 
 // Set only one of the below to TRURE to test. If all are false it runs the standard setup and loop. Can use this to test all systems, and also test flight mode 1 and 2 (servos, ESC, radio, PID, coordinated turns)
@@ -92,7 +92,8 @@
 
 // Combined systems ground test programs with serial connection
 #define PID_TUNE 0               // Uses the gimbal rig to tune PID pitch and roll loops, and validate/tune airspeed, but monitor the throttle PID
-#define TEST_ALTITUDE_RIG 0      // Uses the altitude rig to estimate the altitude of the UAV
+#define TEST_ALTITUDE_RIG 1      // Uses the altitude rig to estimate the altitude of the UAV
+#define IMU_ALTITUDE_TEST 1      // test IMU only for estimated altitude
 #define TEST_HORIZONTAL_MOTION 0 // Tests the horizontal motion estimation
 
 // DS flight test codes without serial connection. ALl of these are in flight mode 3 in the main flight code, flight mode 1 and 2 are standard and should be tested using the FULL_FLIGHT_CODE
@@ -148,6 +149,8 @@ const int XSHUTpin = 34;
 
 float IMU_vertical_accel, IMU_vertical_vel, IMU_vertical_pos; // the vertical acceleration, velocity, and position estimated by the IMU
 // float IMU_horizontal_accel, IMU_horizontal_vel, IMU_horizontal_pos; // the horizontal acceleration, velocity, and position estimated by the IMU
+float IMU_vertical_accel_LPparam = 0.02;
+float IMU_vertical_accel_prev;
 
 float estimated_altitude; // The estimated altitude of the UAV, as a combination of the ToF, IMU, and baro sensor
 int altitudeTypeDataLog;  // To record the type of altitude the UAV is using as its estimated altitude. 0 is ToF within gimbal range, 1 is ToF too far left, 2 is ToF too far right, and 3 is using IMU only
@@ -270,12 +273,18 @@ float pitch_IMU_rad, roll_IMU_rad, yaw_IMU_rad;
 // Variables for the Runge-Kutta integration method
 // float k1_vel, k1_pos, k2_vel, k2_pos, k3_vel, k3_pos, k4_vel, k4_pos;
 
+// used to estimate velocity of IMU
+int ToFcounter = 0;
+int ToFcounterNum = 200;
+
 // Program Objects
 BMP085NB bmp;
 File dataFile;                                                // Object to interface with the microSD card
 KalmanFilter kalmanHoriz(0.5, 0.01942384099, 0.001002176158); // Kalman filter for the horizontal
-// Adafruit_VL53L1X vl53 = Adafruit_VL53L1X(XSHUTpin, IRQpin);
-KalmanFilter kalmanVert(0.5, 0.01942384099, 0.001002176158); // Kalman filter for the vertical position
+
+// Kalman filter for the vertical position
+KalmanFilter kalmanVert(0.5, 0.01942384099, // standard deviation of gyroscope measurements
+                        0.001002176158);    // standard deviation of accelerometer measurements
 VL53L1X sensor;
 
 float accelData[3];
@@ -1209,20 +1218,30 @@ void loop()
 #elif TEST_ALTITUDE_RIG
 
     // no pilot control or movements, just altitude detection
-    Serial.print("ToF Altitude\t");
-    Serial.print(ToFaltitude);
-    Serial.print("\tBaro altitude\t");
-    Serial.print(altitude_baro);
-    Serial.print("\tKalman altitude\t");
-    Serial.print(altitudeLPbaro.getAltitude());
-    Serial.print("\tleft wingtip altitude\t");
-    Seiral.print(leftWingtipAltitude);
-    Serial.print("\tright wingtip altitude\t");
-    Seiral.print(rightWingtipAltitude);
-    Serial.print("\testimated altitude\t");
-    Seiral.print(estimated_altitude);
-    Serial.print("\taltitudeTypeDataLog \t");
-    Seiral.print(altitudeTypeDataLog);
+    // Serial.print("ToF Altitude\t");
+    // Serial.print(ToFaltitude);
+    // // Serial.print("\tBaro altitude\t");
+    // // Serial.print(altitude);
+    // // Serial.print("\tKalman altitude\t");
+    // // Serial.print(altitudeLPbaro.getAltitude());
+    // Serial.print("\tleft wingtip altitude\t");
+    // Serial.print(leftWingtipAltitude);
+    // Serial.print("\tright wingtip altitude\t");
+    // Serial.print(rightWingtipAltitude);
+    // Serial.print("\testimated altitude\t");
+
+    Serial.print(IMU_vertical_accel);
+    Serial.print(" m/s^2 ");
+    Serial.print(IMU_vertical_vel);
+    Serial.print(" m/s ");
+    Serial.print(IMU_vertical_pos);
+    Serial.print(" m ");
+    Serial.print(estimated_altitude);
+    Serial.print(" m ");
+
+    // Serial.print("\taltitudeTypeDataLog \t");
+    //   Serial.print(altitudeTypeDataLog);
+    Serial.println();
 #elif TEST_HORIZONTAL_MOTION
 
     // outputs horizontal motion of the uav
@@ -1264,8 +1283,7 @@ void loop()
         s2_command_scaled = roll_passthru;  // Between -0.5 and 0.5
         s3_command_scaled = pitch_passthru; // Between -0.5 and 0.5
         s4_command_scaled = yaw_passthru;   // Between -0.5 and 0.5
-
-        DSifFirstRun = true; // Resets the DS variable while not in the DS flight mode
+        DSifFirstRun = true;                // Resets the DS variable while not in the DS flight mode
 
         // Reset integrators to 0 so when the other two flight modes are triggered, they start out without integral windup
         integral_pitch = 0;
@@ -1292,7 +1310,9 @@ void loop()
     else if (flight_phase == stabilized_flight)
     {
         // Flight mode 2 (stabilized flight, constant airspeed, and coordinated turns.
-        controlANGLE();       // dRehmFlight for angle based (pitch and roll) PID loops
+        controlANGLE(); // dRehmFlight for angle based (pitch and roll) PID loops
+        motorOn = true;
+        airspeed_setpoint = flight_speed;
         throttleController(); // PID loop for throttle control
                               //  coordinatedController(); // PID loop for coordinated turns
 
@@ -1380,10 +1400,17 @@ void loop()
 #else
     ESC.write(-100); // ESC inactive
 #endif
+
+#if TEST_ALTITUDE_RIG == 0
     aileronServo.write(aileron_command_PWM);    // aileron
     elevatorServo.write(elevator_command_PWM);  // elevator
     rudderServo.write(rudder_command_PWM);      // rudder
+#endif
     gimbalServo.write(gimbalServo_command_PWM); // gimbal
+
+    // Serial.print(ESC_command_PWM);
+    //     Serial.print(" ");
+    // Serial.println(rudder_command_PWM);
 
     //  Serial.println(ESC_command_PWM); // ESC active
     //   Serial.print(" ");
@@ -1746,18 +1773,24 @@ void estimateAltitude()
 {
     // Use the Kalman filter to estimate the altitude of the UAV using only the IMU and barometer (both after having a low pass filter applied)
 
-    IMU_vertical_accel = kalmanVert.estimate(gyroData, accelData, dt);
-    IMU_vertical_vel += IMU_vertical_accel / dt;
-    IMU_vertical_pos += IMU_vertical_vel / dt;
-
+    IMU_vertical_accel = (1.0 - IMU_vertical_accel_LPparam) * IMU_vertical_accel_prev + IMU_vertical_accel_LPparam * kalmanVert.estimate(gyroData, accelData, dt);
+    IMU_vertical_accel_prev = IMU_vertical_accel;
+    IMU_vertical_vel += IMU_vertical_accel * dt;
+    IMU_vertical_pos += IMU_vertical_vel * dt;
     // altitudeLPbaro.estimate(accelData, gyroData, altitudeMeasured - altitude_offset, dt);
 
     gimbalServo_command_PWM = roll_IMU * gimbalServoGain + 90; // Rotate the gimbal servo to point the ToF sensor straight down
-
     ToFaltitude = (distance_LP / 1000.0) * cos(pitch_IMU_rad); // Find the altitude of the UAV in meters based on the ToF sensor. Accounts for pitch.
+
+#if IMU_ALTITUDE_TEST == 0
+    if (ToFaltitude < 4.0 && distance > 0.0)
+
+#else
+
     // also need to figure out how to get the range of the ToF sensor to 4m
     // If the distance being read is a valid number (it returns -1 if it cannot detect anything, and has a range up to 4m), use the ToF sensor as the altitude
-    if (ToFaltitude < 4.0 && distance > 0.0)
+    if (ToFaltitude < 0.5 && distance > 0.0)
+#endif
     {
         // // Recalibrate the barometer based on the ToF sensor. Every 10 readings, find the offset and average
         // if (offset_loop_counter < altitude_offset_num_vals)
@@ -1772,16 +1805,27 @@ void estimateAltitude()
         //     altitude_offset_sum = 0;
         // }
 
+        
         // recalibrate IMU
-        IMU_vertical_pos = ToFaltitude;
-        IMU_vertical_vel = (ToFaltitude - prevToFaltitude) / dt;
+        // occasionally rezero the velocity and position?
+        if (ToFcounter > ToFcounterNum)
+        {
+            IMU_vertical_vel = (ToFaltitude - prevToFaltitude) / (dt * ToFcounterNum);
+            prevToFaltitude = ToFaltitude;
+            IMU_vertical_pos = ToFaltitude;
 
+            ToFcounter = 0;
+        }
+        else
+        {
+            ToFcounter++;
+        }
         // Calculate the distance of the wingtip to the ground. The UAV has a wingspan of 1.5m and the ToF sensor is located 0.14m to the left of the center of the fuselage
         if (roll_IMU > gimbalRightBoundAngle && roll_IMU < gimbalLeftBoundAngle)
         {
             // If the gimbal is within range (which it always should be, since the roll angle limit is 30 degrees)
-            leftWingtipAltitude = ToFaltitude - sin(roll_IMU_rad) * (halfWingspan - gimbalDistanceFromCenter);
-            rightWingtipAltitude = ToFaltitude + sin(roll_IMU_rad) * (halfWingspan + gimbalDistanceFromCenter);
+            leftWingtipAltitude = ToFaltitude - sin(roll_IMU_rad) * (halfWingspan + gimbalDistanceFromCenter);
+            rightWingtipAltitude = ToFaltitude + sin(roll_IMU_rad) * (halfWingspan - gimbalDistanceFromCenter);
             estimated_altitude = leftWingtipAltitude < rightWingtipAltitude ? leftWingtipAltitude : rightWingtipAltitude; // gets lesser of two values
             altitudeTypeDataLog = 0;                                                                                      // ToF sensor, within gimbal range
         }
@@ -1805,7 +1849,8 @@ void estimateAltitude()
     }
     else
     {
-        // If the ToF sensor is out of range, estimate the altitude with the IMU and barometer only
+
+        // If the ToF sensor is out of range, estimate the altitude with the IMU  only
         estimated_altitude = IMU_vertical_pos;
         altitudeTypeDataLog = 3; // Let the flight data show that the altitude is based on the IMU only
     }
