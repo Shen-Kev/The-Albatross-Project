@@ -176,7 +176,6 @@ const float DS_altitude_max = 3.5;       // NEEDS TO BE ADJUSTED:The altitude (i
 float DS_altitude_meanline;
 float DS_altitude_amplitude;
 
-float DS_heading;                  // the heading of the UAV while DS, controlled by the pilot
 const float DS_period = 5000;      // the period of the sine wave in milliseconds
 const float DS_yaw_amplitude = 30; // the amount of degrees to yaw to either side while dynamic soaring
 double DS_phase_timer = 0;
@@ -1813,7 +1812,7 @@ void horizontal()
         // DS_horizontal_pos += (k1_pos + 2 * k2_pos + 2 * k3_pos + k4_pos) / 6;
 
 }
-
+*/
 // This function estimates the altitude of the UAV relative to the water using the IMU, baro, and ToF sensors
 void estimateAltitude()
 {
