@@ -296,7 +296,7 @@ const int ROWS = 6400;             // Rows in the datalog array
 float dataLogArray[ROWS][COLUMNS]; // Create the datalog array. Columns are the variables being printed, and rows are logs at different times
 int currentRow = 0;                // Keeps track of the row the data should be logged into
 const int datalogRate = 50;        // NEEDS TO BE ADJUSTED: Data logging rate in Hz
-const int dataLogRateSlow = 2;     // Data logging rate when not important, just to show the setup and different phases of flight
+const int dataLogRateSlow = 10;     // Data logging rate when not important, just to show the setup and different phases of flight
 boolean dataLogged = false;
 // Altitude estimator to combine barometric pressure sensor (with low pass filter applied) with the gyroscope and acclerometer
 // AltitudeEstimator altitudeLPbaro = AltitudeEstimator(0.001002176158, // Sigma (standard deviation of) the accelerometer
@@ -1805,7 +1805,7 @@ void estimateAltitude()
         //     altitude_offset_sum = 0;
         // }
 
-        
+
         // recalibrate IMU
         // occasionally rezero the velocity and position?
         if (ToFcounter > ToFcounterNum)
