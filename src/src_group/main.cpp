@@ -14,7 +14,7 @@
  */
 
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
-// INCLUDE FILES AND LIBRARIES 
+// INCLUDE FILES AND LIBRARIES
 #include <Arduino.h>               //  Standard Arduino file
 #include "src_group/dRehmFlight.h" //  Modified and used dRehmFlight: https://github.com/nickrehm/dRehmFlight
                                    //  Credit to: Nicholas Rehm
@@ -92,14 +92,14 @@
 
 // Combined systems ground test programs with serial connection
 #define PID_TUNE 0               // Uses the gimbal rig to tune PID pitch and roll loops, and validate/tune airspeed, but monitor the throttle PID
-#define TEST_ALTITUDE_RIG 1      // Uses the altitude rig to estimate the altitude of the UAV
-#define IMU_ALTITUDE_TEST 1      // test IMU only for estimated altitude
+#define TEST_ALTITUDE_RIG 0      // Uses the altitude rig to estimate the altitude of the UAV
+#define IMU_ALTITUDE_TEST 0      // test IMU only for estimated altitude
 #define TEST_HORIZONTAL_MOTION 0 // Tests the horizontal motion estimation
 
 // DS flight test codes without serial connection. ALl of these are in flight mode 3 in the main flight code, flight mode 1 and 2 are standard and should be tested using the FULL_FLIGHT_CODE
 #define LOW_ALTITUDE_FLIGHT 0       // Flies the UAV constantly at the low altitude and at constant flight speed
-#define LOW_ALTITUDE_HORIZ_FLIGHT 0 // FLies the UAV constantly at low altitude, and completes the horizontal maneuver
-#define DS_AT_ALTITUDE 0            // Flies the UAV as if it was DS, but at regular flight altitude
+#define LOW_ALTITUDE_HORIZ_FLIGHT 0 // FLies the UAV constantly at low altitude, and completes the horizontal sine wave
+#define DS_AT_ALTITUDE 0            // Flies the UAV as if it was DS, but at regular flight altitude. probabily will never use
 
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
 // PROGRAM VARIABLES AND OBJECTS
@@ -167,24 +167,35 @@ const float heading_rate_of_change_setup_tolerance = 10; //  NEEDS TO BE ADJUSTE
 const float pitch_rate_of_change_setup_tolerance = 10;   //  NEEDS TO BE ADJUSTED: The tolerance of the pitch rate of change while setting up the DS flight path (deg/s)
 const float horizontal_vel_tolerance = 0.5;              //  NEEDS TO BE ADJUSTED: The tolerance of the horizontal velocity while setting up the DS flight path (m/s)
 
-float DS_altitude_setpoint;                      // The altitude setpoint while dynamic soaring
-float DS_altitude_error;                         // The difference between the altitude setpoint and the estimated altitude
-float DS_altitude_error_prev;                    // The previous altitude error, used to differentiate the error curve
-const float DS_altitude_terrain_following = 0.3; // NEEDS TO BE ADJUSTED: The altitude (in meters) that the UAV should fly at while at the lowest phase of dynamic soaring. Could based on the bumpiness (std) of the water
-const float DS_altitude_tolerance = 0.1;         // NEEDS TO BE ADJUSTED: The altitude (in meters) that the UAV must be close to the setpoint to have met the setpoint
-const float DS_altitude_in_wind = 5.5;           // NEEDS TO BE ADJUSTED:The altitude (in meters) that the UAV should fly at to be most influenced by the wind shear layer
+float DS_altitude_setpoint;              // The altitude setpoint while dynamic soaring
+float DS_altitude_error;                 // The difference between the altitude setpoint and the estimated altitude
+float DS_altitude_error_prev;            // The previous altitude error, used to differentiate the error curve
+const float DS_altitude_min = 0.3;       // NEEDS TO BE ADJUSTED: The altitude (in meters) that the UAV should fly at while at the lowest phase of dynamic soaring. Could based on the bumpiness (std) of the water
+const float DS_altitude_tolerance = 0.1; // NEEDS TO BE ADJUSTED: The altitude (in meters) that the UAV must be close to the setpoint to have met the setpoint
+const float DS_altitude_max = 3.5;       // NEEDS TO BE ADJUSTED:The altitude (in meters) that the UAV should fly at to be most influenced by the wind shear layer
+float DS_altitude_meanline;
+float DS_altitude_amplitude;
 
-float DS_horizontal_accel;                                // The global horizontal acceleration (perpendicular to the dynamic soaring line, parallel to the wind direction) (in g's)
-float DS_horizontal_accel_error;                          // The difference between the global horizontal acceleration setpoint and measured horizontal acceleration
-const float DS_horizontal_accel_setpoint_phase_2_3 = 2.0; //  NEEDS TO BE ADJUSTED: The setpoint acceleration (in g's) while accelerating in the wind (DS phase 2 and 3)
+float DS_heading;                  // the heading of the UAV while DS, controlled by the pilot
+const float DS_period = 5000;      // the period of the sine wave in milliseconds
+const float DS_yaw_amplitude = 30; // the amount of degrees to yaw to either side while dynamic soaring
+double DS_phase_timer = 0;
+double DS_phase_start_time;
 
-float DS_horizontal_vel;                                 // The global horizontal velocity (perpendicular to the dynamic soaring line, parallel to the wind direction) (in m/s)
-float DS_horizontal_vel_error;                           // The differnece between the global horizontal velocity setpoint and the measured horizontal velocity
-float DS_horizontal_pos;                                 // The global horizontal position relative to the dynamic soaring line. Left of the line is negative, right of the line positive, and the center is set to be at 0 when the DS cycle starts
-const float DS_horizontal_vel_setpoint_phase_1_4 = -1.5; //  NEEDS TO BE ADJUSTED: The setpoint horizontal velocity (in m/s) while turning into the wind, below the shear layer
+float DS_heading_rate_setpoint; // the desired heading while DS
+float DS_heading_rate_mean_setpoint; //the mean desired heading while DS, set by pilot
+float heading_rate_scalar = 100; //scales from -0.5 and 0.5 to 50 and 50 deg/s while DS
+// float DS_horizontal_accel;                                // The global horizontal acceleration (perpendicular to the dynamic soaring line, parallel to the wind direction) (in g's)
+// float DS_horizontal_accel_error;                          // The difference between the global horizontal acceleration setpoint and measured horizontal acceleration
+// const float DS_horizontal_accel_setpoint_phase_2_3 = 2.0; //  NEEDS TO BE ADJUSTED: The setpoint acceleration (in g's) while accelerating in the wind (DS phase 2 and 3)
 
-float DS_horizontal_setpoint; // The global horizontal movement setpoint (can be velocity or acceleration, determined in the loop)
-int horiz_setpoint_type;      // variable to keep track what type of global horizontal setpoint is being used
+// float DS_horizontal_vel;                                 // The global horizontal velocity (perpendicular to the dynamic soaring line, parallel to the wind direction) (in m/s)
+// float DS_horizontal_vel_error;                           // The differnece between the global horizontal velocity setpoint and the measured horizontal velocity
+// float DS_horizontal_pos;                                 // The global horizontal position relative to the dynamic soaring line. Left of the line is negative, right of the line positive, and the center is set to be at 0 when the DS cycle starts
+// const float DS_horizontal_vel_setpoint_phase_1_4 = -1.5; //  NEEDS TO BE ADJUSTED: The setpoint horizontal velocity (in m/s) while turning into the wind, below the shear layer
+
+// float DS_horizontal_setpoint; // The global horizontal movement setpoint (can be velocity or acceleration, determined in the loop)
+// int horiz_setpoint_type;      // variable to keep track what type of global horizontal setpoint is being used
 
 enum horiz_setpoint_types
 {
@@ -201,23 +212,25 @@ boolean DSifFirstRun = true; // The boolean which is true only if the mode switc
 int flight_phase; // The flight mode (manual, stabilized, DS)
 enum flight_phases
 {
-    DS_phase_0 = 0, // DS Phase 0. UAV turns perpendicular to the wind flies low to the ground and stabilizes
-    DS_phase_1 = 1, // DS Phase 1. UAV turns into the wind, but below the shear layer to build up enough horizontal velocity
-    DS_phase_2 = 2, // DS Phase 2. Part of the DS cycle. UAV is facing the wind and above the shear layer, but is accelerating away from the wind, harvesting the wind's energy
-    DS_phase_3 = 3, // DS Phase 3. Part of the DS cycle. UAV is now facing away from the wind and descending towards the shear layer. Still accelerating away from the wind, havesting energy
-    DS_phase_4 = 4, // DS Phase 4. Part of the DS cycle. UAV is facing away from the wind and under the shear layer, but turning back towards the wind to build up velocity to start the DS cycle over
-    manual_flight = 5,
-    stabilized_flight = 6,
-    dynamic_soaring_flight = 7,
-    log_data_to_SD = 8
+    // DS_phase_0 = 0, // DS Phase 0. UAV turns perpendicular to the wind flies low to the ground and stabilizes
+    // DS_phase_1 = 1, // DS Phase 1. UAV turns into the wind, but below the shear layer to build up enough horizontal velocity
+    // DS_phase_2 = 2, // DS Phase 2. Part of the DS cycle. UAV is facing the wind and above the shear layer, but is accelerating away from the wind, harvesting the wind's energy
+    // DS_phase_3 = 3, // DS Phase 3. Part of the DS cycle. UAV is now facing away from the wind and descending towards the shear layer. Still accelerating away from the wind, havesting energy
+    // DS_phase_4 = 4, // DS Phase 4. Part of the DS cycle. UAV is facing away from the wind and under the shear layer, but turning back towards the wind to build up velocity to start the DS cycle over
+    // DS phase goes from 0 to 2pi, (6.28)
+    manual_flight = 7,
+    stabilized_flight = 8,
+    dynamic_soaring_flight = 9,
+    log_data_to_SD = 10
 };
-// Horizontal PID controller values
-float K_horiz_accel = 1.0;                   //  NEEDS TO BE ADJUSTED: Global horizontal acceleration proportional gain
-float Kp_horiz_vel = 1.0;                    //  NEEDS TO BE ADJUSTED: Global horizontal velocity proportional gain
-float Ki_horiz_vel = 0.1;                    //  NEEDS TO BE ADJUSTED:Global horizontal velocity integral gain
-float horiz_vel_integral = 0.0;              //  Variable to keep track of global horizontal velocity integral
-float horiz_vel_integral_prev = 0.0;         //  The previous global horizontal velocity integral (to be integrated upon)
-float horiz_integral_saturation_limit = 2.0; //  NEEDS TO BE ADJUSTED:Altitude integral saturation limit (to prevent integral windup)
+
+// // Horizontal PID controller values
+// float K_horiz_accel = 1.0;                   //  NEEDS TO BE ADJUSTED: Global horizontal acceleration proportional gain
+// float Kp_horiz_vel = 1.0;                    //  NEEDS TO BE ADJUSTED: Global horizontal velocity proportional gain
+// float Ki_horiz_vel = 0.1;                    //  NEEDS TO BE ADJUSTED:Global horizontal velocity integral gain
+// float horiz_vel_integral = 0.0;              //  Variable to keep track of global horizontal velocity integral
+// float horiz_vel_integral_prev = 0.0;         //  The previous global horizontal velocity integral (to be integrated upon)
+// float horiz_integral_saturation_limit = 2.0; //  NEEDS TO BE ADJUSTED:Altitude integral saturation limit (to prevent integral windup)
 
 // Altitude PID controller values
 const float Kp_altitude = 0.2;                         //  NEEDS TO BE ADJUSTED:// Altitude proportional gain
@@ -228,22 +241,22 @@ float altitude_integral_prev = 0.0;                    //  Previous altitude int
 const float altitude_integral_saturation_limit = 25.0; //  NEEDS TO BE ADJUSTED: Altitude integral saturation limit (to prevent integral windup)
 float altitude_derivative;                             // Variable to keep track of altitude derivative
 
-// Coordinated turn variables
-float rudderCoordinatedCommand;                               // The command (-1 to 1) to give to the rudder to have a coordinate turn
-float acceleration_downwards_angle;                           // The roll angle of the downwards acceleration the UAV experiences (deg)
-float acceleration_downwards_angle_prev;                      // The previous roll angle of the downwards acceleration the UAV experiences (deg)
-float acceleration_downwards_angle_LP;                        // The roll angle of the downwards acceleration the UAV experiences (deg), with a low pass filter applied
-const float acceleration_downwards_angle_LP_param = 0.1;      //  NEEDS TO BE ADJUSTED: The low pass paramter for the roll angle of the downwards acceleration the UAv experiences
-float acceleration_downwards_magnitude;                       // The magnitude of the downwards acceleration about the roll axis the UAV experiences
-const float acceleration_downwards_magnitude_tolerance = 0.5; //  NEEDS TO BE ADJUSTED: The acceleration needed to be experienced by the UAV to legitimzie the acceleration angle (g's)
+// // Coordinated turn variables
+// float rudderCoordinatedCommand;                               // The command (-1 to 1) to give to the rudder to have a coordinate turn
+// float acceleration_downwards_angle;                           // The roll angle of the downwards acceleration the UAV experiences (deg)
+// float acceleration_downwards_angle_prev;                      // The previous roll angle of the downwards acceleration the UAV experiences (deg)
+// float acceleration_downwards_angle_LP;                        // The roll angle of the downwards acceleration the UAV experiences (deg), with a low pass filter applied
+// const float acceleration_downwards_angle_LP_param = 0.1;      //  NEEDS TO BE ADJUSTED: The low pass paramter for the roll angle of the downwards acceleration the UAv experiences
+// float acceleration_downwards_magnitude;                       // The magnitude of the downwards acceleration about the roll axis the UAV experiences
+// const float acceleration_downwards_magnitude_tolerance = 0.5; //  NEEDS TO BE ADJUSTED: The acceleration needed to be experienced by the UAV to legitimzie the acceleration angle (g's)
 
-const float Kp_coord = 0.2;                         //  NEEDS TO BE ADJUSTED:// Coordinated turn P gain
-const float Ki_coord = 0.3;                         //  NEEDS TO BE ADJUSTED:// Coordinated turn I gain
-const float Kd_coord = 0.0015;                      //  NEEDS TO BE ADJUSTED:// Coordinated turn D gain
-float coord_integral = 0.0;                         // Coordinated turn error PID controller integral
-float coord_integral_prev;                          // Previous coordinated turn PID controller integral
-const float coord_integral_saturation_limit = 25.0; //  NEEDS TO BE ADJUSTED: Coordinated turn saturation limit (to avoid integral windup)
-float coord_derivative;                             // Coordinated turn PID controller derivative
+// const float Kp_coord = 0.2;                         //  NEEDS TO BE ADJUSTED:// Coordinated turn P gain
+// const float Ki_coord = 0.3;                         //  NEEDS TO BE ADJUSTED:// Coordinated turn I gain
+// const float Kd_coord = 0.0015;                      //  NEEDS TO BE ADJUSTED:// Coordinated turn D gain
+// float coord_integral = 0.0;                         // Coordinated turn error PID controller integral
+// float coord_integral_prev;                          // Previous coordinated turn PID controller integral
+// const float coord_integral_saturation_limit = 25.0; //  NEEDS TO BE ADJUSTED: Coordinated turn saturation limit (to avoid integral windup)
+// float coord_derivative;                             // Coordinated turn PID controller derivative
 
 // Throttle PID controller values
 float throttle_PID;                         // The throttle outputted by the PID loop to maintain constant airspeed (range between 0.0-1.0, where 0.0 is min throttle and 1.0 is max throttle)
@@ -291,12 +304,12 @@ float accelData[3];
 float gyroData[3];
 
 // Data logging variables
-const int COLUMNS = 16;            // Columns in the datalog array
+const int COLUMNS = 15;            // Columns in the datalog array
 const int ROWS = 6400;             // Rows in the datalog array
 float dataLogArray[ROWS][COLUMNS]; // Create the datalog array. Columns are the variables being printed, and rows are logs at different times
 int currentRow = 0;                // Keeps track of the row the data should be logged into
 const int datalogRate = 50;        // NEEDS TO BE ADJUSTED: Data logging rate in Hz
-const int dataLogRateSlow = 10;     // Data logging rate when not important, just to show the setup and different phases of flight
+const int dataLogRateSlow = 10;    // Data logging rate when not important, just to show the setup and different phases of flight
 boolean dataLogged = false;
 // Altitude estimator to combine barometric pressure sensor (with low pass filter applied) with the gyroscope and acclerometer
 // AltitudeEstimator altitudeLPbaro = AltitudeEstimator(0.001002176158, // Sigma (standard deviation of) the accelerometer
@@ -820,11 +833,13 @@ void setup()
     gimbalRightBoundAngle = (0 - gimbalServoBound) + (gimbalServoTrim / gimbalServoGain);
     gimbalLeftBoundAngle = (0 + gimbalServoBound) + (gimbalServoTrim / gimbalServoGain);
 
-#if DS_AT_ALTITUDE
-    // UAV does the DS at 10m up to avoid hitting the ground
-    DS_altitude_terrain_following += 10;
-    DS_altitude_in_wind += 10;
-#endif
+    DS_altitude_meanline = (DS_altitude_max+DS_altitude_min)/2.0;
+    DS_altitude_amplitude = (DS_altitude_max-DS_altitude_min)/2.0;
+// #if DS_AT_ALTITUDE
+//         // UAV does the DS at 10m up to avoid hitting the ground
+//         DS_altitude_terrain_following += 10;
+//     DS_altitude_in_wind += 10;
+// #endif
 }
 
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
@@ -1290,9 +1305,9 @@ void loop()
         integral_roll = 0;
         integral_yaw = 0;
         throttle_integral = 0;
-        coord_integral = 0;
+        // coord_integral = 0;
         altitude_integral = 0;
-        horiz_vel_integral = 0;
+        // horiz_vel_integral = 0;
 
         // Log data to RAM slowly because not in DS flight
         if (loopCounter > (2000 / dataLogRateSlow))
@@ -1341,14 +1356,16 @@ void loop()
 
     else if (flight_phase == dynamic_soaring_flight)
     {
+        DS_heading_rate_mean_setpoint = yaw_passthru*heading_rate_scalar;
 
         // Flight mode 3 (Dynamic soaring)
-        horizontal();         // Estimates the global horizontal acceleration, velocity, and position of the UAV
+        //horizontal();         // Estimates the global horizontal acceleration, velocity, and position of the UAV
         dynamicSoar();        // Creates the dynamic soaring setpoints
         DSattitude();         // Converts dynamic soaring setpoints to desired angles
         controlANGLE();       // dRehmFlight for angle based (pitch and roll) PID loops
         throttleController(); // PID loop for throttle control
                               //  coordinatedController(); // PID loop for coordinated turns
+        
 
         s1_command_scaled = throttle_PID; // Between 0 and 1
         s2_command_scaled = roll_PID;     // Between -1 and 1
@@ -1464,7 +1481,7 @@ void loop()
 #endif
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
 // DYNAMIC SOARING CONTROLLER FUNCTIONS
-
+/*
 // This function manages the phases of DS flight. It generates the setpoints (airspeed,altitude, and global horizontal motion) for each DS phase, and provides the conditions to move to the next phase
 void dynamicSoar()
 {
@@ -1513,7 +1530,7 @@ void dynamicSoar()
             || abs(airspeed_error) > airspeed_error_tolerance)   // The UAV must not be moving too fast or too slow (within a tolerance)
         {
             // Ground following setpoints in DS Phase 0
-            DS_altitude_setpoint = DS_altitude_terrain_following;          // Fly below the wind shear layer
+            DS_altitude_setpoint = DS_altitude_min;          // Fly below the wind shear layer
             DS_altitude_error_prev = DS_altitude_error;                    // Set the previous error before recalculating the new error
             DS_altitude_error = DS_altitude_setpoint - estimated_altitude; // Calculate the error
 
@@ -1537,7 +1554,7 @@ void dynamicSoar()
         // Phase 1 is the intial turn into the wind to start the dynamic soaring cycle. Because flying right relative to the wind, this turns left.
 
         // Ground following setpoints in DS Phase 1
-        DS_altitude_setpoint = DS_altitude_terrain_following;          // Fly below the wind shear layer
+        DS_altitude_setpoint = DS_altitude_min;          // Fly below the wind shear layer
         DS_altitude_error_prev = DS_altitude_error;                    // Set the previous error before recalculating the new error
         DS_altitude_error = DS_altitude_setpoint - estimated_altitude; // Calculate the error
 
@@ -1563,7 +1580,7 @@ void dynamicSoar()
         // Phase 2 is the energy harvesting climb above the wind shear layer
 
         // Ground following setpoints in DS Phase 2
-        DS_altitude_setpoint = DS_altitude_in_wind;                    // Fly above the wind shear layer
+        DS_altitude_setpoint = DS_altitude_max;                    // Fly above the wind shear layer
         DS_altitude_error_prev = DS_altitude_error;                    // Set the previous error before recalculating the new error
         DS_altitude_error = DS_altitude_setpoint - estimated_altitude; // Calculate the error
 
@@ -1597,7 +1614,7 @@ void dynamicSoar()
         // Phase 3 is the energy harvesting descent above the wind shear layer
 
         // Ground following setpoints in DS Phase 3
-        DS_altitude_setpoint = DS_altitude_terrain_following;          // Aim for below the shear layer, but at this phase is still above the shear layer
+        DS_altitude_setpoint = DS_altitude_min;          // Aim for below the shear layer, but at this phase is still above the shear layer
         DS_altitude_error_prev = DS_altitude_error;                    // Set the previous error before recalculating the new error
         DS_altitude_error = DS_altitude_setpoint - estimated_altitude; // Calculate the error
 
@@ -1631,7 +1648,7 @@ void dynamicSoar()
         // Phase 4 is the leeway recovery phase below the wind shear layer
 
         // Ground following setpoints in DS Phase 4
-        DS_altitude_setpoint = DS_altitude_terrain_following;          // Fly below the wind shear layer
+        DS_altitude_setpoint = DS_altitude_min;          // Fly below the wind shear layer
         DS_altitude_error_prev = DS_altitude_error;                    // Set the previous error before recalculating the new error
         DS_altitude_error = DS_altitude_setpoint - estimated_altitude; // Calculate the error
 
@@ -1681,6 +1698,35 @@ void DSattitude()
     altitude_integral = constrain(altitude_integral, -altitude_integral_saturation_limit, altitude_integral_saturation_limit);  // Saturate integrator to prevent unsafe buildup
     altitude_derivative = (DS_altitude_error - DS_altitude_error_prev) / dt;                                                    // Derivative shouldn't need low pass filter because the altitude already has a low pass filter on it
     pitch_des = 0.01 * (Kp_altitude * DS_altitude_error + Ki_altitude * altitude_integral - Kd_altitude * altitude_derivative); // Scaled by .01 to bring within -1 to 1 range
+}
+*/
+
+// Uses sine function to generate sine function and desried flight phase
+void dynamicSoar()
+{
+    // generate generic sine wave which oscelates at set priod.
+
+    if (DS_phase_timer >= DS_period)
+    {
+        DS_phase_start_time = millis();
+    }
+    else
+    {
+        DS_phase_timer = millis() - DS_phase_start_time;
+    }
+    // flight_phase acts as the sine wave phase in radians
+    flight_phase = ((2 * PI) / DS_period) * DS_phase_timer;
+
+    // generate altitude
+    DS_altitude_setpoint = DS_altitude_meanline + DS_altitude_amplitude*sin(flight_phase);
+
+    //generate yaw (cosine because its a derivative)
+    DS_heading_rate_setpoint = cos(flight_phase)*DS_yaw_amplitude+DS_heading_rate_mean_setpoint;
+}
+
+// sets yaw pitch roll desired to follow sine function
+void DSattitude()
+{
 }
 
 // This function coordinates the UAV by to attempt to make the acceleration vector the UAV experinces point straight down about the roll axis. Outputs the rudder command rudderCoordinatedCommand
@@ -1737,7 +1783,7 @@ void throttleController()
 
 // ____________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________//
 // STATE VARIABLE ESTIMATION FUNCTIONS
-
+/*
 // This function estimates the global horizontal acceleration, velocity, and position of the UAV based on the IMU
 void horizontal()
 {
@@ -1754,18 +1800,18 @@ void horizontal()
     DS_horizontal_pos += DS_horizontal_vel * dt;
 
     // Integrate velocity and position using the Runge-Kutta method NOT USED RIGHT NOW
-    /*
-        k1_vel = DS_horizontal_accel * dt;
-        k1_pos = DS_horizontal_vel * dt;
-        k2_vel = (DS_horizontal_accel + k1_vel / 2) * dt;
-        k2_pos = (DS_horizontal_vel + k1_pos / 2) * dt;
-        k3_vel = (DS_horizontal_accel + k2_vel / 2) * dt;
-        k3_pos = (DS_horizontal_vel + k2_pos / 2) * dt;
-        k4_vel = (DS_horizontal_accel + k3_vel) * dt;
-        k4_pos = (DS_horizontal_vel + k3_pos) * dt;
-        DS_horizontal_vel += (k1_vel + 2 * k2_vel + 2 * k3_vel + k4_vel) / 6;
-        DS_horizontal_pos += (k1_pos + 2 * k2_pos + 2 * k3_pos + k4_pos) / 6;
-    */
+
+        // k1_vel = DS_horizontal_accel * dt;
+        // k1_pos = DS_horizontal_vel * dt;
+        // k2_vel = (DS_horizontal_accel + k1_vel / 2) * dt;
+        // k2_pos = (DS_horizontal_vel + k1_pos / 2) * dt;
+        // k3_vel = (DS_horizontal_accel + k2_vel / 2) * dt;
+        // k3_pos = (DS_horizontal_vel + k2_pos / 2) * dt;
+        // k4_vel = (DS_horizontal_accel + k3_vel) * dt;
+        // k4_pos = (DS_horizontal_vel + k3_pos) * dt;
+        // DS_horizontal_vel += (k1_vel + 2 * k2_vel + 2 * k3_vel + k4_vel) / 6;
+        // DS_horizontal_pos += (k1_pos + 2 * k2_pos + 2 * k3_pos + k4_pos) / 6;
+
 }
 
 // This function estimates the altitude of the UAV relative to the water using the IMU, baro, and ToF sensors
@@ -1773,10 +1819,10 @@ void estimateAltitude()
 {
     // Use the Kalman filter to estimate the altitude of the UAV using only the IMU and barometer (both after having a low pass filter applied)
 
-    IMU_vertical_accel = (1.0 - IMU_vertical_accel_LPparam) * IMU_vertical_accel_prev + IMU_vertical_accel_LPparam * kalmanVert.estimate(gyroData, accelData, dt);
-    IMU_vertical_accel_prev = IMU_vertical_accel;
-    IMU_vertical_vel += IMU_vertical_accel * dt;
-    IMU_vertical_pos += IMU_vertical_vel * dt;
+    // IMU_vertical_accel = (1.0 - IMU_vertical_accel_LPparam) * IMU_vertical_accel_prev + IMU_vertical_accel_LPparam * kalmanVert.estimate(gyroData, accelData, dt);
+    // IMU_vertical_accel_prev = IMU_vertical_accel;
+    // IMU_vertical_vel += IMU_vertical_accel * dt;
+    // IMU_vertical_pos += IMU_vertical_vel * dt;
     // altitudeLPbaro.estimate(accelData, gyroData, altitudeMeasured - altitude_offset, dt);
 
     gimbalServo_command_PWM = roll_IMU * gimbalServoGain + 90; // Rotate the gimbal servo to point the ToF sensor straight down
@@ -1806,20 +1852,21 @@ void estimateAltitude()
         // }
 
 
-        // recalibrate IMU
-        // occasionally rezero the velocity and position?
-        if (ToFcounter > ToFcounterNum)
-        {
-            IMU_vertical_vel = (ToFaltitude - prevToFaltitude) / (dt * ToFcounterNum);
-            prevToFaltitude = ToFaltitude;
-            IMU_vertical_pos = ToFaltitude;
+        // // recalibrate IMU
+        // // occasionally rezero the velocity and position?
+        // if (ToFcounter > ToFcounterNum)
+        // {
+        //     IMU_vertical_vel = (ToFaltitude - prevToFaltitude) / (dt * ToFcounterNum);
+        //     prevToFaltitude = ToFaltitude;
+        //     IMU_vertical_pos = ToFaltitude;
 
-            ToFcounter = 0;
-        }
-        else
-        {
-            ToFcounter++;
-        }
+        //     ToFcounter = 0;
+        // }
+        // else
+        // {
+        //     ToFcounter++;
+        // }
+
         // Calculate the distance of the wingtip to the ground. The UAV has a wingspan of 1.5m and the ToF sensor is located 0.14m to the left of the center of the fuselage
         if (roll_IMU > gimbalRightBoundAngle && roll_IMU < gimbalLeftBoundAngle)
         {
@@ -1850,9 +1897,9 @@ void estimateAltitude()
     else
     {
 
-        // If the ToF sensor is out of range, estimate the altitude with the IMU  only
-        estimated_altitude = IMU_vertical_pos;
-        altitudeTypeDataLog = 3; // Let the flight data show that the altitude is based on the IMU only
+        // If the ToF sensor is out of range, no altitude estimation, just hold the previous altitude. DS should never go above 3 or 4 meters anyways
+      //  estimated_altitude = IMU_vertical_pos;
+        altitudeTypeDataLog = 3; // Let the flight data show that there is no new altitude reading
     }
 }
 
@@ -1989,8 +2036,7 @@ void logDataToRAM()
         dataLogArray[currentRow][12] = airspeed_setpoint;
         dataLogArray[currentRow][13] = throttle_PID;
 
-        dataLogArray[currentRow][14] = DS_horizontal_accel;
-        dataLogArray[currentRow][15] = estimated_altitude;
+        dataLogArray[currentRow][14] = estimated_altitude;
 
         currentRow++; // Increment counter
     }
