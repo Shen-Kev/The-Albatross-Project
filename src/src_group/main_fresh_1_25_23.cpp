@@ -1,8 +1,8 @@
-// TO DO 
-//implement test programs for DS
-//implement altitude estimation with IMU, maybe baro?
-//implement a test to turn the UAV mid air (maybe have manual pilot control of pitch)
-//reorgnaize and recomment code (much later)
+// TO DO
+// implement test programs for DS
+// implement altitude estimation with IMU, maybe baro?
+// implement a test to turn the UAV mid air (maybe have manual pilot control of pitch)
+// reorgnaize and recomment code (much later)
 
 #include <Arduino.h>
 #include "src_group/dRehmFlight.h"
@@ -13,7 +13,7 @@
 #include <SD.h>
 #include "AltitudeEstimation/altitude.h"
 #define MOTOR_ACTIVE 0
-#define DS_LOW_ALTITUDE_FLIGHT_TEST 0 
+#define DS_LOW_ALTITUDE_FLIGHT_TEST 0
 #define DS_LOW_ALTITUDE_VERTICAL_FLIGHT_TEST 0
 #define DS_LOW_ALTITUDE_HORIZ_FLIGHT_TEST 0
 const float gimbalServoGain = -1.5;
@@ -31,7 +31,7 @@ const float airspeed_scalar = 1.8;
 float airspeed_adjusted;
 float airspeed_adjusted_prev;
 float ToFaltitude;
-//float prevToFaltitude;
+// float prevToFaltitude;
 int16_t distance;
 float distance_LP_param = 0.5;
 float distancePrev;
@@ -40,25 +40,25 @@ float leftWingtipAltitude;
 float rightWingtipAltitude;
 const int IRQpin = 35;
 const int XSHUTpin = 34;
-//float IMU_vertical_accel, IMU_vertical_vel, IMU_vertical_pos;
-//float IMU_vertical_accel_LPparam = 0.02;
-//float IMU_vertical_accel_prev;
+// float IMU_vertical_accel, IMU_vertical_vel, IMU_vertical_pos;
+// float IMU_vertical_accel_LPparam = 0.02;
+// float IMU_vertical_accel_prev;
 float estimated_altitude;
 int altitudeTypeDataLog;
 float timeInMillis;
 int loopCounter = 0;
-//int loopCounterStep = 0;
-//const float wind_heading = 0.0;
-//const float DS_heading = 90.0;
-// const float heading_setup_tolerance = 5;
-// const float heading_rate_of_change_setup_tolerance = 10;
-// const float pitch_rate_of_change_setup_tolerance = 10;
-// const float horizontal_vel_tolerance = 0.5;
+// int loopCounterStep = 0;
+// const float wind_heading = 0.0;
+// const float DS_heading = 90.0;
+//  const float heading_setup_tolerance = 5;
+//  const float heading_rate_of_change_setup_tolerance = 10;
+//  const float pitch_rate_of_change_setup_tolerance = 10;
+//  const float horizontal_vel_tolerance = 0.5;
 float DS_altitude_setpoint;
 float DS_altitude_error;
-//float DS_altitude_error_prev;
+// float DS_altitude_error_prev;
 const float DS_altitude_min = 0.3;
-//const float DS_altitude_tolerance = 0.1;
+// const float DS_altitude_tolerance = 0.1;
 const float DS_altitude_max = 3.5;
 float DS_altitude_meanline;
 float DS_altitude_amplitude;
@@ -128,7 +128,6 @@ boolean toggle = false;
 const float DS_yaw_setpoint_scalar = 1.0;
 const float DS_roll_setpoint_scalar = 0.2;
 const float DS_pitch_setpoint_scalar = 0.2;
-
 
 void dynamicSoar();
 void coordinatedController();
@@ -355,14 +354,25 @@ void dynamicSoar()
     flight_phase = ((2 * PI) / DS_period) * DS_phase_timer;
     DS_altitude_setpoint = DS_altitude_meanline + DS_altitude_amplitude * sin(flight_phase);
     DS_heading_rate_setpoint = cos(flight_phase) * DS_yaw_amplitude + DS_heading_rate_mean_setpoint;
+    /*
+        // Set desired orientation
+        // First idea: set yaw gyro desired to desired heading change rate, and roll mulitpled of a scaler of that? No extra PID loops here because yaw is already linked to a PID loop
+        // For pitch, just set pitch desired to the error for altitude multiplied by a scalar? it has integral built into it so if the error still is there it will slowly increase PID.
+        // and constrain to max and min of 30 for pitch and roll, yaw
+        DS_altitude_error = DS_altitude_setpoint-estimated_altitude;
 
-    // Set desired orientation
-    // First idea: set yaw gyro desired to desired heading change rate, and roll mulitpled of a scaler of that? No extra PID loops here because yaw is already linked to a PID loop
-    // For pitch, just set pitch desired to the error for altitude multiplied by a scalar? it has integral built into it so if the error still is there it will slowly increase PID.
-    // and constrain to max and min of 30 for pitch and roll, yaw
-    yaw_des = DS_heading_rate_setpoint * DS_yaw_setpoint_scalar;
+        yaw_des = DS_heading_rate_setpoint * DS_yaw_setpoint_scalar;
+        roll_des = DS_heading_rate_setpoint * DS_roll_setpoint_scalar;
+        pitch_des = DS_altitude_error * DS_pitch_setpoint_scalar;
+        //pitch requires the use of error because it is trying to correct for an absolute position, while roll and yaw don't because they are both angle related setpoints, which the PID loops are already desgined to accept.
+    */
+        DS_altitude_error = DS_altitude_setpoint-estimated_altitude;
+
+    // Set desired location. Sets roll to a scaled value of the turn rate, and solves for elevator and rudder movements to adjust global pitch and yaw motion as desired. 
+    //Note the heading rate of change setpoint is used for the yaw des while the altitude error is used for pitch des because its how much the UAV wants to go up and down and left and right, and the altitude error is really the pitch setpoint. 
     roll_des = DS_heading_rate_setpoint * DS_roll_setpoint_scalar;
-    pitch_des = DS_altitude_setpoint * DS_pitch_setpoint_scalar;
+    yaw_des = cos(roll_IMU_rad) * DS_heading_rate_setpoint - (sin(roll_IMU_rad) * DS_altitude_error);
+    pitch_des = cos(roll_IMU_rad) * DS_altitude_error - (sin(roll_IMU_rad) * DS_heading_rate_setpoint);
 }
 void throttleController()
 {
