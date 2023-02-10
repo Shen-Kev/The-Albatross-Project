@@ -404,8 +404,7 @@ void estimateAltitude()
         //reintroduce baro and IMU?? bad bc another sensor to worry about
         //just IMU?? bad bc IMU based on ToF is not accurate because the ground is not perfectly flat
         //but just IMU is prob my best bet. ig ill have it min out at 4m so it doesnt drift low 
-        //or i could always just assume its at 4m, and set the max height to 4m, so if the uav goes above 4m it will think its at 4m, and once the setupoints drops backs below 4m the uav will dive again? just kinda sidestep the whole thig... ig yeah ill do that
-        estimated_altitude = 4.0; 
+        //or i could always just assume its at the previous altitude, so if it loses altitude at around 4m, it would keep thinking 4m, and if max height is set to 4m, so if the uav goes above 4m it will think its at 4m, and once the setupoints drops backs below 4m the uav will dive again? just kinda sidestep the whole thig... ig yeah ill do that
         altitudeTypeDataLog = 3;
     }
 }
