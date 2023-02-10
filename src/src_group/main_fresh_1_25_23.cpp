@@ -3,6 +3,7 @@
 // do unit testing of the code functions and calulations
 // reorgnaize and recomment code (much later)
 
+
 #include <Arduino.h>
 #include "src_group/dRehmFlight.h"
 #include "BMP180nonblocking/BMP085NB.h"
@@ -13,12 +14,11 @@
 #include "AltitudeEstimation/altitude.h"
 #define MOTOR_ACTIVE 0
 #define DS_LOW_ALTITUDE_CIRCLE 0
-// float IMU_vertical_accel, IMU_vertical_vel, IMU_vertical_pos;
-// float IMU_vertical_accel_LPparam = 0.02;
-// float IMU_vertical_accel_prev;
 
-const int IRQpin = 35;
-const int XSHUTpin = 34;
+
+
+// const int IRQpin = 35;
+// const int XSHUTpin = 34;
 
 // Constants for Gimbal Servo
 const float gimbalServoGain = -1.5;
@@ -84,12 +84,17 @@ int loopCounter = 0;
 float pitch_IMU_rad, roll_IMU_rad, yaw_IMU_rad;
 float accelData[3];
 float gyroData[3];
-float airspeed_setpoint;
-const float flight_speed = 20.0;
-float airspeed_error;
-float airspeed_error_prev;
-boolean motorOn = false;
-const float stall_speed = 10.0;
+
+// float IMU_vertical_accel, IMU_vertical_vel, IMU_vertical_pos;
+// float IMU_vertical_accel_LPparam = 0.02;
+// float IMU_vertical_accel_prev;
+
+// float airspeed_setpoint;
+// const float flight_speed = 20.0;
+// float airspeed_error;
+// float airspeed_error_prev;
+// const float stall_speed = 10.0;
+// boolean motorOn = false;
 
 // Variables for Data Logging
 const int COLUMNS = 13;
@@ -110,13 +115,10 @@ enum flight_phases
     log_data_to_SD = 10
 };
 
-
-
 //Objects
 File dataFile;
 KalmanFilter kalmanVert(0.5, 0.01942384099, 0.001002176158);
 VL53L1X sensor;
-
 
 void dynamicSoar();
 void coordinatedController();
@@ -262,9 +264,7 @@ void loop()
     else if (flight_phase == stabilized_flight)
     {
         controlANGLE();
-        motorOn = true;
-        // airspeed_setpoint = flight_speed;
-        // throttleController();
+
         s1_command_scaled = flight_throttle;
         s2_command_scaled = roll_PID;
         s3_command_scaled = pitch_PID;
@@ -336,6 +336,7 @@ void loop()
 void dynamicSoar()
 {
 
+//turning counterclockwise, because thats how unit circle works and also puts the left wing with the sensor always closer to the ground
     if (DSifFirstRun)
     {
         flight_phase = 0; /// is the angle relative to the wind in radians
@@ -399,6 +400,12 @@ void estimateAltitude()
     else
     {
         // FIGURE OUT WHAT TO DO HERE FOR ALTITUDE
+        //OPTIONS
+        //reintroduce baro and IMU?? bad bc another sensor to worry about
+        //just IMU?? bad bc IMU based on ToF is not accurate because the ground is not perfectly flat
+        //but just IMU is prob my best bet. ig ill have it min out at 4m so it doesnt drift low 
+        //or i could always just assume its at 4m, and set the max height to 4m, so if the uav goes above 4m it will think its at 4m, and once the setupoints drops backs below 4m the uav will dive again? just kinda sidestep the whole thig... ig yeah ill do that
+        estimated_altitude = 4.0; 
         altitudeTypeDataLog = 3;
     }
 }
