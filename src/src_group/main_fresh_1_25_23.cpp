@@ -13,9 +13,8 @@
 #include <SD.h>
 #include "AltitudeEstimation/altitude.h"
 #define MOTOR_ACTIVE 0
-#define DS_LOW_ALTITUDE_FLIGHT_TEST 0
-#define DS_LOW_ALTITUDE_VERTICAL_FLIGHT_TEST 0
-#define DS_LOW_ALTITUDE_HORIZ_FLIGHT_TEST 0
+#define DS_LOW_ALTITUDE_CIRCLE 0
+
 const float gimbalServoGain = -1.5;
 const float gimbalServoTrim = 0;
 const float gimbalServoBound = 45;
@@ -57,18 +56,27 @@ int loopCounter = 0;
 float DS_altitude_setpoint;
 float DS_altitude_error;
 // float DS_altitude_error_prev;
-const float DS_altitude_min = 0.3;
+const float DS_altitude_min = 1;
 // const float DS_altitude_tolerance = 0.1;
-const float DS_altitude_max = 3.5;
+const float DS_altitude_max = 5;
+float safe_circling_altitude = 3;;
+
 float DS_altitude_meanline;
 float DS_altitude_amplitude;
-const float DS_period = 5000;
-const float DS_yaw_amplitude = 30;
-double DS_phase_timer = 0;
-double DS_phase_start_time;
+// const float DS_period = 5000;
+// const float DS_yaw_amplitude = 30;
+// double DS_phase_timer = 0;
+// double DS_phase_start_time;
 float DS_heading_rate_setpoint;
 float DS_heading_rate_mean_setpoint;
-float heading_rate_scalar = 100;
+// float heading_rate_scalar = 100;
+float pilot_adjusted_leeway;
+float pilot_adjusted_leeway_scalar = 2; // ADJUST so that when throttle set to 0, no leeway adjust, throttle full be like 10m/s or smth
+
+float flight_throttle = 0.6; // replaces the PID loop for throttle. NEED TO EDIT IN FLIGHT TESTS.
+float wind_offset;
+const float DS_cycle_radius = 15; // radius in meters
+
 enum horiz_setpoint_types
 {
     setpoint_horiz_accel = 0,
@@ -91,7 +99,7 @@ float altitude_integral = 0.0;
 float altitude_integral_prev = 0.0;
 const float altitude_integral_saturation_limit = 25.0;
 float altitude_derivative;
-float throttle_PID;
+// float throttle_PID;
 float airspeed_setpoint;
 const float flight_speed = 20.0;
 boolean motorOn = false;
@@ -107,7 +115,7 @@ float throttle_integral = 0.0;
 float throttle_integral_prev = 0.0;
 const float throttle_integral_saturation_limit = 50.0;
 float throttle_derivative;
-float throttle_PID_prev;
+// float throttle_PID_prev;
 const float throttle_LP_param = 0.01;
 float pitch_IMU_rad, roll_IMU_rad, yaw_IMU_rad;
 int ToFcounter = 0;
@@ -117,12 +125,12 @@ KalmanFilter kalmanVert(0.5, 0.01942384099, 0.001002176158);
 VL53L1X sensor;
 float accelData[3];
 float gyroData[3];
-const int COLUMNS = 15;
-const int ROWS = 6400;
+const int COLUMNS = 13;
+const int ROWS = 7900;
 float dataLogArray[ROWS][COLUMNS];
 int currentRow = 0;
 const int datalogRate = 50;
-const int dataLogRateSlow = 10;
+// const int dataLogRateSlow = 10;
 boolean dataLogged = false;
 boolean toggle = false;
 const float DS_yaw_setpoint_scalar = 1.0;
@@ -142,6 +150,57 @@ void clearDataInRAM();
 void writeDataToSD();
 void VL53L1Xsetup();
 void VL53L1Xloop();
+/*
+void setup()
+{
+    Serial.begin(500000); // USB serial
+    Wire.begin();
+    Wire.setClock(1000000); // Note this is 2.5 times the spec sheet 400 kHz max...
+
+    IMUinit();
+    delay(5);
+
+    calculate_IMU_error();
+    // AccErrorY = 0.04;
+    // AccErrorZ = 0.11;
+    // GyroErrorX = -3.20;
+    // GyroErrorY = -0.14;
+    // GyroErrorZ = -1.40;
+    // delay(1000);
+}
+
+void loop()
+{
+    prev_time = current_time;
+    current_time = micros();
+    dt = (current_time - prev_time) / 1000000.0;
+    loopRate(2000);
+    getIMUdata();
+
+    Madgwick6DOF(GyroX, GyroY, GyroZ, -AccX, AccY, AccZ, dt);
+
+    //  Madgwick6DOF(-GyroX, GyroY, GyroZ, AccX, -AccY, -AccZ, dt);
+
+    Serial.print(roll_IMU);
+    Serial.print(" ");
+    Serial.print(pitch_IMU);
+    Serial.print(" ");
+    Serial.print(yaw_IMU);
+    Serial.print("    ");
+    Serial.print(AccX);
+    Serial.print(" ");
+    Serial.print(AccY);
+    Serial.print(" ");
+    Serial.print(AccZ);
+    Serial.print("    ");
+    Serial.print(GyroX);
+    Serial.print(" ");
+    Serial.print(GyroY);
+    Serial.print(" ");
+    Serial.print(GyroZ);
+    Serial.println();
+}*/
+
 void setup()
 {
     Kp_roll_angle = 0.3;
@@ -153,9 +212,9 @@ void setup()
     Kp_yaw = 0.5;
     Ki_yaw = 0.3;
     Kd_yaw = 0.0015;
-    Kp_throttle = 5.0;
-    Ki_throttle = 1.0;
-    Kd_throttle = 0.0;
+    // Kp_throttle = 5.0;
+    // Ki_throttle = 1.0;
+    // Kd_throttle = 0.0;
     Serial.begin(500000);
     Serial.println("serial works");
     Wire.begin();
@@ -259,9 +318,9 @@ void loop()
         integral_pitch = 0;
         integral_roll = 0;
         integral_yaw = 0;
-        throttle_integral = 0;
+        // throttle_integral = 0;
         altitude_integral = 0;
-        if (loopCounter > (2000 / dataLogRateSlow))
+        if (loopCounter > (2000 / datalogRate))
         {
             logDataToRAM();
             loopCounter = 0;
@@ -275,14 +334,15 @@ void loop()
     {
         controlANGLE();
         motorOn = true;
-        airspeed_setpoint = flight_speed;
-        throttleController();
-        s1_command_scaled = throttle_PID;
+        // airspeed_setpoint = flight_speed;
+        // throttleController();
+        s1_command_scaled = flight_throttle;
         s2_command_scaled = roll_PID;
         s3_command_scaled = pitch_PID;
         s4_command_scaled = yaw_PID;
         DSifFirstRun = true;
-        if (loopCounter > (2000 / dataLogRateSlow))
+
+        if (loopCounter > (2000 / datalogRate))
         {
             logDataToRAM();
             loopCounter = 0;
@@ -294,11 +354,14 @@ void loop()
     }
     else if (flight_phase == dynamic_soaring_flight)
     {
-        DS_heading_rate_mean_setpoint = yaw_passthru * heading_rate_scalar;
+        //        DS_heading_rate_mean_setpoint = yaw_passthru * heading_rate_scalar;
+        pilot_adjusted_leeway = throttle_channel * pilot_adjusted_leeway_scalar;
+
         dynamicSoar();
         controlANGLE();
-        throttleController();
-        s1_command_scaled = throttle_PID;
+        //  throttleController();
+
+        s1_command_scaled = flight_throttle;
         s2_command_scaled = roll_PID;
         s3_command_scaled = pitch_PID;
         s4_command_scaled = yaw_PID;
@@ -340,59 +403,43 @@ void loop()
     loopBlink();
     loopRate(2000);
 }
+
 void dynamicSoar()
 {
-    // Set setpoints
-    if (DS_phase_timer >= DS_period)
-    {
-        DS_phase_start_time = millis();
-    }
-    else
-    {
-        DS_phase_timer = millis() - DS_phase_start_time;
-    }
-    flight_phase = ((2 * PI) / DS_period) * DS_phase_timer;
-    DS_altitude_setpoint = DS_altitude_meanline + DS_altitude_amplitude * sin(flight_phase);
-    DS_heading_rate_setpoint = cos(flight_phase) * DS_yaw_amplitude + DS_heading_rate_mean_setpoint;
-    /*
-        // Set desired orientation
-        // First idea: set yaw gyro desired to desired heading change rate, and roll mulitpled of a scaler of that? No extra PID loops here because yaw is already linked to a PID loop
-        // For pitch, just set pitch desired to the error for altitude multiplied by a scalar? it has integral built into it so if the error still is there it will slowly increase PID.
-        // and constrain to max and min of 30 for pitch and roll, yaw
-        DS_altitude_error = DS_altitude_setpoint-estimated_altitude;
 
-        yaw_des = DS_heading_rate_setpoint * DS_yaw_setpoint_scalar;
-        roll_des = DS_heading_rate_setpoint * DS_roll_setpoint_scalar;
-        pitch_des = DS_altitude_error * DS_pitch_setpoint_scalar;
-        //pitch requires the use of error because it is trying to correct for an absolute position, while roll and yaw don't because they are both angle related setpoints, which the PID loops are already desgined to accept.
-    */
-        DS_altitude_error = DS_altitude_setpoint-estimated_altitude;
+    if (DSifFirstRun)
+    {
+        flight_phase = 0; /// is the angle relative to the wind in radians
+        wind_offset = yaw_IMU_rad;
+    }
+    // offest the yaw IMU to align with the starting direction
+    flight_phase = yaw_IMU_rad - wind_offset;
 
-    // Set desired location. Sets roll to a scaled value of the turn rate, and solves for elevator and rudder movements to adjust global pitch and yaw motion as desired. 
-    //Note the heading rate of change setpoint is used for the yaw des while the altitude error is used for pitch des because its how much the UAV wants to go up and down and left and right, and the altitude error is really the pitch setpoint. 
-    roll_des = DS_heading_rate_setpoint * DS_roll_setpoint_scalar;
-    yaw_des = cos(roll_IMU_rad) * DS_heading_rate_setpoint - (sin(roll_IMU_rad) * DS_altitude_error);
-    pitch_des = cos(roll_IMU_rad) * DS_altitude_error - (sin(roll_IMU_rad) * DS_heading_rate_setpoint);
+#if DS_LOW_ALTITUDE_CIRCLE
+DS_heading_rate_setpoint = safe_circling_altitude; // a safe altitude
+#else
+    //heading rate based on airspeed, flight, the radius of the circle, and the cos(flightphase)*pilot_adjusted is to adjust the arispeed to estimate groundspeed through pilot input.
+    DS_heading_rate_setpoint = (airspeed_adjusted - (cos(flight_phase) * pilot_adjusted_leeway)) / DS_cycle_radius;
+    #endif
+
+    //altitude based on the phase. counterclockwise flight, flight phase 0 when into the wind, so at pi/2 radians to counterclockwise should be max height
+    DS_altitude_setpoint = DS_altitude_amplitude * sin(flight_phase + (PI / 2)) + DS_altitude_meanline;
+
+    //convert altitude and heading, global frame,  into pitch and yaw, local frame
+    pitch_des = DS_altitude_setpoint * cos(roll_IMU_rad) - DS_heading_rate_setpoint * sin(roll_IMU_rad);
+    yaw_des = DS_heading_rate_setpoint * cos(roll_IMU_rad) - DS_altitude_setpoint * sin(roll_IMU_rad);
+
+    // convert to degrees
+    roll_des *= RAD_TO_DEG;
+    pitch_des *= RAD_TO_DEG;
+    yaw_des *= RAD_TO_DEG;
+
+    // scale to reasonable commands that couldve been given by pilot, to be sent to PID
+    roll_des *= DS_roll_setpoint_scalar;
+    pitch_des *= DS_pitch_setpoint_scalar;
+    yaw_des *= DS_yaw_setpoint_scalar;
 }
-void throttleController()
-{
-    if (motorOn)
-    {
-        throttle_integral_prev = throttle_integral;
-        airspeed_error_prev = airspeed_error;
-        airspeed_error = airspeed_setpoint - airspeed_adjusted;
-        throttle_integral = throttle_integral_prev + airspeed_error * dt;
-        throttle_integral = constrain(throttle_integral, 0, throttle_integral_saturation_limit);
-        throttle_derivative = (airspeed_error - airspeed_error_prev) / dt;
-        throttle_PID = 0.01 * (Kp_throttle * airspeed_error + Ki_throttle * throttle_integral - Kd_throttle * throttle_derivative);
-        throttle_PID = (1.0 - throttle_LP_param) * throttle_PID_prev + throttle_LP_param * throttle_PID;
-        throttle_PID_prev = throttle_PID;
-    }
-    else
-    {
-        throttle_PID = 0.0;
-    }
-}
+
 void estimateAltitude()
 {
     gimbalServo_command_PWM = roll_IMU * gimbalServoGain + 90;
@@ -422,6 +469,7 @@ void estimateAltitude()
     }
     else
     {
+        // FIGURE OUT WHAT TO DO HERE FOR ALTITUDE
         altitudeTypeDataLog = 3;
     }
 }
@@ -488,9 +536,9 @@ void logDataToRAM()
         dataLogArray[currentRow][9] = yaw_des;
         dataLogArray[currentRow][10] = yaw_PID;
         dataLogArray[currentRow][11] = airspeed_adjusted;
-        dataLogArray[currentRow][12] = airspeed_setpoint;
-        dataLogArray[currentRow][13] = throttle_PID;
-        dataLogArray[currentRow][14] = estimated_altitude;
+        //        dataLogArray[currentRow][12] = airspeed_setpoint;
+        //        dataLogArray[currentRow][13] = throttle_PID;
+        dataLogArray[currentRow][12] = estimated_altitude;
         currentRow++;
     }
 }
