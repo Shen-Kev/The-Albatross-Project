@@ -1,7 +1,6 @@
 // TO DO
-// implement test programs for DS
-// implement altitude estimation with IMU, maybe baro?
-// implement a test to turn the UAV mid air (maybe have manual pilot control of pitch)
+// implement altitude estimation with IMU, maybe baro, maybe with the pitch of the plane???
+// do unit testing of the code functions and calulations
 // reorgnaize and recomment code (much later)
 
 #include <Arduino.h>
@@ -14,75 +13,93 @@
 #include "AltitudeEstimation/altitude.h"
 #define MOTOR_ACTIVE 0
 #define DS_LOW_ALTITUDE_CIRCLE 0
+// float IMU_vertical_accel, IMU_vertical_vel, IMU_vertical_pos;
+// float IMU_vertical_accel_LPparam = 0.02;
+// float IMU_vertical_accel_prev;
 
+const int IRQpin = 35;
+const int XSHUTpin = 34;
+
+// Constants for Gimbal Servo
 const float gimbalServoGain = -1.5;
 const float gimbalServoTrim = 0;
 const float gimbalServoBound = 45;
 const float halfWingspan = 0.75;
 const float gimbalDistanceFromCenter = 0.14;
+
+// Variables for Gimbal Servo
 float gimbalRightBoundAngle;
 float gimbalLeftBoundAngle;
+
+// Constants and Variables for Airspeed
+const float airspeed_LP_param = 0.02;
+const float airspeed_scalar = 1.8;
+float airspeed_offset = 0;
 float airspeed_unadjusted;
 float airspeed_prev;
-const float airspeed_LP_param = 0.02;
-float airspeed_offset = 0;
-const float airspeed_scalar = 1.8;
 float airspeed_adjusted;
 float airspeed_adjusted_prev;
+
+// Constants and Variables for Altitude
+const float DS_altitude_min = 1;
+const float DS_altitude_max = 5;
+const float Kp_altitude = 0.2;
+const float Ki_altitude = 0.3;
+const float Kd_altitude = 0.0015;
+const float altitude_integral_saturation_limit = 25.0;
+const int datalogRate = 50;
+float altitude_integral = 0.0;
+float altitude_integral_prev = 0.0;
+float altitude_derivative;
+float estimated_altitude;
 float ToFaltitude;
-// float prevToFaltitude;
 int16_t distance;
 float distance_LP_param = 0.5;
 float distancePrev;
 float distance_LP;
+int altitudeTypeDataLog;
 float leftWingtipAltitude;
 float rightWingtipAltitude;
-const int IRQpin = 35;
-const int XSHUTpin = 34;
-// float IMU_vertical_accel, IMU_vertical_vel, IMU_vertical_pos;
-// float IMU_vertical_accel_LPparam = 0.02;
-// float IMU_vertical_accel_prev;
-float estimated_altitude;
-int altitudeTypeDataLog;
-float timeInMillis;
-int loopCounter = 0;
-// int loopCounterStep = 0;
-// const float wind_heading = 0.0;
-// const float DS_heading = 90.0;
-//  const float heading_setup_tolerance = 5;
-//  const float heading_rate_of_change_setup_tolerance = 10;
-//  const float pitch_rate_of_change_setup_tolerance = 10;
-//  const float horizontal_vel_tolerance = 0.5;
 float DS_altitude_setpoint;
 float DS_altitude_error;
-// float DS_altitude_error_prev;
-const float DS_altitude_min = 1;
-// const float DS_altitude_tolerance = 0.1;
-const float DS_altitude_max = 5;
-float safe_circling_altitude = 3;;
-
 float DS_altitude_meanline;
 float DS_altitude_amplitude;
-// const float DS_period = 5000;
-// const float DS_yaw_amplitude = 30;
-// double DS_phase_timer = 0;
-// double DS_phase_start_time;
+float safe_circling_altitude = 3;
+
+// Constants and Variables for Dynamic Soaring
+const float DS_cycle_radius = 15;
+const float DS_yaw_setpoint_scalar = 1.0;
+const float DS_roll_setpoint_scalar = 0.2;
+const float DS_pitch_setpoint_scalar = 0.2;
+float flight_throttle = 0.6;
+float wind_offset;
 float DS_heading_rate_setpoint;
 float DS_heading_rate_mean_setpoint;
-// float heading_rate_scalar = 100;
 float pilot_adjusted_leeway;
-float pilot_adjusted_leeway_scalar = 2; // ADJUST so that when throttle set to 0, no leeway adjust, throttle full be like 10m/s or smth
+float pilot_adjusted_leeway_scalar = 2;
 
-float flight_throttle = 0.6; // replaces the PID loop for throttle. NEED TO EDIT IN FLIGHT TESTS.
-float wind_offset;
-const float DS_cycle_radius = 15; // radius in meters
+// Variables for Flight Control
+float timeInMillis;
+int loopCounter = 0;
+float pitch_IMU_rad, roll_IMU_rad, yaw_IMU_rad;
+float accelData[3];
+float gyroData[3];
+float airspeed_setpoint;
+const float flight_speed = 20.0;
+float airspeed_error;
+float airspeed_error_prev;
+boolean motorOn = false;
+const float stall_speed = 10.0;
 
-enum horiz_setpoint_types
-{
-    setpoint_horiz_accel = 0,
-    setpoint_horiz_vel = 1,
-    setpoint_horiz_pos = 2,
-};
+// Variables for Data Logging
+const int COLUMNS = 13;
+const int ROWS = 7900;
+float dataLogArray[ROWS][COLUMNS];
+boolean dataLogged = false;
+boolean toggle = false;
+int currentRow = 0;
+
+//Flight Phases
 boolean DSifFirstRun = true;
 float flight_phase;
 enum flight_phases
@@ -92,50 +109,14 @@ enum flight_phases
     dynamic_soaring_flight = 9,
     log_data_to_SD = 10
 };
-const float Kp_altitude = 0.2;
-const float Ki_altitude = 0.3;
-const float Kd_altitude = 0.0015;
-float altitude_integral = 0.0;
-float altitude_integral_prev = 0.0;
-const float altitude_integral_saturation_limit = 25.0;
-float altitude_derivative;
-// float throttle_PID;
-float airspeed_setpoint;
-const float flight_speed = 20.0;
-boolean motorOn = false;
-const float stall_speed = 10.0;
-float airspeed_error;
-float airspeed_error_prev;
-const float airspeed_error_tolerance = 1.0;
-float inputted_airspeed;
-float Kp_throttle;
-float Ki_throttle;
-float Kd_throttle;
-float throttle_integral = 0.0;
-float throttle_integral_prev = 0.0;
-const float throttle_integral_saturation_limit = 50.0;
-float throttle_derivative;
-// float throttle_PID_prev;
-const float throttle_LP_param = 0.01;
-float pitch_IMU_rad, roll_IMU_rad, yaw_IMU_rad;
-int ToFcounter = 0;
-int ToFcounterNum = 200;
+
+
+
+//Objects
 File dataFile;
 KalmanFilter kalmanVert(0.5, 0.01942384099, 0.001002176158);
 VL53L1X sensor;
-float accelData[3];
-float gyroData[3];
-const int COLUMNS = 13;
-const int ROWS = 7900;
-float dataLogArray[ROWS][COLUMNS];
-int currentRow = 0;
-const int datalogRate = 50;
-// const int dataLogRateSlow = 10;
-boolean dataLogged = false;
-boolean toggle = false;
-const float DS_yaw_setpoint_scalar = 1.0;
-const float DS_roll_setpoint_scalar = 0.2;
-const float DS_pitch_setpoint_scalar = 0.2;
+
 
 void dynamicSoar();
 void coordinatedController();
@@ -150,56 +131,6 @@ void clearDataInRAM();
 void writeDataToSD();
 void VL53L1Xsetup();
 void VL53L1Xloop();
-/*
-void setup()
-{
-    Serial.begin(500000); // USB serial
-    Wire.begin();
-    Wire.setClock(1000000); // Note this is 2.5 times the spec sheet 400 kHz max...
-
-    IMUinit();
-    delay(5);
-
-    calculate_IMU_error();
-    // AccErrorY = 0.04;
-    // AccErrorZ = 0.11;
-    // GyroErrorX = -3.20;
-    // GyroErrorY = -0.14;
-    // GyroErrorZ = -1.40;
-    // delay(1000);
-}
-
-void loop()
-{
-    prev_time = current_time;
-    current_time = micros();
-    dt = (current_time - prev_time) / 1000000.0;
-    loopRate(2000);
-    getIMUdata();
-
-    Madgwick6DOF(GyroX, GyroY, GyroZ, -AccX, AccY, AccZ, dt);
-
-    //  Madgwick6DOF(-GyroX, GyroY, GyroZ, AccX, -AccY, -AccZ, dt);
-
-    Serial.print(roll_IMU);
-    Serial.print(" ");
-    Serial.print(pitch_IMU);
-    Serial.print(" ");
-    Serial.print(yaw_IMU);
-    Serial.print("    ");
-    Serial.print(AccX);
-    Serial.print(" ");
-    Serial.print(AccY);
-    Serial.print(" ");
-    Serial.print(AccZ);
-    Serial.print("    ");
-    Serial.print(GyroX);
-    Serial.print(" ");
-    Serial.print(GyroY);
-    Serial.print(" ");
-    Serial.print(GyroZ);
-    Serial.println();
-}*/
 
 void setup()
 {
@@ -212,9 +143,7 @@ void setup()
     Kp_yaw = 0.5;
     Ki_yaw = 0.3;
     Kd_yaw = 0.0015;
-    // Kp_throttle = 5.0;
-    // Ki_throttle = 1.0;
-    // Kd_throttle = 0.0;
+
     Serial.begin(500000);
     Serial.println("serial works");
     Wire.begin();
@@ -536,8 +465,6 @@ void logDataToRAM()
         dataLogArray[currentRow][9] = yaw_des;
         dataLogArray[currentRow][10] = yaw_PID;
         dataLogArray[currentRow][11] = airspeed_adjusted;
-        //        dataLogArray[currentRow][12] = airspeed_setpoint;
-        //        dataLogArray[currentRow][13] = throttle_PID;
         dataLogArray[currentRow][12] = estimated_altitude;
         currentRow++;
     }
