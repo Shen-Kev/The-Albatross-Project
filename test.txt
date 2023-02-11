@@ -1,0 +1,2 @@
+this was written on the Microsoft Surface Pro laptop. 
+I will attempt to push and sync it to the github remote repo from this local repo
