@@ -3,6 +3,7 @@
 
 void BMP085NB::pollData(int *temperature, long *pressure, float *alti)
 {
+  *temperature = 0; // TEMPERATURE ALWAYS AT 0, going to get calibrated anyways
 
   switch (pressureState)
   {
@@ -17,7 +18,7 @@ void BMP085NB::pollData(int *temperature, long *pressure, float *alti)
     {
       pressureState = 2;
       ut = ReadUT();
-      *temperature = Temperature(ut);
+      *temperature = 0; // TEMPERATURE ALWAYS AT 0, going to get calibrated anyways
     }
     break;
   case 2:
@@ -128,6 +129,7 @@ void BMP085NB::initialize()
   pressureState = 0;
   newData = false;
   slp = SEA_LEVEL_PRESSURE;
+
   ac1 = readIntRegister(0xAA);
   ac2 = readIntRegister(0xAC);
   ac3 = readIntRegister(0xAE);

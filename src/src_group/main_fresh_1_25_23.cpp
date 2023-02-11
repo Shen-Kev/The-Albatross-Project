@@ -3,7 +3,6 @@
 // do unit testing of the code functions and calulations
 // reorgnaize and recomment code (much later)
 
-
 #include <Arduino.h>
 #include "src_group/dRehmFlight.h"
 #include "BMP180nonblocking/BMP085NB.h"
@@ -14,8 +13,6 @@
 #include "AltitudeEstimation/altitude.h"
 #define MOTOR_ACTIVE 0
 #define DS_LOW_ALTITUDE_CIRCLE 0
-
-
 
 // const int IRQpin = 35;
 // const int XSHUTpin = 34;
@@ -66,6 +63,20 @@ float DS_altitude_meanline;
 float DS_altitude_amplitude;
 float safe_circling_altitude = 3;
 
+// Barometer Variables
+int temperature = 0;
+long pressure = 0;
+float alti = 0;
+unsigned long timer = 0;
+const int altitude_offset_num_vals = 10;
+float altitudeMeasured; // The raw altitude reading from the barometric pressure sensor (in m)
+float altitude_offset;
+float altitude_baro;           // The altitude estimated from the barometer, with a low pass filter and offset adjustment applied/ float altitude_prev;                     // The previous reading of the barometric pressure sensor
+float altitude_LP_param = 0.1; // The low pass filter parameter for altitude (smaller values means a more smooth signal but higher delay time)
+float altitude_prev;
+int offset_loop_counter = 0;
+float altitude_offset_sum = 0;
+
 // Constants and Variables for Dynamic Soaring
 const float DS_cycle_radius = 15;
 const float DS_yaw_setpoint_scalar = 1.0;
@@ -104,7 +115,7 @@ boolean dataLogged = false;
 boolean toggle = false;
 int currentRow = 0;
 
-//Flight Phases
+// Flight Phases
 boolean DSifFirstRun = true;
 float flight_phase;
 enum flight_phases
@@ -115,10 +126,11 @@ enum flight_phases
     log_data_to_SD = 10
 };
 
-//Objects
+// Objects
 File dataFile;
 KalmanFilter kalmanVert(0.5, 0.01942384099, 0.001002176158);
 VL53L1X sensor;
+BMP085NB bmp;
 
 void dynamicSoar();
 void coordinatedController();
@@ -133,6 +145,8 @@ void clearDataInRAM();
 void writeDataToSD();
 void VL53L1Xsetup();
 void VL53L1Xloop();
+void BMP180setup();
+void BMP180loop();
 
 void setup()
 {
@@ -162,6 +176,9 @@ void setup()
     Serial.println("passed radio setup");
     IMUinit();
     Serial.println("passed IMU init");
+    BMP180setup();
+    Serial.println("passed baro init");
+
     AccErrorY = 0.04;
     AccErrorZ = 0.11;
     GyroErrorX = -3.20;
@@ -205,6 +222,7 @@ void loop()
     timeInMillis = millis();
     getIMUdata();
     Madgwick6DOF(GyroX, GyroY, GyroZ, -AccX, AccY, AccZ, dt);
+
     accelData[0] = AccX;
     accelData[1] = AccY;
     accelData[2] = AccZ;
@@ -219,6 +237,8 @@ void loop()
     {
         pitotLoop();
     }
+    BMP180loop(); // BMP only takes around 3microseconds per loop.
+
     toggle = !toggle;
     getCommands();
     failSafe();
@@ -336,7 +356,7 @@ void loop()
 void dynamicSoar()
 {
 
-//turning counterclockwise, because thats how unit circle works and also puts the left wing with the sensor always closer to the ground
+    // turning counterclockwise, because thats how unit circle works and also puts the left wing with the sensor always closer to the ground
     if (DSifFirstRun)
     {
         flight_phase = 0; /// is the angle relative to the wind in radians
@@ -346,16 +366,16 @@ void dynamicSoar()
     flight_phase = yaw_IMU_rad - wind_offset;
 
 #if DS_LOW_ALTITUDE_CIRCLE
-DS_heading_rate_setpoint = safe_circling_altitude; // a safe altitude
+    DS_heading_rate_setpoint = safe_circling_altitude; // a safe altitude
 #else
-    //heading rate based on airspeed, flight, the radius of the circle, and the cos(flightphase)*pilot_adjusted is to adjust the arispeed to estimate groundspeed through pilot input.
+    // heading rate based on airspeed, flight, the radius of the circle, and the cos(flightphase)*pilot_adjusted is to adjust the arispeed to estimate groundspeed through pilot input.
     DS_heading_rate_setpoint = (airspeed_adjusted - (cos(flight_phase) * pilot_adjusted_leeway)) / DS_cycle_radius;
-    #endif
+#endif
 
-    //altitude based on the phase. counterclockwise flight, flight phase 0 when into the wind, so at pi/2 radians to counterclockwise should be max height
+    // altitude based on the phase. counterclockwise flight, flight phase 0 when into the wind, so at pi/2 radians to counterclockwise should be max height
     DS_altitude_setpoint = DS_altitude_amplitude * sin(flight_phase + (PI / 2)) + DS_altitude_meanline;
 
-    //convert altitude and heading, global frame,  into pitch and yaw, local frame
+    // convert altitude and heading, global frame,  into pitch and yaw, local frame
     pitch_des = DS_altitude_setpoint * cos(roll_IMU_rad) - DS_heading_rate_setpoint * sin(roll_IMU_rad);
     yaw_des = DS_heading_rate_setpoint * cos(roll_IMU_rad) - DS_altitude_setpoint * sin(roll_IMU_rad);
 
@@ -396,16 +416,34 @@ void estimateAltitude()
                 altitudeTypeDataLog = 2;
             }
         }
+
+        // recalibrate barometer, every 10 times reset it
+        if (offset_loop_counter < altitude_offset_num_vals)
+        {
+            offset_loop_counter++;
+            altitude_offset_sum += altitudeMeasured - ToFaltitude;
+        }
+        else
+        {
+            offset_loop_counter = 0;
+            altitude_offset = (altitude_offset / altitude_offset_num_vals);
+            altitude_offset_sum = 0;
+        }
     }
     else
     {
-        // FIGURE OUT WHAT TO DO HERE FOR ALTITUDE
-        //OPTIONS
-        //reintroduce baro and IMU?? bad bc another sensor to worry about
-        //just IMU?? bad bc IMU based on ToF is not accurate because the ground is not perfectly flat
-        //but just IMU is prob my best bet. ig ill have it min out at 4m so it doesnt drift low 
-        //or i could always just assume its at the previous altitude, so if it loses altitude at around 4m, it would keep thinking 4m, and if max height is set to 4m, so if the uav goes above 4m it will think its at 4m, and once the setupoints drops backs below 4m the uav will dive again? just kinda sidestep the whole thig... ig yeah ill do that
-        altitudeTypeDataLog = 3;
+        // just barometer, but prevent it from drifting too LOW, if too high thats ok the uav will descend until in range of ToF, but if too low itll just keep flying upp
+
+        if (altitude_baro < 4.0)
+        {
+            estimated_altitude = 4.0;
+            altitudeTypeDataLog = 3;
+        }
+        else
+        {
+            estimated_altitude = altitude_baro;
+            altitudeTypeDataLog = 4;
+        }
     }
 }
 void pitotSetup()
@@ -499,4 +537,35 @@ void writeDataToSD()
         dataFile.println();
     }
     dataFile.close();
+}
+
+void BMP180setup()
+{
+    bmp.initialize();
+    // Get average offset, which should be close to 0. This is done because the offset will need to change, while the baseline pressure can't.
+    for (int i = 0; i < altitude_offset_num_vals; i++)
+    {
+        while (!bmp.newData)
+        {
+            bmp.pollData(&temperature, &pressure, &altitudeMeasured);
+        }
+        bmp.pollData(&temperature, &pressure, &altitudeMeasured);
+        altitude_offset += altitudeMeasured;
+        Serial.println(i);
+    }
+    altitude_offset = altitude_offset / ((float)altitude_offset_num_vals);
+    //    Serial.println(altitude_offset);
+    delay(1000);
+}
+
+// This function offsets and low pass filters the barometric altitude reading
+void BMP180loop()
+{
+    bmp.pollData(&temperature, &pressure, &altitudeMeasured);
+    if (bmp.newData)
+    {
+        altitudeMeasured = altitudeMeasured - altitude_offset;
+        altitude_baro = (1.0 - altitude_LP_param) * altitude_prev + altitude_LP_param * altitudeMeasured;
+        altitude_prev = altitude_baro;
+    }
 }
