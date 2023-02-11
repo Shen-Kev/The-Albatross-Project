@@ -2,3 +2,7 @@ this was written on the Microsoft Surface Pro laptop.
 I will attempt to push and sync it to the github remote repo from this local repo
 
 I am typing this from the desktop PC. I synced the file using VS code from the github remote repo. I am now pushing this back to the repo. Success!
+
+Back at the lapotop now. I can also sync using Github desktop, which is great. 
+
+The laptop has also updated the Platformio project. I also have the teensyduino installed, and now am able to program the Teensy directly with the laptop.
