@@ -108,8 +108,8 @@ float gyroData[3];
 // boolean motorOn = false;
 
 // Variables for Data Logging
-const int COLUMNS = 13;
-const int ROWS = 7900;
+const int COLUMNS = 14;
+const int ROWS = 7200;
 float dataLogArray[ROWS][COLUMNS];
 boolean dataLogged = false;
 boolean toggle = false;
@@ -510,6 +510,8 @@ void logDataToRAM()
         dataLogArray[currentRow][10] = yaw_PID;
         dataLogArray[currentRow][11] = airspeed_adjusted;
         dataLogArray[currentRow][12] = estimated_altitude;
+        dataLogArray[currentRow][13] = altitudeTypeDataLog;
+
         currentRow++;
     }
 }
