@@ -11,7 +11,7 @@
 #include "ASPD4525.h"
 #include <SD.h>
 #include "AltitudeEstimation/altitude.h"
-#define MOTOR_ACTIVE 0
+#define MOTOR_ACTIVE 1
 #define DS_LOW_ALTITUDE_CIRCLE 0
 
 // const int IRQpin = 35;
