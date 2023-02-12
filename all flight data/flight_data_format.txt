@@ -1,0 +1,11 @@
+This folder is for all the raw and edited files
+
+Each flight file should be:
+
+flightData_day_mo_year_flight#_status(describe it)
+
+example: 
+
+flightData_2_11_23_1_raw
+
+flightData_2_11_23_1_trimmed_based_on_altitude_or_smth
