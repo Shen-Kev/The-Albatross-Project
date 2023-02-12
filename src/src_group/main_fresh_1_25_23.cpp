@@ -4,7 +4,13 @@
 // reorgnaize and recomment code (much later)
 
 #include <Arduino.h>
-#include "src_group/dRehmFlight.h"
+#include "src_group/dRehmFlight.h" //  Modified and used dRehmFlight: https://github.com/nickrehm/dRehmFlight
+                                   //  Credit to: Nicholas Rehm
+                                   //  Department of Aerospace Engineering
+                                   //  University of Maryland
+                                   //  College Park 20742
+                                   //  Email: nrehm@umd.edu
+
 #include "BMP180nonblocking/BMP085NB.h"
 #include <Wire.h>
 #include "pololuVL53L1x/VL53L1X.h"
