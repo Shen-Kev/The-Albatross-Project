@@ -20,6 +20,7 @@ yaw_PID = 10
 #s1_command_scaled = 12
 #estimated_altitude = 13
 #altitudeTypeDataLog = 14
+#AccX = 15
 
 #OLD ONE HERE. REDEFINED
 airspeed_adjusted = 11
@@ -83,22 +84,34 @@ with open(raw_file, "r") as input_csv, open(trimmed_file, "w", newline="") as ou
 # Read the csv file
 df = pd.read_csv(trimmed_file)
     
-# Extract the time column and the next two columns to plot on the first chart
+# Extract the time column
 time = df.iloc[:,0]
-data1 = df.iloc[:,1]
-data2 = df.iloc[:,2]
 
-# Extract the next three columns to plot on the second chart
-data3 = df.iloc[:,3]
-data4 = df.iloc[:,4]
-data5 = df.iloc[:,5]
+#extract the colunms
+flight_phase_column = df.iloc[:,flight_phase]
+roll_IMU_column = df.iloc[:,roll_IMU]
+roll_des_column = df.iloc[:,roll_des]
+roll_PID_column = df.iloc[:,roll_PID]
+pitch_IMU_column = df.iloc[:,pitch_IMU]
+pitch_des_column = df.iloc[:,pitch_des]
+pitch_PID_column = df.iloc[:,pitch_PID]
+GyroZ_column = df.iloc[:,GyroZ]
+yaw_des_column = df.iloc[:,yaw_des]
+yaw_PID_column = df.iloc[:,yaw_PID]
+airspeed_adjusted_column = df.iloc[:,airspeed_adjusted]
+#s1_command_scaled_column = df.iloc[:,s1_command_scaled] REINTRODUCE WITH NEW DATA
+estimated_altitude_column = df.iloc[:,estimated_altitude]
+altitudeTypeDataLog_column = df.iloc[:,altitudeTypeDataLog]
+#AccX_column = df.iloc[:,AccX]
 
 # Create subplots for the two charts
-fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 10), sharex=True)
+# OOH for flight phase: instead of having it on a chart, what if the background for the orientation stuff changes color when the flght phase changes, and PID stuff only shows when DS or stabilized flight
+#and for altitude, have the background of the altitude change color based on the altitudetype datalog
+fig, (roll, pitch, yaw, speed, altitude) = plt.subplots(2, 1, figsize=(10, 10), sharex=True)
 
 # Plot the first chart
-ax1.plot(time, data1, label="Data 1")
-ax1.plot(time, data2, label="Data 2")
+roll.plot(time, data1, label="Data 1")
+roll.plot(time, data2, label="Data 2")
 ax1.set_ylabel("Value")
 ax1.legend()
 

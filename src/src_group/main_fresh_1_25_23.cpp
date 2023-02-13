@@ -114,8 +114,8 @@ float gyroData[3];
 // boolean motorOn = false;
 
 // Variables for Data Logging
-const int COLUMNS = 14;
-const int ROWS = 7200;
+const int COLUMNS = 16;
+const int ROWS = 6400;
 float dataLogArray[ROWS][COLUMNS];
 boolean dataLogged = false;
 boolean toggle = false;
@@ -518,6 +518,7 @@ void logDataToRAM()
         dataLogArray[currentRow][12] = s1_command_scaled;
         dataLogArray[currentRow][13] = estimated_altitude;
         dataLogArray[currentRow][14] = altitudeTypeDataLog;
+        dataLogArray[currentRow][15] = AccX; //forwards acceleration
         currentRow++;
     }
 }
