@@ -515,9 +515,9 @@ void logDataToRAM()
         dataLogArray[currentRow][9] = yaw_des;
         dataLogArray[currentRow][10] = yaw_PID;
         dataLogArray[currentRow][11] = airspeed_adjusted;
-        dataLogArray[currentRow][12] = estimated_altitude;
-        dataLogArray[currentRow][13] = altitudeTypeDataLog;
-
+        dataLogArray[currentRow][12] = s1_command_scaled;
+        dataLogArray[currentRow][13] = estimated_altitude;
+        dataLogArray[currentRow][14] = altitudeTypeDataLog;
         currentRow++;
     }
 }

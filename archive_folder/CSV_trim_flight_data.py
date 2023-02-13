@@ -1,9 +1,12 @@
 #THIS PYTHON SCRIPT OUTPUTS THE DATA WHEN THE UAV IS IN FLIGHT, OR WHATVER DATA IS RELEVANT.
+
+#NOT NEEDED ANYMORE. INTEGRATED INTO MAIN CODE.
+
 import csv
 
 # setting all the vals
 timeInMillis = 0
-flight_phase = 0
+flight_phase = 1
 roll_IMU = 2
 roll_des = 3
 roll_PID = 4
@@ -14,8 +17,9 @@ GyroZ = 8
 yaw_des = 9
 yaw_PID = 10
 airspeed_adjusted = 11
-estimated_altitude = 12
-altitudeTypeDataLog = 13
+s1_command_scaled = 12
+estimated_altitude = 13
+altitudeTypeDataLog = 14
 
 
 input_file = "C:/Users/kshen/OneDrive/Documents/PlatformIO/Projects/The Albatross Project PlatformIO/flight data editor/flight_data_filter_input.csv"
