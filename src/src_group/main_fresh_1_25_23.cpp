@@ -120,6 +120,8 @@ float dataLogArray[ROWS][COLUMNS];
 boolean dataLogged = false;
 boolean toggle = false;
 int currentRow = 0;
+boolean probablylanded = false;
+int stillness_counter = 0;
 
 // Flight Phases
 boolean DSifFirstRun = true;
@@ -128,7 +130,7 @@ enum flight_phases
 {
     manual_flight = 7,
     stabilized_flight = 8,
-    dynamic_soaring_flight = 9,
+    //    dynamic_soaring_flight = 9,
     log_data_to_SD = 10
 };
 
@@ -154,6 +156,7 @@ void VL53L1Xloop();
 void BMP180setup();
 void BMP180loop();
 
+///@brief yo this is setup @note yo this is note   MUST ADD THESE AT THE END, also use them in the readme
 void setup()
 {
     Kp_roll_angle = 0.3;
@@ -256,17 +259,6 @@ void loop()
     if (mode1_channel < 1400)
     {
         flight_phase = manual_flight;
-    }
-    else if (mode1_channel < 1600)
-    {
-        flight_phase = stabilized_flight;
-    }
-    else
-    {
-        flight_phase = dynamic_soaring_flight;
-    }
-    if (flight_phase == manual_flight)
-    {
         s1_command_scaled = thro_des;
         s2_command_scaled = roll_passthru;
         s3_command_scaled = pitch_passthru;
@@ -277,18 +269,11 @@ void loop()
         integral_yaw = 0;
         // throttle_integral = 0;
         altitude_integral = 0;
-        if (loopCounter > (2000 / datalogRate))
-        {
-            logDataToRAM();
-            loopCounter = 0;
-        }
-        else
-        {
-            loopCounter++;
-        }
     }
-    else if (flight_phase == stabilized_flight)
+    else if (mode1_channel < 1600)
     {
+        flight_phase = stabilized_flight;
+
         controlANGLE();
 
         s1_command_scaled = flight_throttle;
@@ -296,18 +281,8 @@ void loop()
         s3_command_scaled = pitch_PID;
         s4_command_scaled = yaw_PID;
         DSifFirstRun = true;
-
-        if (loopCounter > (2000 / datalogRate))
-        {
-            logDataToRAM();
-            loopCounter = 0;
-        }
-        else
-        {
-            loopCounter++;
-        }
     }
-    else if (flight_phase == dynamic_soaring_flight)
+    else // DS flight. in the fligtht mode it will show up as 0-2pi
     {
         //        DS_heading_rate_mean_setpoint = yaw_passthru * heading_rate_scalar;
         pilot_adjusted_leeway = throttle_channel * pilot_adjusted_leeway_scalar;
@@ -321,17 +296,17 @@ void loop()
         s3_command_scaled = pitch_PID;
         s4_command_scaled = yaw_PID;
         DSifFirstRun = false;
-        if (loopCounter > (2000 / datalogRate))
-        {
-            logDataToRAM();
-            loopCounter = 0;
-        }
-        else
-        {
-            loopCounter++;
-        }
     }
-    if (mode2_channel < 1500 || currentRow >= ROWS)
+    if (loopCounter > (2000 / datalogRate))
+    {
+        logDataToRAM();
+        loopCounter = 0;
+    }
+    else
+    {
+        loopCounter++;
+    }
+    if (mode2_channel < 1500 || currentRow >= ROWS || probablylanded) //if less than 5deg/s assume landed
     {
         if (!dataLogged)
         {
@@ -344,6 +319,20 @@ void loop()
     {
         dataLogged = false;
     }
+    if(abs(GyroZ) < 5) {
+        stillness_counter++;
+    }
+    else {
+        stillness_counter = 0;
+    }
+    //more than 3 seconds still, probabaly landed
+    if (stillness_counter > 6000) {
+        probablylanded = true;   
+    }
+    else {
+        probablylanded = false;
+    }
+    
     scaleCommands();
 #if MOTOR_ACTIVE
     ESC_command_PWM = ESC_command_PWM * 0.861 + 14;
@@ -518,7 +507,7 @@ void logDataToRAM()
         dataLogArray[currentRow][12] = s1_command_scaled;
         dataLogArray[currentRow][13] = estimated_altitude;
         dataLogArray[currentRow][14] = altitudeTypeDataLog;
-        dataLogArray[currentRow][15] = AccX; //forwards acceleration
+        dataLogArray[currentRow][15] = AccX; // forwards acceleration
         currentRow++;
     }
 }
