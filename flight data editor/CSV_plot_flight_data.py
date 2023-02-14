@@ -103,81 +103,34 @@ AccX_column = df.iloc[:,AccX]
 
 # roll pitch yaw has the IMU measurement, the desired, the des, the PID. background of fight mode. forwards has accX and airspeed and throttle. background also flight mode. altitude has altitude, background of alititude type datalog
 
-fig, (roll, pitch, yaw, forwards, altitude) = plt.subplots(5, 1, figsize=(10, 10), sharex=True)  # sharex = true sets the time all the s
+fig, ((roll, altitude), (pitch, forwards), (yaw, state)) = plt.subplots(3, 2, figsize=(10, 10), sharex=True)
+
+# Set individual subplot titles
+roll.set_title('Roll')
+pitch.set_title('Pitch')
+yaw.set_title('Yaw')
+forwards.set_title('Throttle and Airspeed')
+altitude.set_title('Altitude and Forwards Acceleration')
+state.set_title('State')
+
+# Set a title for the entire figure
+fig.suptitle('All Flight Data from Flight #1 on 2/11/23', y = 0.95)
 
 # plot the charts
 roll.plot(time, roll_IMU_column, label="roll IMU")
 roll.plot(time, roll_des_column, label="roll setpoint")
 roll.plot(time, roll_PID_column, label="roll PID output")
+
+roll.axhspan(0,1, 20, 25, facecolor='b', alpha=0.2)
+
 roll.set_ylabel("deg")
 roll.legend()
-roll.set_title("All Flight Data From Fight #1, 2/11/23")
 
 pitch.plot(time, pitch_IMU_column, label="pitch IMU")
 pitch.plot(time, pitch_des_column, label="pitch setpoint")
 pitch.plot(time, pitch_PID_column, label="pitch PID output")
 pitch.set_ylabel("deg")
 
-pitch.legend()
-
-yaw.plot(time, GyroZ_column, label="yaw IMU (GyroZ)")
-yaw.plot(time, yaw_des_column, label="yaw setpoint")
-yaw.plot(time, yaw_PID_column, label="yaw PID output")
-yaw.set_ylabel("deg")
-
-yaw.legend()
-
-#forwards stuff THE REFERENCE 
-ax1 = forwards.twinx()  # create a second y-axis with the same x-axis
-forwards.plot(time, s1_command_scaled_column, color='red') #this is from 0-1
-forwards.set_ylabel("throttle (0-1)", color='red')
-forwards.tick_params(axis='y', labelcolor='red')
-
-ax1.plot(time, airspeed_adjusted_column) #this is in m/s
-ax1.set_ylabel("airspeed (m/s)", color='blue')
-ax1.tick_params(axis='y', labelcolor='blue')
-forwards.legend()
-
-#altitude
-
-ax3 = altitude.twinx()
-
-altitude.plot(time, estimated_altitude_column, color = 'blue')
-altitude.set_ylabel("altitude (m)", color = 'blue')
-altitude.tick_params(axis='y', labelcolor='blue')
-
-ax3.plot(time, AccX_column, color = 'green') #this is in m/s^2
-ax3.set_ylabel("forward acceleration (m/s^2)", color='green')
-ax3.tick_params(axis='y', labelcolor='green')
-
-altitude.set_xlabel("time(s)")
-altitude.legend()
-
-
-# Adjust the space between the two charts
-fig.tight_layout()
-
-# Display the plot
-plt.show()
-
-
-'''
-fig, (roll, pitch, yaw, forwards, altitude) = plt.subplots(
-    5, 1, figsize=(10, 10), sharex=True)  # sharex = true sets the time all the s
-
-# plot the charts
-roll.plot(time, roll_IMU_column, label="roll IMU")
-roll.plot(time, roll_des_column, label="roll setpoint")
-roll.plot(time, roll_PID_column, label="roll PID output")
-roll.set_ylabel("deg")
-roll.set_xlabel("s")
-roll.legend()
-
-pitch.plot(time, pitch_IMU_column, label="pitch IMU")
-pitch.plot(time, pitch_des_column, label="pitch setpoint")
-pitch.plot(time, pitch_PID_column, label="pitch PID output")
-pitch.set_ylabel("deg")
-pitch.set_xlabel("time(s)")
 pitch.legend()
 
 yaw.plot(time, GyroZ_column, label="yaw IMU (GyroZ)")
@@ -185,29 +138,51 @@ yaw.plot(time, yaw_des_column, label="yaw setpoint")
 yaw.plot(time, yaw_PID_column, label="yaw PID output")
 yaw.set_ylabel("deg")
 yaw.set_xlabel("time(s)")
+
 yaw.legend()
 
-#for forwards stuff, will need multiple y axis?
-forwards.plot(time, s1_command_scaled_column, label="throttle (0-1)") #this is from 0-1
-forwards.plot(time, airspeed_adjusted_column, label="airspeed (m/s)") #this is in m/s
-forwards.plot(time, AccX_column, label="forward acceleration (m/s^2)") #this is in m/s^2
-forwards.set_xlabel("time(s)")
+#forwards stuff THE REFERENCE 
+ax1 = forwards.twinx()  # create a second y-axis with the same x-axis
+forwards.plot(time, s1_command_scaled_column, label = 'throttle', color = 'red') #this is from 0-1
+forwards.set_ylabel("0%-100%", color='red')
+forwards.tick_params(axis='y', labelcolor='red')
+
+forwards.plot(time, airspeed_adjusted_column, label = 'airspeed', color = 'blue') #this is in m/s
+ax1.set_ylabel("m/s", color='blue')
+ax1.tick_params(axis='y', labelcolor='blue')
 forwards.legend()
 
+#altitude
 
-#altitude, will need to add background
-altitude.plot(time, estimated_altitude_column, label="altitude")
-altitude.set_ylabel("m")
-altitude.set_xlabel("time(s)")
+ax3 = altitude.twinx()
+
+altitude.plot(time, estimated_altitude_column, label = 'altitude', color = 'blue')
+altitude.set_ylabel("m", color = 'blue')
+altitude.tick_params(axis='y', labelcolor='blue')
+
+altitude.plot(time, AccX_column, label = 'forwards acceleration', color = 'green') #this is in m/s^2
+ax3.set_ylabel("m/s^2", color='green')
+ax3.tick_params(axis='y', labelcolor='green')
+
 altitude.legend()
 
+ax4 = state.twinx()
+state.plot(time, flight_phase_column, label = "flight phase", color = 'purple')
+state.set_ylabel('flight phase code', color = 'purple')
+state.tick_params(axis='y', labelcolor='purple')
+
+state.plot(time, altitudeTypeDataLog_column, label = "altitude sensor type", color = 'orange')
+ax4.set_ylabel('altitude sensor code', color = 'orange')
+ax4.tick_params(axis='y', labelcolor='orange')
+
+state.set_xlabel("time(s)")
+
+state.legend()
 
 # Adjust the space between the two charts
 fig.tight_layout()
 
-plt.title("All Flight Data From Fight #1, 2/11/23")
-
-
 # Display the plot
+plt.subplots_adjust(top = 0.9)
 plt.show()
-'''
+
