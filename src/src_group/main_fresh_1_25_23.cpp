@@ -75,7 +75,7 @@ long pressure = 0;
 float alti = 0;
 unsigned long timer = 0;
 const int altitude_offset_num_vals = 10;
-float altitudeMeasured; // The raw altitude reading from the barometric pressure sensor (in m)
+float altitudeMeasured; // The raw altitude reading from the barometric pressure sensor (in m). iS LP FILTERED
 float altitude_offset;
 float altitude_baro;           // The altitude estimated from the barometer, with a low pass filter and offset adjustment applied/ float altitude_prev;                     // The previous reading of the barometric pressure sensor
 float altitude_LP_param = 0.1; // The low pass filter parameter for altitude (smaller values means a more smooth signal but higher delay time)
@@ -120,7 +120,6 @@ float dataLogArray[ROWS][COLUMNS];
 boolean dataLogged = false;
 boolean toggle = false;
 int currentRow = 0;
-
 
 // Flight Phases
 boolean DSifFirstRun = true;
@@ -305,7 +304,7 @@ void loop()
     {
         loopCounter++;
     }
-    if (mode2_channel < 1500 || currentRow >= ROWS) 
+    if (mode2_channel < 1500 || currentRow >= ROWS)
     {
         if (!dataLogged)
         {
@@ -399,17 +398,29 @@ void estimateAltitude()
         }
 
         // recalibrate barometer, every 10 times reset it
+
         if (offset_loop_counter < altitude_offset_num_vals)
         {
             offset_loop_counter++;
-            altitude_offset_sum += altitudeMeasured - ToFaltitude;
+            altitude_offset_sum += (altitudeMeasured - ToFaltitude);
+            // Serial.print("altiutde measured: ");
+            // Serial.println(altitudeMeasured);
+            // Serial.print("tof altitude:");
+            // Serial.println(ToFaltitude);
+            // delay(2000);
         }
         else
         {
             offset_loop_counter = 0;
-            altitude_offset = (altitude_offset / altitude_offset_num_vals);
+            altitude_offset = (altitude_offset_sum / altitude_offset_num_vals);
+            // Serial.print("altitude offest sum");
+            // Serial.println(altitude_offset_sum);
+            // delay(1000);
             altitude_offset_sum = 0;
         }
+        //             Serial.print("altitude offset: ");
+        //             Serial.println(altitude_offset);
+        //             delay(1000);
     }
     else
     {
@@ -493,19 +504,19 @@ void logDataToRAM()
         dataLogArray[currentRow][12] = s1_command_scaled;
         dataLogArray[currentRow][13] = estimated_altitude;
         dataLogArray[currentRow][14] = altitudeTypeDataLog;
-        dataLogArray[currentRow][15] = AccX; // forwards acceleration
+        dataLogArray[currentRow][15] = AccX; // forwards acceleration NOPE NOPE BC GRAVITY
         currentRow++;
     }
 
-    Serial.print(timeInMillis);
-    Serial.print(" ");
-    Serial.print(roll_IMU);
-    Serial.print(" ");
-    Serial.print(roll_des);
-    Serial.print(" ");
-    Serial.print(roll_PID);
+    // Serial.print(timeInMillis);
+    // Serial.print("s1_command_scaled ");
+    // Serial.print(s1_command_scaled);
+    // Serial.print("AccX ");
+    // Serial.print(AccX);
+    Serial.print("altitude_baro ");
+    Serial.print(altitude_baro);
     Serial.println();
-    }
+}
 void clearDataInRAM()
 {
     for (int i = 0; i < ROWS; i++)
@@ -547,6 +558,8 @@ void BMP180setup()
         Serial.println(i);
     }
     altitude_offset = altitude_offset / ((float)altitude_offset_num_vals);
+    Serial.print("altitude offset: ");
+    Serial.println(altitude_offset);
     //    Serial.println(altitude_offset);
     delay(1000);
 }
@@ -557,8 +570,8 @@ void BMP180loop()
     bmp.pollData(&temperature, &pressure, &altitudeMeasured);
     if (bmp.newData)
     {
-        altitudeMeasured = altitudeMeasured - altitude_offset;
-        altitude_baro = (1.0 - altitude_LP_param) * altitude_prev + altitude_LP_param * altitudeMeasured;
-        altitude_prev = altitude_baro;
+        altitudeMeasured = ((1.0 - altitude_LP_param) * altitude_prev + altitude_LP_param * altitudeMeasured);
+        altitude_prev = altitudeMeasured;
     }
+    altitude_baro = altitudeMeasured- altitude_offset;
 }
