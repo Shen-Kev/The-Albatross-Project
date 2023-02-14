@@ -403,29 +403,20 @@ void estimateAltitude()
         {
             offset_loop_counter++;
             altitude_offset_sum += (altitudeMeasured - ToFaltitude);
-            // Serial.print("altiutde measured: ");
-            // Serial.println(altitudeMeasured);
-            // Serial.print("tof altitude:");
-            // Serial.println(ToFaltitude);
-            // delay(2000);
         }
         else
         {
             offset_loop_counter = 0;
             altitude_offset = (altitude_offset_sum / altitude_offset_num_vals);
-            // Serial.print("altitude offest sum");
-            // Serial.println(altitude_offset_sum);
-            // delay(1000);
             altitude_offset_sum = 0;
         }
-        //             Serial.print("altitude offset: ");
-        //             Serial.println(altitude_offset);
-        //             delay(1000);
+
     }
     else
     {
         // just barometer, but prevent it from drifting too LOW, if too high thats ok the uav will descend until in range of ToF, but if too low itll just keep flying upp
 
+        //MAYBE IN THE FUTURE, CAN CHANGE IT SO THAT IT JUST TRUSTS BARO, NOT TOF, BECAUSE IT GETS RESET FROM TOF ANYWYAS?? only concern is that baro can't detect super small changes, so prob nots
         if (altitude_baro < 4.0)
         {
             estimated_altitude = 4.0;
@@ -511,10 +502,12 @@ void logDataToRAM()
     // Serial.print(timeInMillis);
     // Serial.print("s1_command_scaled ");
     // Serial.print(s1_command_scaled);
+    //     Serial.print("thro_des ");
+    // Serial.print(thro_des);
     // Serial.print("AccX ");
     // Serial.print(AccX);
-    Serial.print("altitude_baro ");
-    Serial.print(altitude_baro);
+    // Serial.print("altitude_baro ");
+    // Serial.print(altitude_baro);
     Serial.println();
 }
 void clearDataInRAM()
