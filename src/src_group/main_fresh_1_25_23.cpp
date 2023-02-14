@@ -120,8 +120,7 @@ float dataLogArray[ROWS][COLUMNS];
 boolean dataLogged = false;
 boolean toggle = false;
 int currentRow = 0;
-boolean probablylanded = false;
-int stillness_counter = 0;
+
 
 // Flight Phases
 boolean DSifFirstRun = true;
@@ -306,7 +305,7 @@ void loop()
     {
         loopCounter++;
     }
-    if (mode2_channel < 1500 || currentRow >= ROWS || probablylanded) //if less than 5deg/s assume landed
+    if (mode2_channel < 1500 || currentRow >= ROWS) 
     {
         if (!dataLogged)
         {
@@ -319,20 +318,7 @@ void loop()
     {
         dataLogged = false;
     }
-    if(abs(GyroZ) < 5) {
-        stillness_counter++;
-    }
-    else {
-        stillness_counter = 0;
-    }
-    //more than 3 seconds still, probabaly landed
-    if (stillness_counter > 6000) {
-        probablylanded = true;   
-    }
-    else {
-        probablylanded = false;
-    }
-    
+
     scaleCommands();
 #if MOTOR_ACTIVE
     ESC_command_PWM = ESC_command_PWM * 0.861 + 14;
