@@ -496,7 +496,16 @@ void logDataToRAM()
         dataLogArray[currentRow][15] = AccX; // forwards acceleration
         currentRow++;
     }
-}
+
+    Serial.print(timeInMillis);
+    Serial.print(" ");
+    Serial.print(roll_IMU);
+    Serial.print(" ");
+    Serial.print(roll_des);
+    Serial.print(" ");
+    Serial.print(roll_PID);
+    Serial.println();
+    }
 void clearDataInRAM()
 {
     for (int i = 0; i < ROWS; i++)
