@@ -56,6 +56,10 @@ float altitude_integral_prev = 0.0;
 float altitude_derivative;
 float estimated_altitude;
 float ToFaltitude;
+float ToFaltitude_significant_LP;
+float ToFaltitude_significant_LP_prev;
+float ToFaltitude_significant_LP_param = 0.01;
+
 int16_t distance;
 float distance_LP_param = 0.5;
 float distancePrev;
@@ -374,28 +378,18 @@ void estimateAltitude()
 {
     gimbalServo_command_PWM = roll_IMU * gimbalServoGain + 90;
     ToFaltitude = (distance_LP / 1000.0) * cos(pitch_IMU_rad);
-    if (ToFaltitude < 4.0 && distance > 0.0)
+
+    ToFaltitude_significant_LP = ((1.0 - ToFaltitude_significant_LP_param) * ToFaltitude_significant_LP_prev + ToFaltitude_significant_LP_param * ToFaltitude);
+    ToFaltitude_significant_LP_prev = ToFaltitude_significant_LP;
+
+    // maybhe have a hevaily LP of estimated altitude of ToF altitude PID loop for altitude
+
+    if (ToFaltitude < 4.0 && distance > 0.0 && roll_IMU < gimbalLeftBoundAngle && roll_IMU > gimbalRightBoundAngle)
     {
-        if (roll_IMU > gimbalRightBoundAngle && roll_IMU < gimbalLeftBoundAngle)
-        {
-            leftWingtipAltitude = ToFaltitude - sin(roll_IMU_rad) * (halfWingspan + gimbalDistanceFromCenter);
-            rightWingtipAltitude = ToFaltitude + sin(roll_IMU_rad) * (halfWingspan - gimbalDistanceFromCenter);
-            estimated_altitude = leftWingtipAltitude < rightWingtipAltitude ? leftWingtipAltitude : rightWingtipAltitude;
-            altitudeTypeDataLog = 0;
-        }
-        else
-        {
-            if (roll_IMU > gimbalLeftBoundAngle)
-            {
-                estimated_altitude = ToFaltitude * cos(roll_IMU_rad - (gimbalLeftBoundAngle * DEG_TO_RAD)) - sin(roll_IMU_rad) * (halfWingspan - gimbalDistanceFromCenter);
-                altitudeTypeDataLog = 1;
-            }
-            else
-            {
-                estimated_altitude = ToFaltitude * cos(roll_IMU_rad - (gimbalLeftBoundAngle * DEG_TO_RAD)) - sin(roll_IMU_rad) * (halfWingspan + gimbalDistanceFromCenter);
-                altitudeTypeDataLog = 2;
-            }
-        }
+        leftWingtipAltitude = ToFaltitude - sin(roll_IMU_rad) * (halfWingspan + gimbalDistanceFromCenter);
+        rightWingtipAltitude = ToFaltitude + sin(roll_IMU_rad) * (halfWingspan - gimbalDistanceFromCenter);
+        estimated_altitude = leftWingtipAltitude < rightWingtipAltitude ? leftWingtipAltitude : rightWingtipAltitude;
+        altitudeTypeDataLog = 0;
 
         // recalibrate barometer, every 10 times reset it
 
@@ -410,23 +404,36 @@ void estimateAltitude()
             altitude_offset = (altitude_offset_sum / altitude_offset_num_vals);
             altitude_offset_sum = 0;
         }
-
     }
     else
     {
-        // just barometer, but prevent it from drifting too LOW, if too high thats ok the uav will descend until in range of ToF, but if too low itll just keep flying upp
-
-        //MAYBE IN THE FUTURE, CAN CHANGE IT SO THAT IT JUST TRUSTS BARO, NOT TOF, BECAUSE IT GETS RESET FROM TOF ANYWYAS?? only concern is that baro can't detect super small changes, so prob nots
-        if (altitude_baro < 4.0)
+        if (roll_IMU > gimbalLeftBoundAngle)
         {
-            estimated_altitude = 4.0;
-            altitudeTypeDataLog = 3;
+            altitudeTypeDataLog = 1;
+        }
+        else if (roll_IMU < gimbalRightBoundAngle)
+        {
+            altitudeTypeDataLog = 2;
         }
         else
         {
-            estimated_altitude = altitude_baro;
+            // prob just altitude too high or somehow sensor failed
             altitudeTypeDataLog = 4;
         }
+        // just barometer, but prevent it from drifting too LOW, if too high thats ok the uav will descend until in range of ToF, but if too low itll just keep flying upp
+
+        // MAYBE IN THE FUTURE, CAN CHANGE IT SO THAT IT JUST TRUSTS BARO, NOT TOF, BECAUSE IT GETS RESET FROM TOF ANYWYAS?? only concern is that baro can't detect super small changes, so prob nots
+
+        // actually no need this, if it really drifts THAT FAST i got a bigger problem lol
+        // else if (altitude_baro < 4.0)
+        // {
+        //     estimated_altitude = 4.0;
+        //     altitudeTypeDataLog = 3;
+        // }
+        // else
+        // {
+        estimated_altitude = altitude_baro;
+        //}
     }
 }
 void pitotSetup()
@@ -499,11 +506,13 @@ void logDataToRAM()
         currentRow++;
     }
 
-    // Serial.print(timeInMillis);
-    // Serial.print("s1_command_scaled ");
-    // Serial.print(s1_command_scaled);
-    //     Serial.print("thro_des ");
-    // Serial.print(thro_des);
+    // Serial.print("estimated_altitude ");
+    Serial.print(estimated_altitude);
+    Serial.print("  ");
+    Serial.print(altitudeTypeDataLog);
+    Serial.print(" ");
+    Serial.print(ToFaltitude_significant_LP);
+    
     // Serial.print("AccX ");
     // Serial.print(AccX);
     // Serial.print("altitude_baro ");
@@ -566,5 +575,5 @@ void BMP180loop()
         altitudeMeasured = ((1.0 - altitude_LP_param) * altitude_prev + altitude_LP_param * altitudeMeasured);
         altitude_prev = altitudeMeasured;
     }
-    altitude_baro = altitudeMeasured- altitude_offset;
+    altitude_baro = altitudeMeasured - altitude_offset;
 }
