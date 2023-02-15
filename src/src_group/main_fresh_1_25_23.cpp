@@ -56,12 +56,12 @@ float altitude_integral_prev = 0.0;
 float altitude_derivative;
 float estimated_altitude;
 float ToFaltitude;
-float ToFaltitude_significant_LP;
-float ToFaltitude_significant_LP_prev;
-float ToFaltitude_significant_LP_param = 0.01;
+// float ToFaltitude_significant_LP;
+// float ToFaltitude_significant_LP_prev;
+// float ToFaltitude_significant_LP_param = 0.01;
 
 int16_t distance;
-float distance_LP_param = 0.5;
+float distance_LP_param = 0.03;
 float distancePrev;
 float distance_LP;
 int altitudeTypeDataLog;
@@ -379,8 +379,8 @@ void estimateAltitude()
     gimbalServo_command_PWM = roll_IMU * gimbalServoGain + 90;
     ToFaltitude = (distance_LP / 1000.0) * cos(pitch_IMU_rad);
 
-    ToFaltitude_significant_LP = ((1.0 - ToFaltitude_significant_LP_param) * ToFaltitude_significant_LP_prev + ToFaltitude_significant_LP_param * ToFaltitude);
-    ToFaltitude_significant_LP_prev = ToFaltitude_significant_LP;
+//    ToFaltitude_significant_LP = ((1.0 - ToFaltitude_significant_LP_param) * ToFaltitude_significant_LP_prev + ToFaltitude_significant_LP_param * ToFaltitude);
+ //   ToFaltitude_significant_LP_prev = ToFaltitude_significant_LP;
 
     // maybhe have a hevaily LP of estimated altitude of ToF altitude PID loop for altitude
 
@@ -510,8 +510,8 @@ void logDataToRAM()
     Serial.print(estimated_altitude);
     Serial.print("  ");
     Serial.print(altitudeTypeDataLog);
-    Serial.print(" ");
-    Serial.print(ToFaltitude_significant_LP);
+//    Serial.print(" ");
+ //   Serial.print(ToFaltitude_significant_LP);
     
     // Serial.print("AccX ");
     // Serial.print(AccX);
