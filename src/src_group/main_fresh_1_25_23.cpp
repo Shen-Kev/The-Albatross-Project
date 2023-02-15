@@ -396,7 +396,7 @@ void estimateAltitude()
         if (offset_loop_counter < altitude_offset_num_vals)
         {
             offset_loop_counter++;
-            altitude_offset_sum += (altitudeMeasured - ToFaltitude);
+            altitude_offset_sum += (altitudeMeasured - estimated_altitude);
         }
         else
         {
