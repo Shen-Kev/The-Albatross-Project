@@ -30,7 +30,7 @@ airspeed_adjusted = 11
 s1_command_scaled = 12
 estimated_altitude = 13
 altitudeTypeDataLog = 14
-AccX = 15
+forwardsAcceleration = 15
 
 
 raw_file = "C:/Users/kshen/OneDrive/Documents/PlatformIO/Projects/The Albatross Project PlatformIO/flight data editor/flight_data_raw_input.csv"
@@ -94,7 +94,7 @@ airspeed_adjusted_column = df.iloc[:, airspeed_adjusted]
 s1_command_scaled_column = df.iloc[:, s1_command_scaled]
 estimated_altitude_column = df.iloc[:, estimated_altitude]
 altitudeTypeDataLog_column = df.iloc[:, altitudeTypeDataLog]
-AccX_column = df.iloc[:, AccX]
+forwardsAcceleration_column = df.iloc[:, forwardsAcceleration]
 
 # Create subplots for the two charts
 # OOH for flight phase: instead of having it on a chart, what if the background for the orientation stuff changes color when the flght phase changes, and PID stuff only shows when DS or stabilized flight
@@ -184,7 +184,7 @@ altitude.tick_params(axis='y', labelcolor='blue')
 altitude.plot([], [], label="Forwards Acceleration",
               color='green')  # to create the label
 
-ax3.plot(time, AccX_column, label='Forwards Acceleration',
+ax3.plot(time, forwardsAcceleration_column, label='Forwards Acceleration',
          color='green')  # this is in m/s^2
 ax3.set_ylabel("m/s^2", color='green')
 ax3.tick_params(axis='y', labelcolor='green')

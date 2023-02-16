@@ -95,6 +95,7 @@ float DS_heading_rate_setpoint;
 float DS_heading_rate_mean_setpoint;
 float pilot_adjusted_leeway;
 float pilot_adjusted_leeway_scalar = 2;
+float forwardsAcceleration;
 
 // Variables for Flight Control
 float timeInMillis;
@@ -158,10 +159,10 @@ void BMP180loop();
 ///@brief yo this is setup @note yo this is note   MUST ADD THESE AT THE END, also use them in the readme
 void setup()
 {
-    Kp_roll_angle = 0.3;
+    Kp_roll_angle = 0.5;
     Ki_roll_angle = 0.3;
     Kd_roll_angle = 0.3;
-    Kp_pitch_angle = 0.5;
+    Kp_pitch_angle = 1;
     Ki_pitch_angle = 0.3;
     Kd_pitch_angle = 0.3;
     Kp_yaw = 0.5;
@@ -230,6 +231,9 @@ void loop()
     timeInMillis = millis();
     getIMUdata();
     Madgwick6DOF(GyroX, GyroY, GyroZ, -AccX, AccY, AccZ, dt);
+
+    //estimate forwards acceleration (in g's) (because the AccX,Y,Z are in g's for easy computing and reasy represtnation)
+    forwardsAcceleration = AccX - 1*sin(pitch_IMU_rad);
 
     accelData[0] = AccX;
     accelData[1] = AccY;
@@ -497,7 +501,7 @@ void logDataToRAM()
         dataLogArray[currentRow][12] = s1_command_scaled;
         dataLogArray[currentRow][13] = estimated_altitude;
         dataLogArray[currentRow][14] = altitudeTypeDataLog;
-        dataLogArray[currentRow][15] = AccX; // forwards acceleration NOPE NOPE BC GRAVITY
+        dataLogArray[currentRow][15] = forwardsAcceleration; // forwards acceleration NOPE NOPE BC GRAVITY
         currentRow++;
     }
 
