@@ -1,7 +1,6 @@
 // TO DO
 // implement altitude estimation with IMU, maybe baro, maybe with the pitch of the plane???
 // do unit testing of the code functions and calulations
-// reorgnaize and recomment code (much later)
 
 #include <Arduino.h>
 #include "src_group/dRehmFlight.h" //  Modified and used dRehmFlight: https://github.com/nickrehm/dRehmFlight
@@ -159,6 +158,8 @@ void BMP180loop();
 ///@brief yo this is setup @note yo this is note   MUST ADD THESE AT THE END, also use them in the readme
 void setup()
 {
+
+    // Constants for PID
     Kp_roll_angle = 0.5;
     Ki_roll_angle = 0.3;
     Kd_roll_angle = 0.3;
@@ -222,7 +223,6 @@ void setup()
     gimbalLeftBoundAngle = (0 + gimbalServoBound) + (gimbalServoTrim / gimbalServoGain);
     DS_altitude_meanline = (DS_altitude_max + DS_altitude_min) / 2.0;
     DS_altitude_amplitude = (DS_altitude_max - DS_altitude_min) / 2.0;
-
 
     calibrateAttitude(); //runs IMU for a few seconds to allow it to stabilize
 }
@@ -343,7 +343,6 @@ void loop()
 
 void dynamicSoar()
 {
-
     // turning counterclockwise, because thats how unit circle works and also puts the left wing with the sensor always closer to the ground
     if (DSifFirstRun)
     {
@@ -484,8 +483,11 @@ void setupSD()
         delay(1000);
     }
 }
+
 void logDataToRAM()
 {
+    // log data to RAM
+
     if (currentRow < ROWS)
     {
         dataLogArray[currentRow][0] = timeInMillis;
@@ -505,6 +507,7 @@ void logDataToRAM()
         dataLogArray[currentRow][14] = altitudeTypeDataLog;
         dataLogArray[currentRow][15] = forwardsAcceleration; // forwards acceleration NOPE NOPE BC GRAVITY
         currentRow++;
+        
     }
 
     // Serial.print("estimated_altitude ");
