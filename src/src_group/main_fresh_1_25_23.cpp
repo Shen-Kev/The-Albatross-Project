@@ -506,10 +506,10 @@ void logDataToRAM()
     }
 
     // Serial.print("estimated_altitude ");
-    Serial.print(estimated_altitude);
-    Serial.print("  ");
-    Serial.print(altitudeTypeDataLog);
-//    Serial.print(" ");
+    // Serial.print(estimated_altitude);
+    // Serial.print("  ");
+    // Serial.print(altitudeTypeDataLog);
+    Serial.print(forwardsAcceleration);
  //   Serial.print(ToFaltitude_significant_LP);
     
     // Serial.print("AccX ");
