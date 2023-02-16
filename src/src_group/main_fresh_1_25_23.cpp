@@ -222,6 +222,9 @@ void setup()
     gimbalLeftBoundAngle = (0 + gimbalServoBound) + (gimbalServoTrim / gimbalServoGain);
     DS_altitude_meanline = (DS_altitude_max + DS_altitude_min) / 2.0;
     DS_altitude_amplitude = (DS_altitude_max - DS_altitude_min) / 2.0;
+
+
+    calibrateAttitude(); //runs IMU for a few seconds to allow it to stabilize
 }
 void loop()
 {
@@ -232,8 +235,8 @@ void loop()
     getIMUdata();
     Madgwick6DOF(GyroX, GyroY, GyroZ, -AccX, AccY, AccZ, dt);
 
-    //estimate forwards acceleration (in g's) (because the AccX,Y,Z are in g's for easy computing and reasy represtnation)
-    forwardsAcceleration = AccX - 1*sin(pitch_IMU_rad);
+    // estimate forwards acceleration (in g's) (because the AccX,Y,Z are in g's for easy computing and reasy represtnation)
+    forwardsAcceleration = AccX - 1 * sin(pitch_IMU_rad);
 
     accelData[0] = AccX;
     accelData[1] = AccY;
@@ -380,7 +383,6 @@ void estimateAltitude()
     gimbalServo_command_PWM = roll_IMU * gimbalServoGain + 90;
     ToFaltitude = (distance_LP / 1000.0) * cos(pitch_IMU_rad);
 
-
     // maybhe have a hevaily LP of estimated altitude of ToF altitude PID loop for altitude
 
     if (ToFaltitude < 4.0 && distance > 0.0 && roll_IMU < gimbalLeftBoundAngle && roll_IMU > gimbalRightBoundAngle)
@@ -510,8 +512,8 @@ void logDataToRAM()
     // Serial.print("  ");
     // Serial.print(altitudeTypeDataLog);
     Serial.print(forwardsAcceleration);
- //   Serial.print(ToFaltitude_significant_LP);
-    
+    //   Serial.print(ToFaltitude_significant_LP);
+
     // Serial.print("AccX ");
     // Serial.print(AccX);
     // Serial.print("altitude_baro ");
