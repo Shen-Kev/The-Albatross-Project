@@ -310,16 +310,14 @@ void loop()
         writeDataToSD();
         delay(5);
         clearDataInRAM();
-        delay(5);
     }
 
     // Log data to SD using switch (for use on the ground only)
     else if (mode2_channel < 1500 && !dataLogged)
     {
         writeDataToSD();
-        delay(100);
+        delay(5);
         clearDataInRAM();
-        delay(100);
         // blink the LED 5 times
         for (int i = 0; i < 5; i++)
         {
