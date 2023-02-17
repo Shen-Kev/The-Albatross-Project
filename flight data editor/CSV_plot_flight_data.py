@@ -15,6 +15,7 @@ from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,
                                AutoMinorLocator)
 
 
+
 timeInMillis = 0
 flight_phase = 1
 roll_IMU = 2
@@ -211,3 +212,4 @@ fig.tight_layout()
 # Display the plot
 plt.subplots_adjust(top=0.9)
 plt.show()
+
