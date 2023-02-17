@@ -161,7 +161,7 @@ void setup()
     Wire.begin();
     Wire.setClock(1000000);
     pinMode(13, OUTPUT);
-    
+
     ESC.attach(ESCpin, 1100, 2100);
     aileronServo.attach(aileronServoPin, 900, 2100);
     elevatorServo.attach(elevatorServoPin, 900, 2100);
@@ -249,6 +249,8 @@ void loop()
     roll_IMU_rad = roll_IMU * DEG_TO_RAD;
     yaw_IMU_rad = yaw_IMU * DEG_TO_RAD;
     getDesState();
+
+    // Flight Modes
     if (mode1_channel < 1400)
     {
         flight_phase = manual_flight;
@@ -290,7 +292,9 @@ void loop()
         s4_command_scaled = yaw_PID;
         DSifFirstRun = false;
     }
-    if (loopCounter > (2000 / datalogRate))
+
+    // Log data to RAM
+    if (loopCounter > (2000 / datalogRate)) // 2000 is the loop rate in microseconds
     {
         logDataToRAM();
         loopCounter = 0;
@@ -299,12 +303,25 @@ void loop()
     {
         loopCounter++;
     }
-    if (mode2_channel < 1500 || currentRow >= ROWS)
+
+    // Log data to SD in flight
+    if (currentRow >= ROWS)
+    {
+        writeDataToSD();
+        delay(1);
+        clearDataInRAM();
+        delay(1);
+    }
+
+    // Log data to SD using switch
+    else if (mode2_channel < 1500)
     {
         if (!dataLogged)
         {
             writeDataToSD();
+            delay(1);
             clearDataInRAM();
+            delay(1);
         }
         dataLogged = true;
     }
@@ -515,17 +532,7 @@ void logDataToRAM()
         currentRow++;
     }
 }
-void clearDataInRAM()
-{
-    for (int i = 0; i < ROWS; i++)
-    {
-        for (int j = 0; j < COLUMNS; j++)
-        {
-            dataLogArray[i][j] = 0.0;
-        }
-    }
-    currentRow = 0;
-}
+
 void writeDataToSD()
 {
     dataFile = SD.open("flightData.txt", FILE_WRITE);
@@ -539,4 +546,16 @@ void writeDataToSD()
         dataFile.println();
     }
     dataFile.close();
+}
+
+void clearDataInRAM()
+{
+    for (int i = 0; i < ROWS; i++)
+    {
+        for (int j = 0; j < COLUMNS; j++)
+        {
+            dataLogArray[i][j] = 0.0;
+        }
+    }
+    currentRow = 0;
 }
