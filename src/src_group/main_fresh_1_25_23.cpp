@@ -83,7 +83,7 @@ const float DS_cycle_radius = 15; // The radius of the circle that the aircraft 
 const float DS_yaw_setpoint_scalar = 1.0;
 const float DS_roll_setpoint_scalar = 0.2;
 const float DS_pitch_setpoint_scalar = 0.2;
-float flight_throttle = 0.6;
+float flight_throttle = 0.4;
 float wind_offset;
 float DS_heading_rate_setpoint;
 float DS_heading_rate_mean_setpoint;

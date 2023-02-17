@@ -150,8 +150,8 @@ float Kd_yaw = 0; // Yaw D-gain (be careful when increasing too high, motors wil
 
 // Controller parameters (take note of defaults before modifying!):
 float i_limit = 20.0;  // Integrator saturation level, mostly for safety (default 25.0)
-float maxRoll = 30.0;  // Max roll angle in degrees for angle mode (maximum ~70 degrees), deg/sec for rate mode
-float maxPitch = 30.0; // Max pitch angle in degrees for angle mode (maximum ~70 degrees), deg/sec for rate mode
+float maxRoll = 45.0;  // Max roll angle in degrees for angle mode (maximum ~70 degrees), deg/sec for rate mode
+float maxPitch = 45.0; // Max pitch angle in degrees for angle mode (maximum ~70 degrees), deg/sec for rate mode
 float maxYaw = 160.0;  // Max yaw rate in deg/sec
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
