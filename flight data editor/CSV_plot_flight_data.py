@@ -8,6 +8,7 @@
 # setting all the vals UPDATED VERSION HERE.
 import pandas as pd
 import matplotlib.pyplot as plt
+import numpy as np
 import csv
 import time
 
@@ -65,7 +66,7 @@ with open(raw_file, "r") as input_csv, open(trimmed_file, "w", newline="") as ou
         if i < mostRecentRunRowIndex:  # if the row was generated in a previous run, don't include it by not doing anything
             continue
         # if the airspeed is high, include the data because its probably the flight
-        elif float(row[airspeed_adjusted]) >= 0.0:
+        elif float(row[airspeed_adjusted]) >= 5.0:
             # write row to the output file
             output_writer.writerow(row)
 
@@ -116,7 +117,7 @@ altitude.set_title('Altitude and Forwards Acceleration')
 state.set_title('State')
 
 # Set a title for the entire figure
-fig.suptitle('All Flight Data from Flight #1 on 2/11/23', y=0.95)
+fig.suptitle('All Flight Data from Flight #1 on 2/16/23', y=0.95)
 
 # plot the charts
 ax5 = roll.twinx()
@@ -209,7 +210,50 @@ state.legend()
 # Adjust the space between the two charts
 fig.tight_layout()
 
+
+#print interesting statistics about the flight
+print(" ")
+print("Flight time: ", time.max() - time.min(), "s")
+print("Max altitude: ", estimated_altitude_column.max(), "m")
+print("Max airspeed: ", airspeed_adjusted_column.max(), "m/s")
+print("Max forwards acceleration: ", forwardsAcceleration_column.max(), "m/s^2")
+print("Max throttle: ", s1_command_scaled_column.max(), "%")
+print("Average throttle: ", s1_command_scaled_column.mean(), "%")
+print("Average altitude: ", estimated_altitude_column.mean(), "m")
+print("Average airspeed: ", airspeed_adjusted_column.mean(), "m/s")
+print("Average forwards acceleration: ", forwardsAcceleration_column.mean(), "m/s^2")
+print("std of altitude: ", estimated_altitude_column.std(), "m")
+print("std of airspeed: ", airspeed_adjusted_column.std(), "m/s")
+print("std of forwards acceleration: ", forwardsAcceleration_column.std(), "m/s^2")
+print("std of throttle: ", s1_command_scaled_column.std(), "%")
+
+
+'''
+def getRowNumber(timeInput):
+    for i in range(len(time)):
+        if time[i] >= timeInput:
+            return i
+
+start_time = 250
+end_time = 260
+
+start_time_row = getRowNumber(start_time)
+end_time_row = getRowNumber(end_time)
+
+
+#just a test:
+print(" ")
+print("90% confidence interval for average forwards acceleration between t = ", start_time, " and t = ", end_time, "s: ")
+print(" ")
+print(forwardsAcceleration_column[time[start_time_row]:time[end_time_row]])
+
+#print("mean: ", forwardsAcceleration_column[time[getRowNumber(start_time_row)]:time[getRowNumber(end_time_row)]].mean())
+#print("std: ", forwardsAcceleration_column[time[getRowNumber(start_time_row)]:time[getRowNumber(end_time_row)]].std())
+#print("n: ", len(forwardsAcceleration_column[time[getRowNumber(start_time_row)]:time[getRowNumber(end_time_row)]]))
+#print("90% confidence interval: ", forwardsAcceleration_column[time[getRowNumber(start_time_row)]:time[getRowNumber(end_time_row)]].mean() - 1.645 * forwardsAcceleration_column[time[getRowNumber(start_time_row)]:time[getRowNumber(end_time_row)]].std() / np.sqrt(len(forwardsAcceleration_column[time[getRowNumber(start_time_row)]:time[getRowNumber(end_time_row)]])), forwardsAcceleration_column[time[getRowNumber(start_time_row)]:time[getRowNumber(end_time_row)]].mean() + 1.645 * forwardsAcceleration_column[time[getRowNumber(start_time_row)]:time[getRowNumber(end_time_row)]].std() / np.sqrt(len(forwardsAcceleration_column[time[getRowNumber(start_time_row)]:time[getRowNumber(end_time_row)]])))
+print(" ")
+
+'''
 # Display the plot
 plt.subplots_adjust(top=0.9)
 plt.show()
-
