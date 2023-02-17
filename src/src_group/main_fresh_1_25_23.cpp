@@ -62,7 +62,7 @@ float DS_altitude_setpoint;       // The altitude setpoint for Dynamic Soaring (
 float DS_altitude_error;          // The altitude error for Dynamic Soaring (in m)
 float DS_altitude_meanline;       // The altitude of the meanline for Dynamic Soaring (in m)
 float DS_altitude_amplitude;      // The amplitude of the altitude oscillation for Dynamic Soaring (in m)
-float safe_circling_altitude = 3; // The altitude at which the aircraft will circle (in m)
+float safe_circling_altitude = 30; // The altitude at which the aircraft will circle for testing (in m)
 
 // Barometer Variables
 int temperature = 0;
