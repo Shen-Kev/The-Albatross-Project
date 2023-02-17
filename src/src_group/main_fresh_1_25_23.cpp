@@ -1,8 +1,6 @@
-// TO DO
-// implement altitude estimation with IMU, maybe baro, maybe with the pitch of the plane???
-// do unit testing of the code functions and calulations
 
-#include <Arduino.h>
+
+#include <Arduino.h>               // Arduino library
 #include "src_group/dRehmFlight.h" //  Modified and used dRehmFlight: https://github.com/nickrehm/dRehmFlight
                                    //  Credit to: Nicholas Rehm
                                    //  Department of Aerospace Engineering
@@ -10,81 +8,78 @@
                                    //  College Park 20742
                                    //  Email: nrehm@umd.edu
 
-#include "BMP180nonblocking/BMP085NB.h"
-#include <Wire.h>
-#include "pololuVL53L1x/VL53L1X.h"
-#include "ASPD4525.h"
-#include <SD.h>
-#include "AltitudeEstimation/altitude.h"
-#define MOTOR_ACTIVE 1
-#define DS_LOW_ALTITUDE_CIRCLE 0
-
-// const int IRQpin = 35;
-// const int XSHUTpin = 34;
+#include "BMP180nonblocking/BMP085NB.h"  // Barometer library
+#include <Wire.h>                        // I2C library
+#include "pololuVL53L1x/VL53L1X.h"       // ToF sensor library
+#include "ASPD4525.h"                    // Pitot tube library
+#include <SD.h>                          // SD card library
+#include "AltitudeEstimation/altitude.h" // Altitude estimation library
+#define MOTOR_ACTIVE 1                   // 1 = motor is active, 0 = motor is not active
+#define DS_LOW_ALTITUDE_CIRCLE 0         // 1 = Dynamic Soaring in low altitude circle, 0 = Dynamic Soaring in high altitude circle
 
 // Constants for Gimbal Servo
 const float gimbalServoGain = -1.5;
 const float gimbalServoTrim = 0;
-const float gimbalServoBound = 45;
-const float halfWingspan = 0.75;
-const float gimbalDistanceFromCenter = 0.14;
+const float gimbalServoBound = 45;           // The maximum angle the gimbal servo can move in either direction
+const float halfWingspan = 0.75;             // The half wingspan of the aircraft (in m)
+const float gimbalDistanceFromCenter = 0.14; // The distance from the center of the aircraft to the gimbal servo (in m)
 
 // Variables for Gimbal Servo
-float gimbalRightBoundAngle;
-float gimbalLeftBoundAngle;
+float gimbalRightBoundAngle; // The angle of the gimbal servo when the gimbal is pointing to the right wingtip
+float gimbalLeftBoundAngle;  // The angle of the gimbal servo when the gimbal is pointing to the left wingtip
 
 // Constants and Variables for Airspeed
-const float airspeed_LP_param = 0.02;
-const float airspeed_scalar = 1.8;
-float airspeed_offset = 0;
-float airspeed_unadjusted;
-float airspeed_prev;
-float airspeed_adjusted;
-float airspeed_adjusted_prev;
+const float airspeed_LP_param = 0.02; // The low pass filter parameter for airspeed (smaller values means a more smooth signal but higher delay time)
+const float airspeed_scalar = 1.8;    // The scalar to convert the raw airspeed reading to m/s
+float airspeed_offset = 0;            // The offset for the airspeed sensor
+float airspeed_unadjusted;            /// The raw airspeed reading from the pitot tube (in m/s)
+float airspeed_prev;                  // The previous reading of the airspeed sensor
+float airspeed_adjusted;              // The airspeed reading from the pitot tube, with a low pass filter and offset adjustment applied
+float airspeed_adjusted_prev;         // The previous reading of the airspeed sensor, with a low pass filter and offset adjustment applied
 
 // Constants and Variables for Altitude
-const float DS_altitude_min = 1;
-const float DS_altitude_max = 5;
-const float Kp_altitude = 0.2;
-const float Ki_altitude = 0.3;
-const float Kd_altitude = 0.0015;
-const float altitude_integral_saturation_limit = 25.0;
-const int datalogRate = 50;
-float altitude_integral = 0.0;
-float altitude_integral_prev = 0.0;
-float altitude_derivative;
-float estimated_altitude;
-float ToFaltitude;
+const float DS_altitude_min = 1;                       // The minimum altitude for Dynamic Soaring (in m)
+const float DS_altitude_max = 5;                       // The maximum altitude for Dynamic Soaring (in m)
+const float Kp_altitude = 0.2;                         // The proportional gain for altitude control
+const float Ki_altitude = 0.3;                         // The integral gain for altitude control
+const float Kd_altitude = 0.0015;                      // The derivative gain for altitude control
+const float altitude_integral_saturation_limit = 25.0; // The saturation limit for the integral term of the altitude controller
+const int datalogRate = 50;                            // The rate at which data is logged to the SD card (in Hz)
+float altitude_integral = 0.0;                         // The integral term of the altitude controller
+float altitude_integral_prev = 0.0;                    // The previous value of the integral term of the altitude controller
+float altitude_derivative;                             // The derivative term of the altitude controller
+float estimated_altitude;                              // The estimated altitude of the aircraft (in m)
+float ToFaltitude;                                     // The altitude of the aircraft estimated from the ToF sensor (in m)
 
-int16_t distance;
-float distance_LP_param = 0.03;
-float distancePrev;
-float distance_LP;
-int altitudeTypeDataLog;
-float leftWingtipAltitude;
-float rightWingtipAltitude;
-float DS_altitude_setpoint;
-float DS_altitude_error;
-float DS_altitude_meanline;
-float DS_altitude_amplitude;
-float safe_circling_altitude = 3;
+int16_t distance;                 // The raw distance reading from the ToF sensor (in mm)
+float distance_LP_param = 0.03;   // The low pass filter parameter for distance (smaller values means a more smooth signal but higher delay time)
+float distancePrev;               // The previous reading of the ToF sensor
+float distance_LP;                // The distance reading from the ToF sensor, with a low pass filter applied
+int altitudeTypeDataLog;          // The type of altitude data that is being logged to the SD card
+float leftWingtipAltitude;        // The altitude of the left wingtip (in m)
+float rightWingtipAltitude;       // The altitude of the right wingtip (in m)
+float DS_altitude_setpoint;       // The altitude setpoint for Dynamic Soaring (in m)
+float DS_altitude_error;          // The altitude error for Dynamic Soaring (in m)
+float DS_altitude_meanline;       // The altitude of the meanline for Dynamic Soaring (in m)
+float DS_altitude_amplitude;      // The amplitude of the altitude oscillation for Dynamic Soaring (in m)
+float safe_circling_altitude = 3; // The altitude at which the aircraft will circle (in m)
 
 // Barometer Variables
 int temperature = 0;
 long pressure = 0;
 float alti = 0;
-unsigned long timer = 0;
-const int altitude_offset_num_vals = 10;
-float altitudeMeasured; // The raw altitude reading from the barometric pressure sensor (in m). iS LP FILTERED
-float altitude_offset;
-float altitude_baro;           // The altitude estimated from the barometer, with a low pass filter and offset adjustment applied/ float altitude_prev;                     // The previous reading of the barometric pressure sensor
-float altitude_LP_param = 0.1; // The low pass filter parameter for altitude (smaller values means a more smooth signal but higher delay time)
-float altitude_prev;
-int offset_loop_counter = 0;
-float altitude_offset_sum = 0;
+unsigned long timer = 0;                 // The time at which the barometer was last read (in ms)
+const int altitude_offset_num_vals = 10; // The number of altitude readings to take to calculate the offset
+float altitudeMeasured;                  // The raw altitude reading from the barometric pressure sensor (in m). iS LP FILTERED
+float altitude_offset;                   // The offset for the barometric pressure sensor
+float altitude_baro;                     // The altitude estimated from the barometer, with a low pass filter and offset adjustment applied/ float altitude_prev;                     // The previous reading of the barometric pressure sensor
+float altitude_LP_param = 0.1;           // The low pass filter parameter for altitude (smaller values means a more smooth signal but higher delay time)
+float altitude_prev;                     // The previous reading of the barometric pressure sensor
+int offset_loop_counter = 0;             // The number of times the loop has run while calculating the offset
+float altitude_offset_sum = 0;           // The sum of the altitude readings to calculate the offset
 
 // Constants and Variables for Dynamic Soaring
-const float DS_cycle_radius = 15;
+const float DS_cycle_radius = 15; // The radius of the circle that the aircraft will circle in Dynamic Soaring (in m)
 const float DS_yaw_setpoint_scalar = 1.0;
 const float DS_roll_setpoint_scalar = 0.2;
 const float DS_pitch_setpoint_scalar = 0.2;
@@ -94,51 +89,40 @@ float DS_heading_rate_setpoint;
 float DS_heading_rate_mean_setpoint;
 float pilot_adjusted_leeway;
 float pilot_adjusted_leeway_scalar = 2;
-float forwardsAcceleration;
+float forwardsAcceleration; // The acceleration in the forwards direction (in m/s^2)
 
 // Variables for Flight Control
-float timeInMillis;
-int loopCounter = 0;
-float pitch_IMU_rad, roll_IMU_rad, yaw_IMU_rad;
-float accelData[3];
-float gyroData[3];
-
-// float IMU_vertical_accel, IMU_vertical_vel, IMU_vertical_pos;
-// float IMU_vertical_accel_LPparam = 0.02;
-// float IMU_vertical_accel_prev;
-
-// float airspeed_setpoint;
-// const float flight_speed = 20.0;
-// float airspeed_error;
-// float airspeed_error_prev;
-// const float stall_speed = 10.0;
-// boolean motorOn = false;
+float timeInMillis;                             // The time in milliseconds since the flight controller has started
+int loopCounter = 0;                            // The number of times the loop has run
+float pitch_IMU_rad, roll_IMU_rad, yaw_IMU_rad; // The raw pitch, roll, and yaw angles in radians from the IMU
+float accelData[3];                             // The raw accelerometer data from the IMU
+float gyroData[3];                              // The raw gyro data from the IMU
 
 // Variables for Data Logging
-const int COLUMNS = 16;
-const int ROWS = 6400;
-float dataLogArray[ROWS][COLUMNS];
-boolean dataLogged = false;
-boolean toggle = false;
-int currentRow = 0;
+const int COLUMNS = 16;            // 16 columns of data to be logged to the SD card
+const int ROWS = 6400;             //
+float dataLogArray[ROWS][COLUMNS]; // The array that stores the data to be logged to the SD card
+boolean dataLogged = false;        // Used to determine if the data has been logged to the SD card
+boolean toggle = false;            // Used to toggle the LED
+int currentRow = 0;                // The current row of the data log array
 
 // Flight Phases
-boolean DSifFirstRun = true;
-float flight_phase;
-enum flight_phases
+boolean DSifFirstRun = true; // Used to determine if the first run of the dynamic soaring loop has been completed
+float flight_phase;          // The current flight phase
+enum flight_phases           // Flight phases for the flight controller
 {
+    // 1-2pi are for DS
     manual_flight = 7,
     stabilized_flight = 8,
-    //    dynamic_soaring_flight = 9,
     log_data_to_SD = 10
 };
 
 // Objects
-File dataFile;
-KalmanFilter kalmanVert(0.5, 0.01942384099, 0.001002176158);
-VL53L1X sensor;
-BMP085NB bmp;
+File dataFile;  // File object for SD card
+VL53L1X sensor; // ToF sensor object
+BMP085NB bmp;   // Barometer object
 
+// Functions
 void dynamicSoar();
 void coordinatedController();
 void throttleController();
@@ -155,7 +139,9 @@ void VL53L1Xloop();
 void BMP180setup();
 void BMP180loop();
 
-///@brief yo this is setup @note yo this is note   MUST ADD THESE AT THE END, also use them in the readme
+// Flight Controller Setup
+// This function is run once when the flight controller is turned on
+// It is used to initialize the flight controller and set the initial values of the variables and objects used in the flight controller loop function (loop())
 void setup()
 {
 
@@ -175,6 +161,7 @@ void setup()
     Wire.begin();
     Wire.setClock(1000000);
     pinMode(13, OUTPUT);
+    
     ESC.attach(ESCpin, 1100, 2100);
     aileronServo.attach(aileronServoPin, 900, 2100);
     elevatorServo.attach(elevatorServoPin, 900, 2100);
@@ -224,7 +211,7 @@ void setup()
     DS_altitude_meanline = (DS_altitude_max + DS_altitude_min) / 2.0;
     DS_altitude_amplitude = (DS_altitude_max - DS_altitude_min) / 2.0;
 
-    calibrateAttitude(); //runs IMU for a few seconds to allow it to stabilize
+    calibrateAttitude(); // runs IMU for a few seconds to allow it to stabilize
 }
 void loop()
 {
@@ -391,8 +378,6 @@ void estimateAltitude()
         estimated_altitude = leftWingtipAltitude < rightWingtipAltitude ? leftWingtipAltitude : rightWingtipAltitude;
         altitudeTypeDataLog = 0;
 
-        // recalibrate barometer, every 10 times reset it
-
         if (offset_loop_counter < altitude_offset_num_vals)
         {
             offset_loop_counter++;
@@ -417,23 +402,10 @@ void estimateAltitude()
         }
         else
         {
-            // prob just altitude too high or somehow sensor failed
             altitudeTypeDataLog = 4;
         }
-        // just barometer, but prevent it from drifting too LOW, if too high thats ok the uav will descend until in range of ToF, but if too low itll just keep flying upp
 
-        // MAYBE IN THE FUTURE, CAN CHANGE IT SO THAT IT JUST TRUSTS BARO, NOT TOF, BECAUSE IT GETS RESET FROM TOF ANYWYAS?? only concern is that baro can't detect super small changes, so prob nots
-
-        // actually no need this, if it really drifts THAT FAST i got a bigger problem lol
-        // else if (altitude_baro < 4.0)
-        // {
-        //     estimated_altitude = 4.0;
-        //     altitudeTypeDataLog = 3;
-        // }
-        // else
-        // {
         estimated_altitude = altitude_baro;
-        //}
     }
 }
 void pitotSetup()
@@ -476,78 +448,6 @@ void VL53L1Xloop()
     distance_LP = (1.0 - distance_LP_param) * distancePrev + distance_LP_param * distance;
     distancePrev = distance_LP;
 }
-void setupSD()
-{
-    while (!SD.begin(BUILTIN_SDCARD))
-    {
-        delay(1000);
-    }
-}
-
-void logDataToRAM()
-{
-    // log data to RAM
-
-    if (currentRow < ROWS)
-    {
-        dataLogArray[currentRow][0] = timeInMillis;
-        dataLogArray[currentRow][1] = flight_phase;
-        dataLogArray[currentRow][2] = roll_IMU;
-        dataLogArray[currentRow][3] = roll_des;
-        dataLogArray[currentRow][4] = roll_PID;
-        dataLogArray[currentRow][5] = pitch_IMU;
-        dataLogArray[currentRow][6] = pitch_des;
-        dataLogArray[currentRow][7] = pitch_PID;
-        dataLogArray[currentRow][8] = GyroZ;
-        dataLogArray[currentRow][9] = yaw_des;
-        dataLogArray[currentRow][10] = yaw_PID;
-        dataLogArray[currentRow][11] = airspeed_adjusted;
-        dataLogArray[currentRow][12] = s1_command_scaled;
-        dataLogArray[currentRow][13] = estimated_altitude;
-        dataLogArray[currentRow][14] = altitudeTypeDataLog;
-        dataLogArray[currentRow][15] = forwardsAcceleration; // forwards acceleration NOPE NOPE BC GRAVITY
-        currentRow++;
-        
-    }
-
-    // Serial.print("estimated_altitude ");
-    // Serial.print(estimated_altitude);
-    // Serial.print("  ");
-    // Serial.print(altitudeTypeDataLog);
-    Serial.print(forwardsAcceleration);
-    //   Serial.print(ToFaltitude_significant_LP);
-
-    // Serial.print("AccX ");
-    // Serial.print(AccX);
-    // Serial.print("altitude_baro ");
-    // Serial.print(altitude_baro);
-    Serial.println();
-}
-void clearDataInRAM()
-{
-    for (int i = 0; i < ROWS; i++)
-    {
-        for (int j = 0; j < COLUMNS; j++)
-        {
-            dataLogArray[i][j] = 0.0;
-        }
-    }
-    currentRow = 0;
-}
-void writeDataToSD()
-{
-    dataFile = SD.open("flightData.txt", FILE_WRITE);
-    for (int i = 0; i < currentRow; i++)
-    {
-        for (int j = 0; j < COLUMNS; j++)
-        {
-            dataFile.print(dataLogArray[i][j]);
-            dataFile.print(",");
-        }
-        dataFile.println();
-    }
-    dataFile.close();
-}
 
 void BMP180setup()
 {
@@ -580,4 +480,63 @@ void BMP180loop()
         altitude_prev = altitudeMeasured;
     }
     altitude_baro = altitudeMeasured - altitude_offset;
+}
+
+void setupSD()
+{
+    while (!SD.begin(BUILTIN_SDCARD))
+    {
+        delay(1000);
+    }
+}
+
+void logDataToRAM()
+{
+    // log data to RAM
+
+    if (currentRow < ROWS)
+    {
+        dataLogArray[currentRow][0] = timeInMillis;
+        dataLogArray[currentRow][1] = flight_phase;
+        dataLogArray[currentRow][2] = roll_IMU;
+        dataLogArray[currentRow][3] = roll_des;
+        dataLogArray[currentRow][4] = roll_PID;
+        dataLogArray[currentRow][5] = pitch_IMU;
+        dataLogArray[currentRow][6] = pitch_des;
+        dataLogArray[currentRow][7] = pitch_PID;
+        dataLogArray[currentRow][8] = GyroZ;
+        dataLogArray[currentRow][9] = yaw_des;
+        dataLogArray[currentRow][10] = yaw_PID;
+        dataLogArray[currentRow][11] = airspeed_adjusted;
+        dataLogArray[currentRow][12] = s1_command_scaled;
+        dataLogArray[currentRow][13] = estimated_altitude;
+        dataLogArray[currentRow][14] = altitudeTypeDataLog;
+        dataLogArray[currentRow][15] = forwardsAcceleration;
+        currentRow++;
+    }
+}
+void clearDataInRAM()
+{
+    for (int i = 0; i < ROWS; i++)
+    {
+        for (int j = 0; j < COLUMNS; j++)
+        {
+            dataLogArray[i][j] = 0.0;
+        }
+    }
+    currentRow = 0;
+}
+void writeDataToSD()
+{
+    dataFile = SD.open("flightData.txt", FILE_WRITE);
+    for (int i = 0; i < currentRow; i++)
+    {
+        for (int j = 0; j < COLUMNS; j++)
+        {
+            dataFile.print(dataLogArray[i][j]);
+            dataFile.print(",");
+        }
+        dataFile.println();
+    }
+    dataFile.close();
 }
