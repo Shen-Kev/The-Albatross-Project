@@ -51,17 +51,17 @@ float altitude_derivative;                             // The derivative term of
 float estimated_altitude;                              // The estimated altitude of the aircraft (in m)
 float ToFaltitude;                                     // The altitude of the aircraft estimated from the ToF sensor (in m)
 
-int16_t distance;                 // The raw distance reading from the ToF sensor (in mm)
-float distance_LP_param = 0.03;   // The low pass filter parameter for distance (smaller values means a more smooth signal but higher delay time)
-float distancePrev;               // The previous reading of the ToF sensor
-float distance_LP;                // The distance reading from the ToF sensor, with a low pass filter applied
-int altitudeTypeDataLog;          // The type of altitude data that is being logged to the SD card
-float leftWingtipAltitude;        // The altitude of the left wingtip (in m)
-float rightWingtipAltitude;       // The altitude of the right wingtip (in m)
-float DS_altitude_setpoint;       // The altitude setpoint for Dynamic Soaring (in m)
-float DS_altitude_error;          // The altitude error for Dynamic Soaring (in m)
-float DS_altitude_meanline;       // The altitude of the meanline for Dynamic Soaring (in m)
-float DS_altitude_amplitude;      // The amplitude of the altitude oscillation for Dynamic Soaring (in m)
+int16_t distance;                  // The raw distance reading from the ToF sensor (in mm)
+float distance_LP_param = 0.03;    // The low pass filter parameter for distance (smaller values means a more smooth signal but higher delay time)
+float distancePrev;                // The previous reading of the ToF sensor
+float distance_LP;                 // The distance reading from the ToF sensor, with a low pass filter applied
+int altitudeTypeDataLog;           // The type of altitude data that is being logged to the SD card
+float leftWingtipAltitude;         // The altitude of the left wingtip (in m)
+float rightWingtipAltitude;        // The altitude of the right wingtip (in m)
+float DS_altitude_setpoint;        // The altitude setpoint for Dynamic Soaring (in m)
+float DS_altitude_error;           // The altitude error for Dynamic Soaring (in m)
+float DS_altitude_meanline;        // The altitude of the meanline for Dynamic Soaring (in m)
+float DS_altitude_amplitude;       // The amplitude of the altitude oscillation for Dynamic Soaring (in m)
 float safe_circling_altitude = 30; // The altitude at which the aircraft will circle for testing (in m)
 
 // Barometer Variables
@@ -308,20 +308,25 @@ void loop()
     if (currentRow >= ROWS)
     {
         writeDataToSD();
-        delay(1);
+        delay(5);
         clearDataInRAM();
-        delay(1);
+        delay(5);
     }
 
-    // Log data to SD using switch
-    else if (mode2_channel < 1500)
+    // Log data to SD using switch (for use on the ground only)
+    else if (mode2_channel < 1500 && !dataLogged)
     {
-        if (!dataLogged)
+        writeDataToSD();
+        delay(100);
+        clearDataInRAM();
+        delay(100);
+        // blink the LED 5 times
+        for (int i = 0; i < 5; i++)
         {
-            writeDataToSD();
-            delay(1);
-            clearDataInRAM();
-            delay(1);
+            digitalWrite(13, HIGH);
+            delay(100);
+            digitalWrite(13, LOW);
+            delay(100);
         }
         dataLogged = true;
     }
@@ -483,7 +488,6 @@ void BMP180setup()
     altitude_offset = altitude_offset / ((float)altitude_offset_num_vals);
     Serial.print("altitude offset: ");
     Serial.println(altitude_offset);
-    //    Serial.println(altitude_offset);
     delay(1000);
 }
 
