@@ -105,6 +105,7 @@ float dataLogArray[ROWS][COLUMNS]; // The array that stores the data to be logge
 boolean dataLogged = false;        // Used to determine if the data has been logged to the SD card
 boolean toggle = false;            // Used to toggle the LED
 int currentRow = 0;                // The current row of the data log array
+boolean logSuccessful = false;     // Used to determine if the data has been successfully logged to the SD card
 
 // Flight Phases
 boolean DSifFirstRun = true; // Used to determine if the first run of the dynamic soaring loop has been completed
@@ -144,7 +145,6 @@ void BMP180loop();
 // It is used to initialize the flight controller and set the initial values of the variables and objects used in the flight controller loop function (loop())
 void setup()
 {
-
     // Constants for PID
     Kp_roll_angle = 0.5;
     Ki_roll_angle = 0.3;
@@ -160,6 +160,7 @@ void setup()
     Serial.println("serial works");
     Wire.begin();
     Wire.setClock(1000000);
+    Serial.println("wire works");
     pinMode(13, OUTPUT);
 
     ESC.attach(ESCpin, 1100, 2100);
@@ -313,18 +314,21 @@ void loop()
     }
 
     // Log data to SD using switch (for use on the ground only)
-    else if (mode2_channel < 1500 && !dataLogged)
+    else if (mode2_channel < 1500)
     {
-        writeDataToSD();
-        delay(5);
-        clearDataInRAM();
-        // blink the LED 5 times
-        for (int i = 0; i < 5; i++)
+        if (!dataLogged)
         {
-            digitalWrite(13, HIGH);
-            delay(100);
-            digitalWrite(13, LOW);
-            delay(100);
+            writeDataToSD();
+            delay(5);
+            clearDataInRAM();
+            // blink the LED 3 times
+            for (int i = 0; i < 3; i++)
+            {
+                digitalWrite(13, HIGH);
+                delay(100);
+                digitalWrite(13, LOW);
+                delay(100);
+            }
         }
         dataLogged = true;
     }
@@ -506,6 +510,50 @@ void setupSD()
     while (!SD.begin(BUILTIN_SDCARD))
     {
         delay(1000);
+    }
+
+    // write a line of sample data to the SD card
+    dataFile = SD.open("flightData.txt", FILE_WRITE);
+    dataFile.print("TEST DATA");
+    dataFile.println();
+    dataFile.close();
+
+    delay(100);
+
+    // read the line of sample data from the SD card, only continue if it the data is correct
+    while (!logSuccessful)
+    {
+        dataFile = SD.open("flightData.txt");
+        if (dataFile)
+        {
+            String dataString = dataFile.readStringUntil('\r'); // read the first line of the file
+            if (dataString == "TEST DATA")
+            {
+                Serial.println("SD card initialized correctly");
+                logSuccessful = true;
+            }
+            else
+            {
+                Serial.println("SD card initialized incorrectly");
+                logSuccessful = false;
+            }
+        }
+        else
+        {
+            Serial.println("SD card failed to open");
+            logSuccessful = false;
+        }
+        dataFile.print(""); // clear dataFile
+        dataFile.close();
+    }
+
+    // blink LED 10 times to indicate SD card is ready
+    for (int i = 0; i < 10; i++)
+    {
+        digitalWrite(13, HIGH);
+        delay(100);
+        digitalWrite(13, LOW);
+        delay(100);
     }
 }
 
