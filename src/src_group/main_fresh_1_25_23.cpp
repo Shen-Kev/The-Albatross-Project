@@ -408,7 +408,7 @@ void estimateAltitude()
         leftWingtipAltitude = ToFaltitude - sin(roll_IMU_rad) * (halfWingspan + gimbalDistanceFromCenter);
         rightWingtipAltitude = ToFaltitude + sin(roll_IMU_rad) * (halfWingspan - gimbalDistanceFromCenter);
         estimated_altitude = leftWingtipAltitude < rightWingtipAltitude ? leftWingtipAltitude : rightWingtipAltitude;
-        altitudeTypeDataLog = 0;
+        altitudeTypeDataLog = 3;
 
         if (offset_loop_counter < altitude_offset_num_vals)
         {
