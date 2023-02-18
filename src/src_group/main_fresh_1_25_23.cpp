@@ -90,6 +90,10 @@ float DS_heading_rate_mean_setpoint;
 float pilot_adjusted_leeway;
 float pilot_adjusted_leeway_scalar = 2;
 float forwardsAcceleration; // The acceleration in the forwards direction (in m/s^2)
+//forwardsAcceleration low pass variables
+float forwardsAcceleration_LP_param = 0.001; // The low pass filter parameter for forwardsAcceleration (smaller values means a more smooth signal but higher delay time)
+float forwardsAcceleration_prev;           // The previous reading of the forwardsAcceleration
+
 
 // Variables for Flight Control
 float timeInMillis;                             // The time in milliseconds since the flight controller has started
@@ -225,6 +229,10 @@ void loop()
 
     // estimate forwards acceleration (in g's) (because the AccX,Y,Z are in g's for easy computing and reasy represtnation)
     forwardsAcceleration = AccX - 1 * sin(pitch_IMU_rad);
+    //low pass forwards accel
+    forwardsAcceleration = forwardsAcceleration * forwardsAcceleration_LP_param + (forwardsAcceleration_prev * (1 - forwardsAcceleration_LP_param));
+    forwardsAcceleration_prev = forwardsAcceleration;
+
 
     accelData[0] = AccX;
     accelData[1] = AccY;
@@ -580,6 +588,11 @@ void logDataToRAM()
         dataLogArray[currentRow][14] = altitudeTypeDataLog;
         dataLogArray[currentRow][15] = forwardsAcceleration;
         currentRow++;
+        //print forwards acceleration and estimated altitude
+        Serial.print(forwardsAcceleration);
+        Serial.print("\t");
+        Serial.println(estimated_altitude);
+        
     }
 }
 
