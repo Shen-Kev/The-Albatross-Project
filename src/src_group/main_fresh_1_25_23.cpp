@@ -150,13 +150,13 @@ void BMP180loop();
 void setup()
 {
     // Constants for PID
-    Kp_roll_angle = 0.5;
+    Kp_roll_angle = 1.0;
     Ki_roll_angle = 0.3;
     Kd_roll_angle = 0.3;
-    Kp_pitch_angle = 1;
+    Kp_pitch_angle = 2;
     Ki_pitch_angle = 0.3;
     Kd_pitch_angle = 0.3;
-    Kp_yaw = 0.5;
+    Kp_yaw = 1;
     Ki_yaw = 0.3;
     Kd_yaw = 0.0015;
 
@@ -591,7 +591,16 @@ void logDataToRAM()
         //print forwards acceleration and estimated altitude
         Serial.print(forwardsAcceleration);
         Serial.print("\t");
-        Serial.println(estimated_altitude);
+        Serial.print(estimated_altitude);
+        
+        Serial.print("\t");
+        Serial.print(altitude_baro);
+        
+        Serial.print("\t");
+        Serial.println(altitude_offset);
+        
+        //Serial.print("\t");
+        //Serial.print(estimated_altitude);
         
     }
 }
