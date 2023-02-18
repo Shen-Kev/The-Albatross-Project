@@ -34,8 +34,11 @@ estimated_altitude = 13
 altitudeTypeDataLog = 14
 forwardsAcceleration = 15
 
-raw_file = "flight data editor/flight_data_filtered_file.csv"#"C:/Users/kshen/OneDrive/Documents/PlatformIO/Projects/The Albatross Project PlatformIO/flight data editor/flight_data_raw_input.csv"
-trimmed_file = "flight data editor/flight_data_filtered_file.csv" #"C:/Users/kshen/OneDrive/Documents/PlatformIO/Projects/The Albatross Project PlatformIO/flight data editor/flight_data_filtered_file.csv"
+#raw_file = "flight data editor/flight_data_filtered_file.csv"#"C:/Users/kshen/OneDrive/Documents/PlatformIO/Projects/The Albatross Project PlatformIO/flight data editor/flight_data_raw_input.csv"
+#trimmed_file = "flight data editor/flight_data_filtered_file.csv" #"C:/Users/kshen/OneDrive/Documents/PlatformIO/Projects/The Albatross Project PlatformIO/flight data editor/flight_data_filtered_file.csv"
+
+raw_file = "C:/Users/kshen/OneDrive/Documents/PlatformIO/Projects/The Albatross Project PlatformIO/flight data editor/flight_data_raw_input.csv"
+trimmed_file = "C:/Users/kshen/OneDrive/Documents/PlatformIO/Projects/The Albatross Project PlatformIO/flight data editor/flight_data_filtered_file.csv"
 
 # FILTERS DATA AND WRITES TO TRIMMED FILE.
 with open(raw_file, "r") as input_csv, open(trimmed_file, "w", newline="") as output_csv:
@@ -197,8 +200,10 @@ state.plot(time, flight_phase_column, label="Flight Phase", color='purple')
 state.set_ylabel('flight phase code', color='purple')
 state.tick_params(axis='y', labelcolor='purple')
 
-state.plot(time, altitudeTypeDataLog_column,
+state.plot([], [],
            label="Altitude Sensor Type", color='orange')
+
+ax4.plot(time, altitudeTypeDataLog_column, color='orange')        
 ax4.set_ylabel('altitude sensor code', color='orange')
 ax4.tick_params(axis='y', labelcolor='orange')
 
