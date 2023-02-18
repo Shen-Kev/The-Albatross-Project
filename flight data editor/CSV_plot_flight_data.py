@@ -20,7 +20,6 @@ from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,
                                AutoMinorLocator)
 
 
-
 timeInMillis = 0
 flight_phase = 1
 roll_IMU = 2
@@ -28,18 +27,16 @@ roll_des = 3
 roll_PID = 4
 pitch_IMU = 5
 pitch_des = 6
-pitch_PID = 7
-GyroZ = 8
-yaw_des = 9
-yaw_PID = 10
-airspeed_adjusted = 11
-s1_command_scaled = 12
-estimated_altitude = 13
-altitudeTypeDataLog = 14
+DS_pitch_angle = 7
+pitch_PID = 8
+GyroZ = 9
+airspeed_adjusted = 10
+s1_command_scaled = 11
+estimated_altitude = 12
+descent_rate = 13
+time_to_impact = 14
 forwardsAcceleration = 15
 
-#raw_file = "flight data editor/flight_data_filtered_file.csv"#"C:/Users/kshen/OneDrive/Documents/PlatformIO/Projects/The Albatross Project PlatformIO/flight data editor/flight_data_raw_input.csv"
-#trimmed_file = "flight data editor/flight_data_filtered_file.csv" #"C:/Users/kshen/OneDrive/Documents/PlatformIO/Projects/The Albatross Project PlatformIO/flight data editor/flight_data_filtered_file.csv"
 
 raw_file = "C:/Users/kshen/OneDrive/Documents/PlatformIO/Projects/The Albatross Project PlatformIO/flight data editor/flight_data_raw_input.csv"
 trimmed_file = "C:/Users/kshen/OneDrive/Documents/PlatformIO/Projects/The Albatross Project PlatformIO/flight data editor/flight_data_filtered_file.csv"
@@ -94,15 +91,16 @@ roll_des_column = df.iloc[:, roll_des]
 roll_PID_column = df.iloc[:, roll_PID]
 pitch_IMU_column = df.iloc[:, pitch_IMU]
 pitch_des_column = df.iloc[:, pitch_des]
+DS_pitch_angle_column = df.iloc[:, DS_pitch_angle]
 pitch_PID_column = df.iloc[:, pitch_PID]
 GyroZ_column = df.iloc[:, GyroZ]
-yaw_des_column = df.iloc[:, yaw_des]
-yaw_PID_column = df.iloc[:, yaw_PID]
 airspeed_adjusted_column = df.iloc[:, airspeed_adjusted]
 s1_command_scaled_column = df.iloc[:, s1_command_scaled]
 estimated_altitude_column = df.iloc[:, estimated_altitude]
-altitudeTypeDataLog_column = df.iloc[:, altitudeTypeDataLog]
+descent_rate_column = df.iloc[:, descent_rate]
+time_to_impact_column = df.iloc[:, time_to_impact]
 forwardsAcceleration_column = df.iloc[:, forwardsAcceleration]
+
 
 # Create subplots for the two charts
 # OOH for flight phase: instead of having it on a chart, what if the background for the orientation stuff changes color when the flght phase changes, and PID stuff only shows when DS or stabilized flight
@@ -110,6 +108,33 @@ forwardsAcceleration_column = df.iloc[:, forwardsAcceleration]
 # and for altitude, have the background of the altitude change color based on the altitudetype datalog
 
 # roll pitch yaw has the IMU measurement, the desired, the des, the PID. background of fight mode. forwards has accX and airspeed and throttle. background also flight mode. altitude has altitude, background of alititude type datalog
+
+
+
+
+# NEED TO UPDATE CHARTS TO SQUISH THEM ALL TOGETHER.
+
+#ACTUALLY NO, at most 2 units per graph...
+#GRAPH 1
+#time, flight phase, roll stuff, yaw
+#GRAPH 2
+#time, flight phase, pitch stuff
+#GRAPH 3
+#time, flight phase, speed
+#GRAPH 4
+#time, flight phase, altitude
+
+#can do either 2x2 or 1x4... 2x2 is probably better
+
+
+
+
+
+
+
+
+
+
 
 fig, ((roll, altitude), (pitch, airspeed), (yaw, state)
       ) = plt.subplots(3, 2, figsize=(10, 10), sharex=True)
