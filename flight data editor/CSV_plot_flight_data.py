@@ -115,7 +115,7 @@ yaw.set_title('Yaw')
 airspeed.set_title('Throttle and Airspeed')
 # so i can compare the accerlation at the same altitude
 altitude.set_title('Altitude and Forwards Acceleration')
-state.set_title('flight phase')
+state.set_title('Flight Phase')
 
 # make a string which uses the current date from the computer
 
