@@ -19,7 +19,7 @@
 // Constants for Gimbal Servo
 const float gimbalServoGain = -1.5;
 const float gimbalServoTrim = 0;
-const float gimbalServoBound = 45;           // The maximum angle the gimbal servo can move in either direction
+const float gimbalServoBound = 60;           // The maximum angle the gimbal servo can move in either direction
 const float halfWingspan = 0.75;             // The half wingspan of the aircraft (in m)
 const float gimbalDistanceFromCenter = 0.14; // The distance from the center of the aircraft to the gimbal servo (in m)
 
@@ -68,10 +68,11 @@ float gyroData[3];                              // The raw gyro data from the IM
 float DS_roll_angle = -30;      // The bank angle for Dynamic Soaring (in degrees) (turning left)
 float DS_yaw_proportion = 0.01; // The proportion of yaw to roll for Dynamic Soaring
 float DS_pitch_angle;           // Normally just the pilot input, but is automatically adjusted to avoid the ground
-float rate_of_climb;
-float time_to_impact;
-float pitch_adjustment_proportion = 30;
-float time_to_impact_tolerance = 3; // if the UAV will crash in this amount of seconds, it will automatically adjust the pitch angle to avoid the ground
+float minimum_pitch_angle;      // The minimum pitch angle while close to the ground in DS
+float minimum_altitude = 2;     // the altitude at which the min pitch angle starts to increase from -45
+float slope_min_pitch_angle_function = -27.5;
+float intercept_min_pitch_angle_function = 10;
+
 // Variables for Data Logging
 const int COLUMNS = 16;            // 16 columns of data to be logged to the SD card
 const int ROWS = 6400;             // 7800 rows of data to be logged to the SD card
@@ -105,12 +106,8 @@ void writeDataToSD();
 void VL53L1Xsetup();
 void VL53L1Xloop();
 
-
-
-
 float rate_of_climb_LP_param = 0.002;
 float rate_of_climb_prev;
-
 
 // Flight Controller Setup
 // This function is run once when the flight controller is turned on
@@ -252,25 +249,25 @@ void loop()
     {
         flight_phase = DS_flight;
 
-        if (estimated_altitude == -1) // UAV is high enough to not detect the ground
+        // Adjust elevator to avoid ground. above -0.9 is ok because -1 is the ToF code that something is wrong, and the altitude might go slightly below 0 because of the wingtip calculations being slightly off
+        if (estimated_altitude < minimum_altitude && estimated_altitude > -0.9)
         {
-            DS_pitch_angle = pitch_des;
-        }
-        else // UAV is close enough to the ground to detect it
-        {
-            // calculate time to impact based on the descent rate of the UAV and the estimated altitude
-            time_to_impact = estimated_altitude / (0-rate_of_climb);
+            minimum_pitch_angle = slope_min_pitch_angle_function * estimated_altitude + intercept_min_pitch_angle_function; // linear function
 
-            // if the time to impact is less than x second, then offset pitch proportionally to how close it is to the ground
-            if (time_to_impact < time_to_impact_tolerance && time_to_impact > 0)
-            {
-                DS_pitch_angle = pitch_des + (1 - time_to_impact) * pitch_adjustment_proportion;
-            }
-            else
+            // if pitch angle is above the minimum pitch angle, thats ok
+            if (pitch_des > minimum_pitch_angle)
             {
                 DS_pitch_angle = pitch_des;
             }
+            else {
+                DS_pitch_angle = minimum_pitch_angle;
+            }
         }
+        else
+        {
+            DS_pitch_angle = pitch_des;
+        }
+
 #if DS_AUTO_GROUND_AVOIDANCE_TEST == 1
         pitch_des = DS_pitch_angle; // set the desired pitch to the DS pitch angle
                                     // leaves roll_des as is
@@ -354,7 +351,8 @@ void estimateAltitude()
     gimbalServo_command_PWM = roll_IMU * gimbalServoGain + 90;
     ToFaltitude = (distance_LP / 1000.0) * cos(pitch_IMU_rad);
 
-    if (ToFaltitude < 4.0 && ToFaltitude > 0.2 && roll_IMU < gimbalLeftBoundAngle && roll_IMU > gimbalRightBoundAngle) // if the ToF is in range and the gimbal is in range
+    //above -0.9 because ToF sends -1 as a code that it is out of range or not working 
+    if (ToFaltitude < 4.0 && ToFaltitude > -0.9 && roll_IMU < gimbalLeftBoundAngle && roll_IMU > gimbalRightBoundAngle) // if the ToF is in range and the gimbal is in range
     {
         leftWingtipAltitude = ToFaltitude - sin(roll_IMU_rad) * (halfWingspan + gimbalDistanceFromCenter);
         rightWingtipAltitude = ToFaltitude + sin(roll_IMU_rad) * (halfWingspan - gimbalDistanceFromCenter);
@@ -364,17 +362,6 @@ void estimateAltitude()
     {                            // if the ToF is out of range or the gimbal is out of range
         estimated_altitude = -1; // to log that it is out of range.
     }
-
-    // calculate rate of descent of UAV
-    rate_of_climb = (estimated_altitude - estimated_altitude_prev) / dt;
-    // calculate previous estimated altitude
-    estimated_altitude_prev = estimated_altitude;
-
-    //low pass descent rate
-    rate_of_climb = rate_of_climb * rate_of_climb_LP_param + rate_of_climb_prev * (1 - rate_of_climb_LP_param);
-    // calculate previous descent rate
-    rate_of_climb_prev = rate_of_climb;
-
 }
 void pitotSetup()
 {
@@ -501,17 +488,9 @@ void logDataToRAM()
 
         // altitude
         dataLogArray[currentRow][14] = estimated_altitude; // altitude in meters
+        Serial.println(estimated_altitude);
 
         currentRow++;
-
-        Serial.print(estimated_altitude);
-        Serial.print("\t");
-        Serial.print(DS_pitch_angle);
-        Serial.print("\t");
-        // Serial.print(DS_pitch_angle);
-        Serial.print("\t");
-        Serial.print(rate_of_climb);
-        Serial.println();
     }
 }
 
