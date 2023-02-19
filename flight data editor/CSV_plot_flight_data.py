@@ -3,8 +3,8 @@
 # NOTE: TO GET HIGH QUALITY OUTPUTS, WHEN IN THE PLOT VIEW, SAVE THE PLOT AS AN SVG, NOT PNG
 
 
-# TO ADD:
-# matplotlib to calculate and draw the stats, like the airspeed difference, the histograms or correlation chats, and infer information like shape of flight path, make animation of the plane tilting up and down in time, multiple charts on the same screen,
+#TO ADD:
+#matplotlib to calculate and draw the stats, like the airspeed difference, the histograms or correlation chats, and infer information like shape of flight path, make animation of the plane tilting up and down in time, multiple charts on the same screen,
 
 
 # THE FILE FOR DOING DS ANALYSIS WILL BE ADDED LATER. RIGHT NOW ITS JUST SHOWING THE DATA
@@ -24,18 +24,20 @@ timeInMillis = 0
 flight_phase = 1
 roll_IMU = 2
 roll_des = 3
-roll_PID = 4
+aileron_command_PWM = 4
 pitch_IMU = 5
 pitch_des = 6
 DS_pitch_angle = 7
-pitch_PID = 8
-GyroZ = 9
-airspeed_adjusted = 10
-s1_command_scaled = 11
-estimated_altitude = 12
-descent_rate = 13
-time_to_impact = 14
-forwardsAcceleration = 15
+elevator_command_PWM = 8
+yaw_IMU = 9
+rudder_command_PWM = 10
+airspeed_adjusted = 11
+s1_command_scaled = 12
+forwardsAcceleration = 13
+estimated_altitude = 14
+time_to_impact = 15
+
+
 
 
 raw_file = "C:/Users/kshen/OneDrive/Documents/PlatformIO/Projects/The Albatross Project PlatformIO/flight data editor/flight_data_raw_input.csv"
@@ -88,29 +90,19 @@ time = df.iloc[:, timeInMillis]  # actually is time in seconds now
 flight_phase_column = df.iloc[:, flight_phase]
 roll_IMU_column = df.iloc[:, roll_IMU]
 roll_des_column = df.iloc[:, roll_des]
-roll_PID_column = df.iloc[:, roll_PID]
+aileron_command_column = df.iloc[:, aileron_command_PWM]
 pitch_IMU_column = df.iloc[:, pitch_IMU]
 pitch_des_column = df.iloc[:, pitch_des]
 DS_pitch_angle_column = df.iloc[:, DS_pitch_angle]
-pitch_PID_column = df.iloc[:, pitch_PID]
-GyroZ_column = df.iloc[:, GyroZ]
+elevator_command_column = df.iloc[:, elevator_command_PWM]
+yaw_IMU_column = df.iloc[:, yaw_IMU]
+rudder_command_column = df.iloc[:, rudder_command_PWM]
 airspeed_adjusted_column = df.iloc[:, airspeed_adjusted]
 s1_command_scaled_column = df.iloc[:, s1_command_scaled]
-estimated_altitude_column = df.iloc[:, estimated_altitude]
-descent_rate_column = df.iloc[:, descent_rate]
-time_to_impact_column = df.iloc[:, time_to_impact]
 forwardsAcceleration_column = df.iloc[:, forwardsAcceleration]
+estimated_altitude_column = df.iloc[:, estimated_altitude]
+time_to_impact_column = df.iloc[:, time_to_impact]
 
-
-# Create subplots for the two charts
-# OOH for flight phase: instead of having it on a chart, what if the background for the orientation stuff changes color when the flght phase changes, and PID stuff only shows when DS or stabilized flight
-# while in DS, maybe the background color could change at each DS cycle???
-# and for altitude, have the background of the altitude change color based on the altitudetype datalog
-
-# roll pitch yaw has the IMU measurement, the desired, the des, the PID. background of fight mode. forwards has accX and airspeed and throttle. background also flight mode. altitude has altitude, background of alititude type datalog
-
-
-# NEED TO UPDATE CHARTS TO SQUISH THEM ALL TOGETHER.
 
 
 fig, ((roll, altitude), (pitch, airspeed), (yaw, state)
@@ -122,7 +114,7 @@ pitch.set_title('Pitch')
 yaw.set_title('Yaw')
 airspeed.set_title('Throttle and Airspeed')
 altitude.set_title('Altitude and Forwards Acceleration')
-state.set_title('State')
+state.set_title('Time to Impact and Flight Phase')
 
 # Set a title for the entire figure
 fig.suptitle('All Flight Data from Flight #1 on 2/16/23', y=0.95)
@@ -131,21 +123,96 @@ fig.suptitle('All Flight Data from Flight #1 on 2/16/23', y=0.95)
 ax5 = roll.twinx()
 roll.plot(time, roll_IMU_column, label="Roll IMU", color='red')
 roll.plot(time, roll_des_column, label="Roll setpoint", color='blue')
-roll.plot([], [], label="Roll PID output",
-          color='green')  # to create the label
-ax5.plot(time, roll_PID_column, label="Roll PID output", color='green')
-ax5.set_ylabel("0-1 roll PID output", color='green')
-ax5.tick_params(axis='y', labelcolor='green')
-roll.axhspan(0, 1, 20, 25, facecolor='b', alpha=0.2)
+roll.plot(time, aileron_command_column = df.iloc[:, aileron_command_PWM]
+, label="Aileron output", color='green')
+ax5.plot(time, flight_phase_column, label="Flight Phase", color='yellow')
+ax5.set_ylabel("Flight Phase", color='yellow')
+ax5.tick_params(axis='y', labelcolor='yellow')
 roll.set_ylabel("deg")
 roll.legend()
+
+ax6 = pitch.twinx()
+pitch.plot(time, pitch_IMU_column, label="Pitch IMU", color='red')
+pitch.plot(time, pitch_des_column, label="Pitch setpoint", color='blue')
+pitch.plot([], [], label="Elevator command",
+           color='green')  # to create the label
+ax6.plot(time, elevator_command_column, label="Elevator command", color='green')
+ax6.set_ylabel("0-1 pitch PID output", color='green')
+ax6.tick_params(axis='y', labelcolor='green')
+
+pitch.set_ylabel("deg")
+
+pitch.legend()
+
+ax7 = yaw.twinx()
+yaw.plot(time, GyroZ_column, label="Yaw IMU (GyroZ)", color='red')
+yaw.plot(time, yaw_des_column, label="Yaw setpoint", color='blue')
+yaw.plot([], [], label="Yaw PID output", color='green')  # to create the label
+ax7.plot(time, yaw_PID_column, label="Yaw PID output", color='green')
+ax7.set_ylabel("0-1 yaw PID output", color='green')
+ax7.tick_params(axis='y', labelcolor='green')
+
+yaw.set_ylabel("deg/s")
+yaw.set_xlabel("time(s)")
+
+yaw.legend()
+
+# forwards stuff THE REFERENCE
+ax1 = airspeed.twinx()  # create a second y-axis with the same x-axis
+airspeed.plot(time, s1_command_scaled_column, label='Throttle',
+              color='red')  # this is from 0-1
+airspeed.set_ylabel("0%-100%", color='red')
+airspeed.tick_params(axis='y', labelcolor='red')
+
+airspeed.plot([], [], label="Airspeed", color='blue')  # to create the label
+
+ax1.plot(time, airspeed_adjusted_column,
+         label='Airspeed', color='blue')  # this is in m/s
+ax1.set_ylabel("m/s", color='blue')
+ax1.tick_params(axis='y', labelcolor='blue')
+airspeed.legend()
+
+# altitude
+
+ax3 = altitude.twinx()
+
+altitude.plot(time, estimated_altitude_column, label='Altitude', color='blue')
+altitude.set_ylabel("m", color='blue')
+altitude.tick_params(axis='y', labelcolor='blue')
+
+altitude.plot([], [], label="Forwards Acceleration",
+              color='green')  # to create the label
+
+ax3.plot(time, forwardsAcceleration_column, label='Forwards Acceleration',
+         color='green')  # this is in m/s^2
+ax3.set_ylabel("m/s^2", color='green')
+ax3.tick_params(axis='y', labelcolor='green')
+
+altitude.legend()
+
+ax4 = state.twinx()
+state.plot(time, flight_phase_column, label="Flight Phase", color='purple')
+state.set_ylabel('flight phase code', color='purple')
+state.tick_params(axis='y', labelcolor='purple')
+
+state.plot([], [],
+           label="Altitude Sensor Type", color='orange')
+
+ax4.plot(time, altitudeTypeDataLog_column, color='orange')        
+ax4.set_ylabel('altitude sensor code', color='orange')
+ax4.tick_params(axis='y', labelcolor='orange')
+
+state.set_xlabel("time(s)")
+
+state.legend()
+
 
 
 # Adjust the space between the two charts
 fig.tight_layout()
 
 
-# print interesting statistics about the flight
+#print interesting statistics about the flight
 print(" ")
 print("Flight time: ", time.max() - time.min(), "s")
 print("Max altitude: ", estimated_altitude_column.max(), "m")
@@ -155,12 +222,10 @@ print("Max throttle: ", s1_command_scaled_column.max(), "%")
 print("Average throttle: ", s1_command_scaled_column.mean(), "%")
 print("Average altitude: ", estimated_altitude_column.mean(), "m")
 print("Average airspeed: ", airspeed_adjusted_column.mean(), "m/s")
-print("Average forwards acceleration: ",
-      forwardsAcceleration_column.mean(), "m/s^2")
+print("Average forwards acceleration: ", forwardsAcceleration_column.mean(), "m/s^2")
 print("std of altitude: ", estimated_altitude_column.std(), "m")
 print("std of airspeed: ", airspeed_adjusted_column.std(), "m/s")
-print("std of forwards acceleration: ",
-      forwardsAcceleration_column.std(), "m/s^2")
+print("std of forwards acceleration: ", forwardsAcceleration_column.std(), "m/s^2")
 print("std of throttle: ", s1_command_scaled_column.std(), "%")
 
 

@@ -462,32 +462,32 @@ void logDataToRAM()
     if (currentRow < ROWS)
     {
         // time and fight phase
-        dataLogArray[currentRow][0] = timeInMillis;
-        dataLogArray[currentRow][1] = flight_phase;
+        dataLogArray[currentRow][0] = timeInMillis; // time in milliseconds
+        dataLogArray[currentRow][1] = flight_phase; // flight phase
 
         // roll variables
-        dataLogArray[currentRow][2] = roll_IMU;
-        dataLogArray[currentRow][3] = roll_des;
-        dataLogArray[currentRow][4] = roll_PID;
+        dataLogArray[currentRow][2] = roll_IMU;            // roll angle from IMU in degrees
+        dataLogArray[currentRow][3] = roll_des;            // desired roll angle in degrees
+        dataLogArray[currentRow][4] = aileron_command_PWM-90; // aileron command in degrees (90 is neutral)
 
         // pitch variables
-        dataLogArray[currentRow][5] = pitch_IMU;
-        dataLogArray[currentRow][6] = pitch_des;
-        dataLogArray[currentRow][7] = DS_pitch_angle;
-        dataLogArray[currentRow][8] = pitch_PID;
+        dataLogArray[currentRow][5] = pitch_IMU;            // pitch angle from IMU in degrees
+        dataLogArray[currentRow][6] = pitch_des;            // pilot desired pitch angle in degrees
+        dataLogArray[currentRow][7] = DS_pitch_angle;       // DS desired pitch angle in degrees
+        dataLogArray[currentRow][8] = elevator_command_PWM-90; // elevator command in degrees (90 is neutral)
 
         // yaw
-        dataLogArray[currentRow][9] = GyroZ;
+        dataLogArray[currentRow][9] = yaw_IMU; // heading in degrees (summated from gyroZ)
+        dataLogArray[currentRow][10] = rudder_command_PWM-90; // rudder command in degrees (90 is neutral)
 
         // speed
-        dataLogArray[currentRow][10] = airspeed_adjusted;
-        dataLogArray[currentRow][11] = s1_command_scaled;
-        dataLogArray[currentRow][15] = forwardsAcceleration;
+        dataLogArray[currentRow][11] = airspeed_adjusted;    // airspeed in m/s
+        dataLogArray[currentRow][12] = s1_command_scaled;    // throttle command in percent
+        dataLogArray[currentRow][13] = forwardsAcceleration; // acceleration in m/s^2
 
         // altitude
-        dataLogArray[currentRow][12] = estimated_altitude;
-        dataLogArray[currentRow][13] = descent_rate;
-        dataLogArray[currentRow][14] = time_to_impact;
+        dataLogArray[currentRow][14] = estimated_altitude; // altitude in meters
+        dataLogArray[currentRow][15] = time_to_impact;     // estimated time to impact in seconds
 
         currentRow++;
     }
