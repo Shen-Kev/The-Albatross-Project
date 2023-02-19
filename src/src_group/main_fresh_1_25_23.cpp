@@ -66,7 +66,7 @@ float gyroData[3];                              // The raw gyro data from the IM
 
 // Dynamic Soaring Variables
 float DS_roll_angle = -30;      // The bank angle for Dynamic Soaring (in degrees) (turning left)
-float DS_yaw_proportion = 0.01; // The proportion of yaw to roll for Dynamic Soaring
+float DS_yaw_proportion = 0.005; // The proportion of yaw in degrees to roll 0-1 for Dynamic Soaring
 float DS_pitch_angle;           // Normally just the pilot input, but is automatically adjusted to avoid the ground
 float minimum_pitch_angle;      // The minimum pitch angle while close to the ground in DS
 float minimum_altitude = 2;     // the altitude at which the min pitch angle starts to increase from -45
@@ -143,7 +143,6 @@ void setup()
     Serial.println("passed radio setup");
     IMUinit();
     Serial.println("passed IMU init");
-    Serial.println("passed baro init");
 
     AccErrorY = 0.04;
     AccErrorZ = 0.11;
@@ -240,7 +239,7 @@ void loop()
         s1_command_scaled = thro_des;
         s2_command_scaled = roll_PID;
         s3_command_scaled = pitch_PID;
-        s4_command_scaled = DS_roll_angle * DS_yaw_proportion; // no yaw stick input
+        s4_command_scaled = roll_des * DS_yaw_proportion; // no yaw stick input
     }
     // Dynamic Soaring Flight
     else
