@@ -65,8 +65,8 @@ float accelData[3];                             // The raw accelerometer data fr
 float gyroData[3];                              // The raw gyro data from the IMU
 
 // Dynamic Soaring Variables
-float DS_roll_angle = 30;       // The bank angle for Dynamic Soaring (in degrees)
-float DS_yaw_proportion = 0.15; // The proportion of yaw to roll for Dynamic Soaring
+float DS_roll_angle = -30;      // The bank angle for Dynamic Soaring (in degrees) (turning left)
+float DS_yaw_proportion = 0.01; // The proportion of yaw to roll for Dynamic Soaring
 float DS_pitch_angle;           // Normally just the pilot input, but is automatically adjusted to avoid the ground
 float descent_rate;
 float time_to_impact;
@@ -253,6 +253,8 @@ void loop()
         {
             // calculate rate of descent of UAV
             descent_rate = (estimated_altitude - estimated_altitude_prev) / dt;
+            // calculate previous estimated altitude
+            estimated_altitude_prev = estimated_altitude;
 
             // calculate time to impact based on the descent rate of the UAV and the estimated altitude
             time_to_impact = estimated_altitude / descent_rate;
@@ -283,6 +285,7 @@ void loop()
         s2_command_scaled = roll_PID;                          // roll to DS roll angle
         s3_command_scaled = pitch_PID;                         // pitch to DS pitch angle
         s4_command_scaled = DS_roll_angle * DS_yaw_proportion; // yaw to a proportion of the roll angle
+        //roll angle is 30 deg, so divide by 100 to get 0.3
     }
 
     // Log data to RAM
@@ -345,8 +348,6 @@ void loop()
 
 void estimateAltitude()
 {
-    // calculate previous estimated altitude
-    estimated_altitude_prev = estimated_altitude;
 
     gimbalServo_command_PWM = roll_IMU * gimbalServoGain + 90;
     ToFaltitude = (distance_LP / 1000.0) * cos(pitch_IMU_rad);
@@ -466,19 +467,19 @@ void logDataToRAM()
         dataLogArray[currentRow][1] = flight_phase; // flight phase
 
         // roll variables
-        dataLogArray[currentRow][2] = roll_IMU;            // roll angle from IMU in degrees
-        dataLogArray[currentRow][3] = roll_des;            // desired roll angle in degrees
-        dataLogArray[currentRow][4] = aileron_command_PWM-90; // aileron command in degrees (90 is neutral)
+        dataLogArray[currentRow][2] = roll_IMU;                 // roll angle from IMU in degrees
+        dataLogArray[currentRow][3] = roll_des;                 // desired roll angle in degrees
+        dataLogArray[currentRow][4] = aileron_command_PWM - 90; // aileron command in degrees (90 is neutral)
 
         // pitch variables
-        dataLogArray[currentRow][5] = pitch_IMU;            // pitch angle from IMU in degrees
-        dataLogArray[currentRow][6] = pitch_des;            // pilot desired pitch angle in degrees
-        dataLogArray[currentRow][7] = DS_pitch_angle;       // DS desired pitch angle in degrees
-        dataLogArray[currentRow][8] = elevator_command_PWM-90; // elevator command in degrees (90 is neutral)
+        dataLogArray[currentRow][5] = pitch_IMU;                 // pitch angle from IMU in degrees
+        dataLogArray[currentRow][6] = pitch_des;                 // pilot desired pitch angle in degrees
+        dataLogArray[currentRow][7] = DS_pitch_angle;            // DS desired pitch angle in degrees
+        dataLogArray[currentRow][8] = elevator_command_PWM - 90; // elevator command in degrees (90 is neutral)
 
         // yaw
-        dataLogArray[currentRow][9] = yaw_IMU; // heading in degrees (summated from gyroZ)
-        dataLogArray[currentRow][10] = rudder_command_PWM-90; // rudder command in degrees (90 is neutral)
+        dataLogArray[currentRow][9] = yaw_IMU;                  // heading in degrees (summated from gyroZ)
+        dataLogArray[currentRow][10] = rudder_command_PWM - 90; // rudder command in degrees (90 is neutral)
 
         // speed
         dataLogArray[currentRow][11] = airspeed_adjusted;    // airspeed in m/s
@@ -490,6 +491,17 @@ void logDataToRAM()
         dataLogArray[currentRow][15] = time_to_impact;     // estimated time to impact in seconds
 
         currentRow++;
+
+        Serial.print(estimated_altitude);
+        Serial.print("\t");
+        Serial.print(estimated_altitude_prev);
+        Serial.print("\t");
+        // Serial.print(time_to_impact);
+        // Serial.print("\t");
+        // Serial.print(DS_pitch_angle);
+        Serial.print("\t");
+        Serial.print(descent_rate);
+        Serial.println();
     }
 }
 
