@@ -66,7 +66,7 @@ float gyroData[3];                              // The raw gyro data from the IM
 
 // Dynamic Soaring Variables
 float DS_roll_angle = -30;      // The bank angle for Dynamic Soaring (in degrees) (turning left)
-float DS_yaw_proportion = 0.005; // The proportion of yaw in degrees to roll 0-1 for Dynamic Soaring
+float DS_yaw_proportion = 0.008; // The proportion of yaw in degrees to roll 0-1 for Dynamic Soaring
 float DS_pitch_angle;           // Normally just the pilot input, but is automatically adjusted to avoid the ground
 float minimum_pitch_angle;      // The minimum pitch angle while close to the ground in DS
 float minimum_altitude = 2;     // the altitude at which the min pitch angle starts to increase from -45
