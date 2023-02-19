@@ -121,9 +121,9 @@ void setup()
     Kp_pitch_angle = 2;
     Ki_pitch_angle = 0.3;
     Kd_pitch_angle = 0.3;
-    Kp_yaw = 1;
-    Ki_yaw = 0.3;
-    Kd_yaw = 0.0015;
+    // Kp_yaw = 1;
+    // Ki_yaw = 0.3;
+    // Kd_yaw = 0.0015;
 
     Serial.begin(500000);
     Serial.println("serial works");
@@ -228,10 +228,8 @@ void loop()
         s4_command_scaled = yaw_passthru;
         integral_pitch = 0;
         integral_roll = 0;
-        integral_yaw = 0;
         roll_PID = 0;
         pitch_PID = 0;
-        yaw_PID = 0;
         // throttle_integral = 0;
         altitude_integral = 0;
     }
@@ -242,7 +240,7 @@ void loop()
         s1_command_scaled = thro_des;
         s2_command_scaled = roll_PID;
         s3_command_scaled = pitch_PID;
-        s4_command_scaled = yaw_PID;
+        s4_command_scaled = DS_roll_angle * DS_yaw_proportion; // no yaw stick input
     }
     // Dynamic Soaring Flight
     else
@@ -259,13 +257,14 @@ void loop()
             {
                 DS_pitch_angle = pitch_des;
             }
-            else {
+            else
+            {
                 DS_pitch_angle = minimum_pitch_angle;
             }
         }
         else
         {
-            DS_pitch_angle = pitch_des;
+            DS_pitch_angle = pitch_des; //maybe in the future, have this be a sinusoidal function. because the derivative of the altitude if the altitude is sinusoidal is sinuosidal, and the derivative of the pitch angle is the pitch rate, so the pitch rate should be sinusoidal as well
         }
 
 #if DS_AUTO_GROUND_AVOIDANCE_TEST == 1
@@ -298,7 +297,7 @@ void loop()
         loopCounter++;
     }
 
-    // Log data to SD in flight
+    // Log data to SD in flight if needed
     if (currentRow >= ROWS)
     {
         writeDataToSD();
@@ -351,7 +350,7 @@ void estimateAltitude()
     gimbalServo_command_PWM = roll_IMU * gimbalServoGain + 90;
     ToFaltitude = (distance_LP / 1000.0) * cos(pitch_IMU_rad);
 
-    //above -0.9 because ToF sends -1 as a code that it is out of range or not working 
+    // above -0.9 because ToF sends -1 as a code that it is out of range or not working
     if (ToFaltitude < 4.0 && ToFaltitude > -0.9 && roll_IMU < gimbalLeftBoundAngle && roll_IMU > gimbalRightBoundAngle) // if the ToF is in range and the gimbal is in range
     {
         leftWingtipAltitude = ToFaltitude - sin(roll_IMU_rad) * (halfWingspan + gimbalDistanceFromCenter);
@@ -488,7 +487,7 @@ void logDataToRAM()
 
         // altitude
         dataLogArray[currentRow][14] = estimated_altitude; // altitude in meters
-        Serial.println(estimated_altitude);
+        dataLogArray[currentRow][15] = 0;                   // not used yet
 
         currentRow++;
     }
