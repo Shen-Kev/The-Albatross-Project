@@ -15,6 +15,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import csv
 import time
+from datetime import datetime
+now = datetime.now() # current date and time
 
 from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,
                                AutoMinorLocator)
@@ -115,8 +117,15 @@ airspeed.set_title('Throttle and Airspeed')
 altitude.set_title('Altitude and Forwards Acceleration')
 state.set_title('flight phase')
 
-# Set a title for the entire figure
-fig.suptitle('All Flight Data from Flight #1 on 2/16/23', y=0.95)
+# make a string which uses the current date from the computer
+
+
+#call the current date from the computer
+date = now.strftime("%m/%d/%Y")
+title = "All Flight Data. Analyzed on " + date
+
+fig.suptitle(title, y=0.95)
+
 
 # plot the charts
 roll.plot(time, roll_IMU_column, label="Roll IMU", color='red')
@@ -163,6 +172,8 @@ ax2.tick_params(axis='y', labelcolor='green')
 altitude.legend()
 
 state.plot(time, flight_phase_column, label="Flight Phase", color='purple')
+state.set_yticks([1.0, 2.0, 3.0])
+state.set_yticklabels(["Manual", "Stabilized", "Dynamic Soaring"])
 state.set_xlabel("time(s)")
 state.legend()
 
