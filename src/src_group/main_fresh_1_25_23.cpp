@@ -68,10 +68,10 @@ float gyroData[3];                              // The raw gyro data from the IM
 float DS_roll_angle = -30;      // The bank angle for Dynamic Soaring (in degrees) (turning left)
 float DS_yaw_proportion = 0.01; // The proportion of yaw to roll for Dynamic Soaring
 float DS_pitch_angle;           // Normally just the pilot input, but is automatically adjusted to avoid the ground
-float descent_rate;
+float rate_of_climb;
 float time_to_impact;
-float pitch_adjustment_proportion = 10;
-
+float pitch_adjustment_proportion = 30;
+float time_to_impact_tolerance = 3; // if the UAV will crash in this amount of seconds, it will automatically adjust the pitch angle to avoid the ground
 // Variables for Data Logging
 const int COLUMNS = 16;            // 16 columns of data to be logged to the SD card
 const int ROWS = 6400;             // 7800 rows of data to be logged to the SD card
@@ -104,6 +104,13 @@ void clearDataInRAM();
 void writeDataToSD();
 void VL53L1Xsetup();
 void VL53L1Xloop();
+
+
+
+
+float rate_of_climb_LP_param = 0.002;
+float rate_of_climb_prev;
+
 
 // Flight Controller Setup
 // This function is run once when the flight controller is turned on
@@ -251,16 +258,11 @@ void loop()
         }
         else // UAV is close enough to the ground to detect it
         {
-            // calculate rate of descent of UAV
-            descent_rate = (estimated_altitude - estimated_altitude_prev) / dt;
-            // calculate previous estimated altitude
-            estimated_altitude_prev = estimated_altitude;
-
             // calculate time to impact based on the descent rate of the UAV and the estimated altitude
-            time_to_impact = estimated_altitude / descent_rate;
+            time_to_impact = estimated_altitude / (0-rate_of_climb);
 
-            // if the time to impact is less than 1 second, then offset pitch proportionally to how close it is to the ground
-            if (time_to_impact < 1)
+            // if the time to impact is less than x second, then offset pitch proportionally to how close it is to the ground
+            if (time_to_impact < time_to_impact_tolerance && time_to_impact > 0)
             {
                 DS_pitch_angle = pitch_des + (1 - time_to_impact) * pitch_adjustment_proportion;
             }
@@ -285,7 +287,7 @@ void loop()
         s2_command_scaled = roll_PID;                          // roll to DS roll angle
         s3_command_scaled = pitch_PID;                         // pitch to DS pitch angle
         s4_command_scaled = DS_roll_angle * DS_yaw_proportion; // yaw to a proportion of the roll angle
-        //roll angle is 30 deg, so divide by 100 to get 0.3
+        // roll angle is 30 deg, so divide by 100 to get 0.3
     }
 
     // Log data to RAM
@@ -362,6 +364,17 @@ void estimateAltitude()
     {                            // if the ToF is out of range or the gimbal is out of range
         estimated_altitude = -1; // to log that it is out of range.
     }
+
+    // calculate rate of descent of UAV
+    rate_of_climb = (estimated_altitude - estimated_altitude_prev) / dt;
+    // calculate previous estimated altitude
+    estimated_altitude_prev = estimated_altitude;
+
+    //low pass descent rate
+    rate_of_climb = rate_of_climb * rate_of_climb_LP_param + rate_of_climb_prev * (1 - rate_of_climb_LP_param);
+    // calculate previous descent rate
+    rate_of_climb_prev = rate_of_climb;
+
 }
 void pitotSetup()
 {
@@ -488,19 +501,16 @@ void logDataToRAM()
 
         // altitude
         dataLogArray[currentRow][14] = estimated_altitude; // altitude in meters
-        dataLogArray[currentRow][15] = time_to_impact;     // estimated time to impact in seconds
 
         currentRow++;
 
         Serial.print(estimated_altitude);
         Serial.print("\t");
-        Serial.print(estimated_altitude_prev);
+        Serial.print(DS_pitch_angle);
         Serial.print("\t");
-        // Serial.print(time_to_impact);
-        // Serial.print("\t");
         // Serial.print(DS_pitch_angle);
         Serial.print("\t");
-        Serial.print(descent_rate);
+        Serial.print(rate_of_climb);
         Serial.println();
     }
 }

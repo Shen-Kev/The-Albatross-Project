@@ -35,7 +35,6 @@ airspeed_adjusted = 11
 s1_command_scaled = 12
 forwardsAcceleration = 13
 estimated_altitude = 14
-time_to_impact = 15
 
 
 
