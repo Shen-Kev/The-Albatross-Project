@@ -103,7 +103,7 @@ void setupSD();
 void logDataToRAM();
 void clearDataInRAM();
 void writeDataToSD();
-void VL53L1Xsetup();
+void VL5k3L1Xsetup();
 void VL53L1Xloop();
 
 float rate_of_climb_LP_param = 0.002;
@@ -117,10 +117,10 @@ void setup()
     // Constants for PID
     Kp_roll_angle = 1.0;
     Ki_roll_angle = 0.3;
-    Kd_roll_angle = 0.3;
+    Kd_roll_angle = 0.2;
     Kp_pitch_angle = 2;
     Ki_pitch_angle = 0.3;
-    Kd_pitch_angle = 0.3;
+    Kd_pitch_angle = 0.5;
     // Kp_yaw = 1;
     // Ki_yaw = 0.3;
     // Kd_yaw = 0.0015;
