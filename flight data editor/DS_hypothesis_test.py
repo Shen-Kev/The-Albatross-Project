@@ -92,7 +92,10 @@ range_notDS = max(notDS_accelValues) - min(notDS_accelValues)
 binsNum_notDS = range_notDS / binsSize
 binsNum_notDS = int(abs(binsNum_notDS))
 
+
 # make the histogram for not DS data
+plt.subplot(2, 1, 1)
+
 plt.hist(notDS_accelValues, bins=binsNum_notDS,
          density=True, alpha=0.6, color='g')
 xmin_notDS, xmax_notDS = plt.xlim()
@@ -135,7 +138,7 @@ estimated_altitude_column = df.iloc[:, estimated_altitude]
 DS_accelValues = []
 for i in range(len(time)):
     # and prob make it so that it only does it when accel in the wind, also like only at low alt
-    if s1_command_scaled_column[i] == 0 and flight_phase_column[i] == 3:
+    if flight_phase_column[i] == 3 and airspeed_adjusted_column[i] > 5.0:
         DS_accelValues.append(forwardsAcceleration_column[i])
 
 # trim the dataset to have 5% trimmed off the top and bottom
@@ -152,7 +155,9 @@ range_DS = max(DS_accelValues) - min(DS_accelValues)
 binsNum_DS = range_DS / binsSize
 binsNum_DS = int(abs(binsNum_DS))
 
+
 # make the histogram for DS data
+plt.subplot(2, 1, 1)
 plt.hist(DS_accelValues, bins=binsNum_DS,
          density=True, alpha=0.6, color='b')
 xmin_DS, xmax_DS = plt.xlim()
@@ -175,11 +180,53 @@ if p < alpha:
     print("The difference is significant")
 else:
     print("The difference is not significant")
-    
 
+#also plot the difference between the two normal distributions
+difference = []
+for i in range(len(DS_accelValues)):
+    difference.append(DS_accelValues[i] - notDS_accelValues[i])
+
+# find the mean, standard deviation of the array
+mean_difference = np.mean(difference)
+std_difference = np.std(difference)
+
+binsSize = 0.01
+range_difference = max(difference) - min(difference)
+binsNum_difference = range_difference / binsSize
+binsNum_difference = int(abs(binsNum_difference))
+
+# make the histogram for DS data on a subplot
+plt.subplot(2, 1, 2)
+plt.hist(difference, bins=binsNum_difference,
+            density=True, alpha=0.6, color='r')
+xmin_difference, xmax_difference = plt.xlim()
+xmin_difference -= 0.1
+xmax_difference += 0.1
+x_difference = np.linspace(xmin_difference, xmax_difference, 100)
+p_difference = norm.pdf(x_difference, mean_difference, std_difference)
+#plot the differnce plot so that the the side to the left of the signifiant difference is shaded
+plt.fill_between(x_difference, p_difference, where=x_difference < -1.96*std_difference+mean_difference, color='r', alpha=1)
+plt.plot(x_difference, p_difference, 'k', linewidth=2, color='r')
+
+#plot the line on the differnce plot to show z score of -1.96
+plt.axvline(x=-1.96*std_difference+mean_difference, color='r', linestyle='--')
+#label the line
+plt.text(-1.96*std_difference+mean_difference, 0.1, '  Left Tail Test Cutoff', rotation=90, color = 'r')
+#draw a line at the null hypotehsis for the difference
+plt.axvline(x=0, color='k', linestyle='--')
+#label the line
+plt.text(0, 0.1, '  Null Hypothesis', rotation=90, color = 'k')
+
+
+
+# plot the legend for both subplots
+plt.subplot(2, 1, 1)
+plt.legend(["Not DS" + " n = " + str(len(notDS_accelValues)), "DS" + " n = " + str(len(DS_accelValues))])
+plt.subplot(2, 1, 2)
+plt.legend(['Difference'])
+
+# plot the title
 title = "Dynamic Soaring Two Sample T Test"
-subtitle = "stats"
-plt.title(subtitle)
 plt.suptitle(title)
 plt.xlabel('Forwards Acceleration (m/s^2)')
 plt.ylabel('Probability (%)')

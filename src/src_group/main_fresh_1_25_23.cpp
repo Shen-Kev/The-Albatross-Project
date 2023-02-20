@@ -103,7 +103,7 @@ void setupSD();
 void logDataToRAM();
 void clearDataInRAM();
 void writeDataToSD();
-void VL5k3L1Xsetup();
+void VL53L1Xsetup();
 void VL53L1Xloop();
 
 float rate_of_climb_LP_param = 0.002;
