@@ -10,17 +10,17 @@
 # THE FILE FOR DOING DS ANALYSIS WILL BE ADDED LATER. RIGHT NOW ITS JUST SHOWING THE DATA
 
 # setting all the vals UPDATED VERSION HERE.
+from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,
+                               AutoMinorLocator)
+from scipy.stats import norm
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 import csv
 import time
 from datetime import datetime
-now = datetime.now() # current date and time
-from scipy.stats import norm
+now = datetime.now()  # current date and time
 
-from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,
-                               AutoMinorLocator)
 
 timeInMillis = 0
 flight_phase = 1
@@ -119,7 +119,7 @@ altitude.set_title('Altitude and Forwards Acceleration')
 state.set_title('Flight Phase')
 
 
-#call the current date from the computer
+# call the current date from the computer
 date = now.strftime("%m/%d/%Y")
 title = "All Flight Data. Analyzed on " + date
 
@@ -136,7 +136,8 @@ roll.legend()
 pitch.plot(time, pitch_IMU_column, label="Pitch IMU", color='red')
 pitch.plot(time, pitch_des_column, label="Pitch setpoint", color='blue')
 pitch.plot(time, DS_pitch_angle_column, label="DS pitch angle", color='orange')
-pitch.plot(time, elevator_command_column, label="Elevator output", color='green')
+pitch.plot(time, elevator_command_column,
+           label="Elevator output", color='green')
 pitch.set_ylabel("deg")
 pitch.legend()
 
@@ -146,12 +147,14 @@ yaw.set_ylabel("deg")
 yaw.legend()
 
 ax1 = airspeed.twinx()  # create a second y-axis with the same x-axis
-airspeed.plot(time, s1_command_scaled_column, label='Throttle', color='red')  # this is from 0-1
+airspeed.plot(time, s1_command_scaled_column, label='Throttle',
+              color='red')  # this is from 0-1
 airspeed.set_ylabel("0%-100%", color='red')
 airspeed.tick_params(axis='y', labelcolor='red')
 
 airspeed.plot([], [], label="Airspeed", color='blue')  # to create the label
-ax1.plot(time, airspeed_adjusted_column, label='Airspeed', color='blue')  # this is in m/s
+ax1.plot(time, airspeed_adjusted_column,
+         label='Airspeed', color='blue')  # this is in m/s
 ax1.set_ylabel("m/s", color='blue')
 ax1.tick_params(axis='y', labelcolor='blue')
 airspeed.legend()
@@ -163,14 +166,16 @@ altitude.plot(time, estimated_altitude_column, label='Altitude', color='blue')
 altitude.set_ylabel("m", color='blue')
 altitude.tick_params(axis='y', labelcolor='blue')
 
-altitude.plot([], [], label="Forwards Acceleration", color='green')  # to create the label
-ax2.plot(time, forwardsAcceleration_column, label='Forwards Acceleration', color='green')  # this is in m/s^2
+altitude.plot([], [], label="Forwards Acceleration",
+              color='green')  # to create the label
+ax2.plot(time, forwardsAcceleration_column,
+         label='Forwards Acceleration', color='green')  # this is in m/s^2
 ax2.set_ylabel("m/s^2", color='green')
 ax2.tick_params(axis='y', labelcolor='green')
 
 altitude.legend()
 
-state.plozt(time, flight_phase_column, label="Flight Phase", color='purple')
+state.plot(time, flight_phase_column, label="Flight Phase", color='purple')
 state.set_yticks([1.0, 2.0, 3.0])
 state.set_yticklabels(["Manual", "Stabilized", "Dynamic Soaring"])
 state.set_xlabel("time(s)")
@@ -184,21 +189,16 @@ plt.subplots_adjust(top=0.9)
 plt.show()
 
 
-#ACTUALLY. DO THE DS CIRCLING AND MEASURE THE DESCELERATION PER CYCLE, USING THE YAW IMU TO DETERMINE WHERE THE CYCLE STARTS AND ENDS. THIS WILL MORE ACCURATLELY COMAPRE TO ACTUAL DS.
-
-#NEED TO CHANGE THE CODE BELOW.
-
-
 # make an array of all the forwards acceleration values when throttle is 0, the roll_des, and _pitch_des are all 0, and the flight phase is 2
 noThrottleAccelerationVals = []
 for i in range(len(time)):
-    if s1_command_scaled_column[i] == 0 and flight_phase_column[i] == 2 and roll_des_column[i] < 3 and roll_des_column > -3 and pitch_des_column[i] < 3 and pitch_des_column > -3: #within 3 degrees of 0 is close enough to 0
+    if s1_command_scaled_column[i] == 0 and flight_phase_column[i] == 2 and roll_des_column[i] < 3 and roll_des_column[i] > -3 and pitch_des_column[i] < 3 and pitch_des_column[i] > -3:
         noThrottleAccelerationVals.append(forwardsAcceleration_column[i])
-#print the array
+# print the array
 print(" ")
 print("Array of acceleration when throttle is 0: ", noThrottleAccelerationVals)
 
-#find the mean, standard deviation, and 90% confidence interval of the array
+# find the mean, standard deviation, and 90% confidence interval of the array
 mean = np.mean(noThrottleAccelerationVals)
 std = np.std(noThrottleAccelerationVals)
 confInt = 1.645 * (std / np.sqrt(len(noThrottleAccelerationVals)))
@@ -208,15 +208,22 @@ range = max(noThrottleAccelerationVals) - min(noThrottleAccelerationVals)
 binsNum = range / binsSize
 binsNum = int(abs(binsNum))
 
-#make the histogram
-plt.hist(noThrottleAccelerationVals, bins = binsNum, density=True, alpha=0.6, color='g')
+# make the histogram
+plt.hist(noThrottleAccelerationVals, bins=binsNum,
+         density=True, alpha=0.6, color='g')
 xmin, xmax = plt.xlim()
 x = np.linspace(xmin, xmax, 100)
 p = norm.pdf(x, mean, std)
 plt.plot(x, p, 'k', linewidth=2)
+#make the tick marks on x axis equal the bins but only label every 5 bins
+plt.xticks(np.arange(min(noThrottleAccelerationVals), max(noThrottleAccelerationVals) + binsSize, binsSize), rotation=90)
+plt.xticks(np.arange(min(noThrottleAccelerationVals), max(noThrottleAccelerationVals) + binsSize, binsSize*5))
+
+
 title = "Forwards Acceleration in Level Flight and when Throttle is 0. "
-#put the number of samples, mean, and standard deviation in the title
-title = title + "mean: " + str(round(mean,5)) + "m/s^2, s: " + str(round(std,5)) + "m/s^2" + ", n: " + str(len(noThrottleAccelerationVals))
+# put the number of samples, mean, and standard deviation in the title
+title = title + "mean: " + str(round(mean, 5)) + "m/s^2, s: " + str(
+    round(std, 5)) + "m/s^2" + ", n: " + str(len(noThrottleAccelerationVals))
 plt.title(title)
 plt.xlabel('Forwards Acceleration (m/s^2)')
 plt.ylabel('Probability (%)')
@@ -246,13 +253,6 @@ print("std of throttle: ", s1_command_scaled_column.std(), "%")
 '''
 
 
-
-
-
-
-
-
-
 '''
 def getRowNumber(timeInput):
     for i in range(len(time)):
@@ -279,4 +279,3 @@ print(forwardsAcceleration_column[time[start_time_row]:time[end_time_row]])
 print(" ")
 
 '''
-
