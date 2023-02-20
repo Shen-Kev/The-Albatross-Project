@@ -130,7 +130,7 @@ p = norm.pdf(x, mean, std)
 plt.plot(x, p, 'k', linewidth=2)
 
 
-title = "Forwards Acceleration in Level Flight when Throttle is 0"
+title = "Forwards Acceleration in Level Flight without DS"
 subtitle = "5% Trimmed Mean: " + str(round(mean, 5)) + "m/s^2, Std: " + str(
     round(std, 5)) + "m/s^2" + ", n: " + str(len(noThrottleAccelerationVals))
 plt.title(subtitle)
