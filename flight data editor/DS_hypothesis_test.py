@@ -139,7 +139,7 @@ DS_accelValues = []
 for i in range(len(time)):
     # and prob make it so that it only does it when accel in the wind, also like only at low alt
     if flight_phase_column[i] == 3 and airspeed_adjusted_column[i] > 5.0:
-        DS_accelValues.append(forwardsAcceleration_column[i]+0.1)
+        DS_accelValues.append(forwardsAcceleration_column[i])
 
 # trim the dataset to have 5% trimmed off the top and bottom
 DS_accelValues.sort()
@@ -166,8 +166,7 @@ xmax_DS += 0.1
 x_DS = np.linspace(xmin_DS, xmax_DS, 100)
 p_DS = norm.pdf(x_DS, mean_DS, std_DS)
 plt.plot(x_DS, p_DS, 'k', linewidth=2, color='b')
-plt.xlabel('Forwards Acceleration (m/s^2)')
-plt.ylabel('Probability (%)')
+
 # DS DATA ANALYSIS ENDS HERE
 
 # two sample t test
@@ -175,6 +174,12 @@ t, p = stats.ttest_ind(DS_accelValues, notDS_accelValues, equal_var=False, nan_p
 print("t = " + str(t))
 print("p = " + str(p))
 
+#determine if the difference is significant with alpha = 0.05
+alpha = 0.05
+if p < alpha:
+    print("The difference is significant")
+else:
+    print("The difference is not significant")
 
 #also plot the difference between the two normal distributions DS and Not DS on the 2,1,2 subplot
 plt.subplot(2, 1, 2)
@@ -203,17 +208,13 @@ plt.text(-0.021, 0.1, '  Null Hypothesis', rotation=90, color = 'k')
 plt.subplot(2, 1, 1)
 plt.legend(["Not DS" + " n = " + str(len(notDS_accelValues)), "DS" + " n = " + str(len(DS_accelValues))])
 plt.subplot(2, 1, 2)
-plt.legend(["Difference"])
+plt.legend(['Difference'])
+#change the legend color
 
 
 # plot the title
 title = "Dynamic Soaring Two Sample T Test"
-plt.suptitle(title, y=0.95)
-#adjust subplot top param
-plt.subplots_adjust(top=0.9)
-
-plt.xlabel('Difference in Forwards Acceleration (m/s^2)')
-plt.ylabel('Difference in Probability (%)')
-
-plt.tight_layout()
+plt.suptitle(title)
+plt.xlabel('Forwards Acceleration (m/s^2)')
+plt.ylabel('Probability (%)')
 plt.show()
