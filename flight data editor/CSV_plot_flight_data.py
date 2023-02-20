@@ -17,6 +17,7 @@ import csv
 import time
 from datetime import datetime
 now = datetime.now() # current date and time
+from scipy.stats import norm
 
 from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,
                                AutoMinorLocator)
@@ -117,8 +118,6 @@ airspeed.set_title('Throttle and Airspeed')
 altitude.set_title('Altitude and Forwards Acceleration')
 state.set_title('Flight Phase')
 
-# make a string which uses the current date from the computer
-
 
 #call the current date from the computer
 date = now.strftime("%m/%d/%Y")
@@ -180,7 +179,45 @@ state.legend()
 # Adjust the space between the two charts
 fig.tight_layout()
 
+# Display the plot
+plt.subplots_adjust(top=0.9)
+plt.show()
 
+# make an array of all the forwards acceleration values when throttle is 0, the roll_des, and _pitch_des are all 0, and the flight phase is 2
+noThrottleAccelerationVals = []
+for i in range(len(time)):
+    if s1_command_scaled_column[i] == 0 and flight_phase_column[i] == 2:
+        noThrottleAccelerationVals.append(forwardsAcceleration_column[i])
+#print the array
+print(" ")
+print("Array of acceleration when throttle is 0: ", noThrottleAccelerationVals)
+
+#find the mean, standard deviation, and 90% confidence interval of the array
+mean = np.mean(noThrottleAccelerationVals)
+std = np.std(noThrottleAccelerationVals)
+confInt = 1.645 * (std / np.sqrt(len(noThrottleAccelerationVals)))
+
+binsSize = 0.01
+range = max(noThrottleAccelerationVals) - min(noThrottleAccelerationVals)
+binsNum = range / binsSize
+binsNum = int(abs(binsNum))
+
+#make the histogram
+plt.hist(noThrottleAccelerationVals, bins = binsNum, density=True, alpha=0.6, color='g')
+xmin, xmax = plt.xlim()
+x = np.linspace(xmin, xmax, 100)
+p = norm.pdf(x, mean, std)
+plt.plot(x, p, 'k', linewidth=2)
+title = "Forwards Acceleration in Level Flight and when Throttle is 0. "
+#put the number of samples, mean, and standard deviation in the title
+title = title + "mean: " + str(round(mean,5)) + "m/s^2, s: " + str(round(std,5)) + "m/s^2" + ", n: " + str(len(noThrottleAccelerationVals))
+plt.title(title)
+plt.xlabel('Forwards Acceleration (m/s^2)')
+plt.ylabel('Probability (%)')
+plt.show()
+
+
+'''
 # print interesting statistics about the flight
 print(" ")
 print("Flight time: ", time.max() - time.min(), "s")
@@ -198,6 +235,16 @@ print("std of airspeed: ", airspeed_adjusted_column.std(), "m/s")
 print("std of forwards acceleration: ",
       forwardsAcceleration_column.std(), "m/s^2")
 print("std of throttle: ", s1_command_scaled_column.std(), "%")
+
+
+'''
+
+
+
+
+
+
+
 
 
 '''
@@ -226,6 +273,4 @@ print(forwardsAcceleration_column[time[start_time_row]:time[end_time_row]])
 print(" ")
 
 '''
-# Display the plot
-plt.subplots_adjust(top=0.9)
-plt.show()
+
