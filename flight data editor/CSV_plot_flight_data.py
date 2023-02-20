@@ -183,6 +183,12 @@ fig.tight_layout()
 plt.subplots_adjust(top=0.9)
 plt.show()
 
+
+#ACTUALLY. DO THE DS CIRCLING AND MEASURE THE DESCELERATION PER CYCLE, USING THE YAW IMU TO DETERMINE WHERE THE CYCLE STARTS AND ENDS. THIS WILL MORE ACCURATLELY COMAPRE TO ACTUAL DS.
+
+#NEED TO CHANGE THE CODE BELOW.
+
+
 # make an array of all the forwards acceleration values when throttle is 0, the roll_des, and _pitch_des are all 0, and the flight phase is 2
 noThrottleAccelerationVals = []
 for i in range(len(time)):
