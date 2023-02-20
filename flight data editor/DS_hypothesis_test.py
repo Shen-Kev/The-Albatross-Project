@@ -181,41 +181,26 @@ if p < alpha:
 else:
     print("The difference is not significant")
 
-#also plot the difference between the two normal distributions
-difference = []
-for i in range(len(DS_accelValues)):
-    difference.append(DS_accelValues[i] - notDS_accelValues[i])
-
-# find the mean, standard deviation of the array
-mean_difference = np.mean(difference)
-std_difference = np.std(difference)
-
-binsSize = 0.01
-range_difference = max(difference) - min(difference)
-binsNum_difference = range_difference / binsSize
-binsNum_difference = int(abs(binsNum_difference))
-
-# make the histogram for DS data on a subplot
+#also plot the difference between the two normal distributions DS and Not DS on the 2,1,2 subplot
 plt.subplot(2, 1, 2)
-plt.hist(difference, bins=binsNum_difference,
-            density=True, alpha=0.6, color='r')
-xmin_difference, xmax_difference = plt.xlim()
-xmin_difference -= 0.1
-xmax_difference += 0.1
-x_difference = np.linspace(xmin_difference, xmax_difference, 100)
+#plot the difference between the two normal distributions
+mean_difference = mean_DS - mean_notDS
+std_difference = np.sqrt(std_DS**2 + std_notDS**2)
+x_difference = np.linspace(-3*std_difference+mean_difference, 3*std_difference+mean_difference, 100)
 p_difference = norm.pdf(x_difference, mean_difference, std_difference)
-#plot the differnce plot so that the the side to the left of the signifiant difference is shaded
+plt.plot(x_difference, p_difference, 'k', linewidth=2, color='b')
+#fill in the area under the curve to the left of the cutoff
 plt.fill_between(x_difference, p_difference, where=x_difference < -1.96*std_difference+mean_difference, color='r', alpha=1)
 plt.plot(x_difference, p_difference, 'k', linewidth=2, color='r')
 
 #plot the line on the differnce plot to show z score of -1.96
-plt.axvline(x=-1.96*std_difference+mean_difference, color='r', linestyle='--')
+plt.axvline(x=-1.96*std_difference+mean_difference, color='k', linestyle='--')
 #label the line
-plt.text(-1.96*std_difference+mean_difference, 0.1, '  Left Tail Test Cutoff', rotation=90, color = 'r')
+plt.text(-1.96*std_difference+mean_difference-0.021, 0.1, '  Left Tail Test Cutoff', rotation=90, color = 'k')
 #draw a line at the null hypotehsis for the difference
 plt.axvline(x=0, color='k', linestyle='--')
 #label the line
-plt.text(0, 0.1, '  Null Hypothesis', rotation=90, color = 'k')
+plt.text(-0.021, 0.1, '  Null Hypothesis', rotation=90, color = 'k')
 
 
 
@@ -223,7 +208,7 @@ plt.text(0, 0.1, '  Null Hypothesis', rotation=90, color = 'k')
 plt.subplot(2, 1, 1)
 plt.legend(["Not DS" + " n = " + str(len(notDS_accelValues)), "DS" + " n = " + str(len(DS_accelValues))])
 plt.subplot(2, 1, 2)
-plt.legend(['Difference'])
+plt.legend(["Difference"])
 
 # plot the title
 title = "Dynamic Soaring Two Sample T Test"
