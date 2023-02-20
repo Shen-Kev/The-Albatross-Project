@@ -186,7 +186,7 @@ plt.show()
 # make an array of all the forwards acceleration values when throttle is 0, the roll_des, and _pitch_des are all 0, and the flight phase is 2
 noThrottleAccelerationVals = []
 for i in range(len(time)):
-    if s1_command_scaled_column[i] == 0 and flight_phase_column[i] == 2:
+    if s1_command_scaled_column[i] == 0 and flight_phase_column[i] == 2 and roll_des_column[i] < 3 and roll_des_column > -3 and pitch_des_column[i] < 3 and pitch_des_column > -3: #within 3 degrees of 0 is close enough to 0
         noThrottleAccelerationVals.append(forwardsAcceleration_column[i])
 #print the array
 print(" ")
