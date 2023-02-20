@@ -189,45 +189,6 @@ plt.subplots_adjust(top=0.9)
 plt.show()
 
 
-# make an array of all the forwards acceleration values when throttle is 0, the roll_des, and _pitch_des are all 0, and the flight phase is 2
-noThrottleAccelerationVals = []
-for i in range(len(time)):
-    if s1_command_scaled_column[i] == 0 and flight_phase_column[i] == 2 and roll_des_column[i] < 3 and roll_des_column[i] > -3 and pitch_des_column[i] < 3 and pitch_des_column[i] > -3:
-        noThrottleAccelerationVals.append(forwardsAcceleration_column[i])
-# print the array
-print(" ")
-print("Array of acceleration when throttle is 0: ", noThrottleAccelerationVals)
-
-# find the mean, standard deviation, and 90% confidence interval of the array
-mean = np.mean(noThrottleAccelerationVals)
-std = np.std(noThrottleAccelerationVals)
-confInt = 1.645 * (std / np.sqrt(len(noThrottleAccelerationVals)))
-
-binsSize = 0.01
-range = max(noThrottleAccelerationVals) - min(noThrottleAccelerationVals)
-binsNum = range / binsSize
-binsNum = int(abs(binsNum))
-
-# make the histogram
-plt.hist(noThrottleAccelerationVals, bins=binsNum,
-         density=True, alpha=0.6, color='g')
-xmin, xmax = plt.xlim()
-x = np.linspace(xmin, xmax, 100)
-p = norm.pdf(x, mean, std)
-plt.plot(x, p, 'k', linewidth=2)
-#make the tick marks on x axis equal the bins but only label every 5 bins
-plt.xticks(np.arange(min(noThrottleAccelerationVals), max(noThrottleAccelerationVals) + binsSize, binsSize), rotation=90)
-plt.xticks(np.arange(min(noThrottleAccelerationVals), max(noThrottleAccelerationVals) + binsSize, binsSize*5))
-
-
-title = "Forwards Acceleration in Level Flight and when Throttle is 0. "
-# put the number of samples, mean, and standard deviation in the title
-title = title + "mean: " + str(round(mean, 5)) + "m/s^2, s: " + str(
-    round(std, 5)) + "m/s^2" + ", n: " + str(len(noThrottleAccelerationVals))
-plt.title(title)
-plt.xlabel('Forwards Acceleration (m/s^2)')
-plt.ylabel('Probability (%)')
-plt.show()
 
 
 '''
