@@ -170,7 +170,7 @@ ax2.tick_params(axis='y', labelcolor='green')
 
 altitude.legend()
 
-state.plot(time, flight_phase_column, label="Flight Phase", color='purple')
+state.plozt(time, flight_phase_column, label="Flight Phase", color='purple')
 state.set_yticks([1.0, 2.0, 3.0])
 state.set_yticklabels(["Manual", "Stabilized", "Dynamic Soaring"])
 state.set_xlabel("time(s)")
