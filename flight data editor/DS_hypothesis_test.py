@@ -104,6 +104,8 @@ xmax_notDS += 0.1
 x_notDS = np.linspace(xmin_notDS, xmax_notDS, 100)
 p_notDS = norm.pdf(x_notDS, mean_notDS, std_notDS)
 plt.plot(x_notDS, p_notDS, 'k', linewidth=2, color='g')
+
+
 # NOT DS DATA ANALYSIS ENDS HERE
 
 # DA DATA ANALYSIS STARTS HERE
@@ -138,7 +140,7 @@ estimated_altitude_column = df.iloc[:, estimated_altitude]
 DS_accelValues = []
 for i in range(len(time)):
     # and prob make it so that it only does it when accel in the wind, also like only at low alt
-    if flight_phase_column[i] == 3 and airspeed_adjusted_column[i] > 5.0:
+    if flight_phase_column[i] == 1 and airspeed_adjusted_column[i] > 5.0:
         DS_accelValues.append(forwardsAcceleration_column[i])
 
 # trim the dataset to have 5% trimmed off the top and bottom
@@ -155,9 +157,9 @@ range_DS = max(DS_accelValues) - min(DS_accelValues)
 binsNum_DS = range_DS / binsSize
 binsNum_DS = int(abs(binsNum_DS))
 
-
-# make the histogram for DS data
 plt.subplot(2, 1, 1)
+plt.xlabel('Forwards Acceleration (m/s^2)')
+plt.ylabel('Probability Density')
 plt.hist(DS_accelValues, bins=binsNum_DS,
          density=True, alpha=0.6, color='b')
 xmin_DS, xmax_DS = plt.xlim()
@@ -185,7 +187,7 @@ else:
 plt.subplot(2, 1, 2)
 #plot the difference between the two normal distributions
 mean_difference = mean_DS - mean_notDS
-std_difference = np.sqrt(std_DS**2 + std_notDS**2)
+std_difference = np.sqrt(((std_DS**2)/len(DS_accelValues)) + ((std_notDS**2) / len(notDS_accelValues)))
 x_difference = np.linspace(-3*std_difference+mean_difference, 3*std_difference+mean_difference, 100)
 p_difference = norm.pdf(x_difference, mean_difference, std_difference)
 plt.plot(x_difference, p_difference, 'k', linewidth=2, color='b')
@@ -196,25 +198,40 @@ plt.plot(x_difference, p_difference, 'k', linewidth=2, color='r')
 #plot the line on the differnce plot to show z score of -1.96
 plt.axvline(x=-1.96*std_difference+mean_difference, color='k', linestyle='--')
 #label the line
-plt.text(-1.96*std_difference+mean_difference-0.021, 0.1, '  Left Tail Test Cutoff', rotation=90, color = 'k')
+plt.text(-1.96*std_difference+mean_difference, 0.1, '  Left Tail Test Cutoff', rotation=90, color = 'k')
 #draw a line at the null hypotehsis for the difference
 plt.axvline(x=0, color='k', linestyle='--')
 #label the line
-plt.text(-0.021, 0.1, '  Null Hypothesis', rotation=90, color = 'k')
+plt.text(0, 0.1, '  Null Hypothesis', rotation=90, color = 'k')
 
+#plot axies labels
+plt.xlabel('Difference in Forwards Acceleration (m/s^2)')
+plt.ylabel('Probability Density')
 
 
 # plot the legend for both subplots
 plt.subplot(2, 1, 1)
 plt.legend(["Not DS" + " n = " + str(len(notDS_accelValues)), "DS" + " n = " + str(len(DS_accelValues))])
-plt.subplot(2, 1, 2)
-plt.legend(['Difference'])
-#change the legend color
 
 
 # plot the title
 title = "Dynamic Soaring Two Sample T Test"
 plt.suptitle(title)
-plt.xlabel('Forwards Acceleration (m/s^2)')
-plt.ylabel('Probability (%)')
 plt.show()
+
+
+#print all statistical info for all the charts (t value, p value, n, std, mean, df, etc)
+print(" ")
+print("Not DS n = " + str(len(notDS_accelValues)))
+print("Not DS mean = " + str(mean_notDS))
+print("Not DS std = " + str(std_notDS))
+print("DS n = " + str(len(DS_accelValues)))
+print("DS mean = " + str(mean_DS))
+print("DS std = " + str(std_DS))
+print("t = " + str(t))
+print("p = " + str(p))
+print("alpha = " + str(alpha))
+print("df = " + str(len(notDS_accelValues) + len(DS_accelValues) - 2))
+print("mean difference = " + str(mean_difference))
+print("std difference = " + str(std_difference))
+print("t critical = " + str(-1.96))

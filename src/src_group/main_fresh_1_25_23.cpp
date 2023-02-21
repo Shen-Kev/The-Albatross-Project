@@ -372,7 +372,7 @@ void pitotSetup()
         V = ((PR * 13789.5144) / 1.225);
         airspeed_offset += (sqrt((V)));
         delay(100);
-    }
+    } 
     airspeed_offset = airspeed_offset / 10.0;
 }
 void pitotLoop()
