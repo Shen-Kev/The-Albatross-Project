@@ -391,8 +391,8 @@ void VL53L1Xsetup()
         while (1)
             ;
     }
-    sensor.setDistanceMode(VL53L1X::Medium);
-    sensor.setMeasurementTimingBudget(20000);
+    sensor.setDistanceMode(VL53L1X::Medium); // short has a range of 1m, medium has a range of 2m, long has a range of 4m
+    sensor.setMeasurementTimingBudget(50000); 
     sensor.startContinuous(50);
 }
 void VL53L1Xloop()

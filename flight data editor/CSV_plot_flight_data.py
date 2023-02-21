@@ -70,7 +70,7 @@ with open(raw_file, "r") as input_csv, open(trimmed_file, "w", newline="") as ou
         if i < mostRecentRunRowIndex:  # if the row was generated in a previous run, don't include it by not doing anything
             continue
         # if the airspeed is high, include the data because its probably the flight
-        elif float(row[airspeed_adjusted]) >= 5.0:
+        elif float(row[airspeed_adjusted]) >= 0.0:
             # write row to the output file
             output_writer.writerow(row)
 
