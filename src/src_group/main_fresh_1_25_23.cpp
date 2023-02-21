@@ -391,8 +391,8 @@ void VL53L1Xsetup()
         while (1)
             ;
     }
-    sensor.setDistanceMode(VL53L1X::Long);
-    sensor.setMeasurementTimingBudget(50000);
+    sensor.setDistanceMode(VL53L1X::Medium);
+    sensor.setMeasurementTimingBudget(20000);
     sensor.startContinuous(50);
 }
 void VL53L1Xloop()
@@ -489,6 +489,8 @@ void logDataToRAM()
         dataLogArray[currentRow][15] = 0;                   // not used yet
 
         currentRow++;
+
+        Serial.println(estimated_altitude);
     }
 }
 

@@ -189,8 +189,6 @@ plt.subplots_adjust(top=0.9)
 plt.show()
 
 
-
-
 '''
 # print interesting statistics about the flight
 print(" ")
