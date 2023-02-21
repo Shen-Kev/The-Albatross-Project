@@ -178,7 +178,7 @@ print("p = " + str(p))
 alpha = 0.05
 if p < alpha:
     print("The difference is significant")
-else:
+else: 
     print("The difference is not significant")
 
 #also plot the difference between the two normal distributions DS and Not DS on the 2,1,2 subplot
