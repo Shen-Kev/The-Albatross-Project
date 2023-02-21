@@ -13,7 +13,7 @@
 #include <SD.h>                                     // SD card library
 #include "AltitudeEstimation/altitude.h"            // Altitude estimation library
 #define MOTOR_ACTIVE 1                              // 1 = motor is active, 0 = motor is not active
-#define DS_AUTO_GROUND_AVOIDANCE_TEST 0             // 1 = DS flight mode only avoids the ground
+#define DS_AUTO_GROUND_AVOIDANCE_TEST 1             // 1 = DS flight mode only avoids the ground
 #define DS_AUTO_CIRCLING_NO_GROUND_AVOIDANCE_TEST 0 // 1 = DS flight mode circles the aircraft with manual pitch control
 
 // Constants for Gimbal Servo
