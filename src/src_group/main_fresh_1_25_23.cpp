@@ -17,15 +17,15 @@
 #define DS_AUTO_CIRCLING_NO_GROUND_AVOIDANCE_TEST 0 // 1 = DS flight mode circles the aircraft with manual pitch control
 
 // Constants for Ultrasonic Sensor
-const int TRIGGER_PIN = 34;                // Trigger pin of the ultrasonic sensor
-const int ECHO_PIN = 35;                   // Echo pin of the ultrasonic sensor
-volatile unsigned long pulseStartTime;     // Time when the ultrasonic pulse is transmitted
-volatile unsigned long pulseEndTime;       // Time when the ultrasonic pulse is received
-volatile boolean pulseInProgress;          // Flag to indicate whether a pulse is in progress
-const unsigned long MEASURE_INTERVAL = 50; // Time between sensor readings (in milliseconds)
-unsigned long lastMeasureTime = 0;         // Time when the last sensor reading was taken
-float ultrasonicDistanceCM = 0;            // Variable to store the distance measured by the sensor
-float ultrasonicDistance = 0;              // Variable to store the distance measured by the sensor
+const int TRIGGER_PIN = 34;               // Trigger pin of the ultrasonic sensor
+const int ECHO_PIN = 35;                  // Echo pin of the ultrasonic sensor
+volatile unsigned long pulseStartTime;    // Time when the ultrasonic pulse is transmitted
+volatile unsigned long pulseEndTime;      // Time when the ultrasonic pulse is received
+volatile boolean pulseInProgress;         // Flag to indicate whether a pulse is in progress
+const unsigned long MEASURE_INTERVAL = 5; // Time between sensor readings (in milliseconds)
+unsigned long lastMeasureTime = 0;        // Time when the last sensor reading was taken
+float ultrasonicDistanceCM = 0;           // Variable to store the distance measured by the sensor
+float ultrasonicDistance = 0;             // Variable to store the distance measured by the sensor
 // ultrasonic sensor low pass variables
 const float ultrasonicDistance_LP_param = 0.2; // The low pass filter parameter for ultrasonic sensor (smaller values means a more smooth signal but higher delay time)
 float ultrasonicDistance_prev;                 // The previous reading of the ultrasonic sensor
@@ -237,20 +237,11 @@ void loop()
     pitotLoop();
     //}
 
-    // run the ultrasonic loop every 10 loops, and for the other 9 loops get commands
-    if (ultrasonicLoopCounter == 10)
-    {
-        ultrasonicLoop();
-        ultrasonicLoopCounter = 0;
-    }
-    else
-    {
-        ultrasonicLoopCounter++;
-        getCommands();
-        failSafe();
-    }
+    getCommands();
+    failSafe();
 
     estimateAltitude();
+    ultrasonicLoop();
 
     //    toggle = !toggle;
 
@@ -494,7 +485,7 @@ void ultrasonicLoop()
 
         // Wait for the distance to be calculated by the ISR, but not longer than 50 microseconds
         unsigned long waitStartTime = micros();
-        while (pulseInProgress && (micros() - waitStartTime <= 50))
+        while (pulseInProgress && (micros() - waitStartTime <= 5))
         {
             // Do nothing while the ultrasonic pulse is in progress or the time limit hasn't been reached
         }
