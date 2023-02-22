@@ -16,6 +16,13 @@
 #define DS_AUTO_GROUND_AVOIDANCE_TEST 1             // 1 = DS flight mode only avoids the ground
 #define DS_AUTO_CIRCLING_NO_GROUND_AVOIDANCE_TEST 0 // 1 = DS flight mode circles the aircraft with manual pitch control
 
+const int TRIGGER_PIN = 34;                // Trigger pin of the ultrasonic sensor
+const int ECHO_PIN = 35;                   // Echo pin of the ultrasonic sensor
+const unsigned long MEASURE_INTERVAL = 50; // Time between sensor readings (in milliseconds)
+
+unsigned long lastMeasureTime = 0; // Time when the last sensor reading was taken
+long ultrasonicDistance = 0;       // Variable to store the distance measured by the sensor
+
 // Constants for Gimbal Servo
 const float gimbalServoGain = -1.5;
 const float gimbalServoTrim = 0;
@@ -65,11 +72,11 @@ float accelData[3];                             // The raw accelerometer data fr
 float gyroData[3];                              // The raw gyro data from the IMU
 
 // Dynamic Soaring Variables
-float DS_roll_angle = -30;      // The bank angle for Dynamic Soaring (in degrees) (turning left)
+float DS_roll_angle = -30;       // The bank angle for Dynamic Soaring (in degrees) (turning left)
 float DS_yaw_proportion = 0.008; // The proportion of yaw in degrees to roll 0-1 for Dynamic Soaring
-float DS_pitch_angle;           // Normally just the pilot input, but is automatically adjusted to avoid the ground
-float minimum_pitch_angle;      // The minimum pitch angle while close to the ground in DS
-float minimum_altitude = 2;     // the altitude at which the min pitch angle starts to increase from -45
+float DS_pitch_angle;            // Normally just the pilot input, but is automatically adjusted to avoid the ground
+float minimum_pitch_angle;       // The minimum pitch angle while close to the ground in DS
+float minimum_altitude = 2;      // the altitude at which the min pitch angle starts to increase from -45
 float slope_min_pitch_angle_function = -27.5;
 float intercept_min_pitch_angle_function = 10;
 
@@ -103,8 +110,9 @@ void setupSD();
 void logDataToRAM();
 void clearDataInRAM();
 void writeDataToSD();
-void VL53L1Xsetup();
-void VL53L1Xloop();
+// void VL53L1Xsetup();
+// void VL53L1Xloop();
+void ultrasonicLoop();
 
 float rate_of_climb_LP_param = 0.002;
 float rate_of_climb_prev;
@@ -155,10 +163,15 @@ void setup()
         getIMUdata();
         Madgwick6DOF(GyroX, GyroY, GyroZ, -AccX, AccY, AccZ, dt);
     }
-    VL53L1Xsetup();
-    Serial.println("passed ToF setup");
+    //    VL53L1Xsetup();
+    // Serial.println("passed ToF setup");
     pitotSetup();
     Serial.println("passed pitot");
+
+    // Initialize the ultrasonic sensor pins
+    pinMode(TRIGGER_PIN, OUTPUT);
+    pinMode(ECHO_PIN, INPUT);
+
     clearDataInRAM();
     setupSD();
     throttle_channel = throttle_fs;
@@ -201,7 +214,8 @@ void loop()
     gyroData[2] = GyroZ * DEG_TO_RAD;
     if (toggle)
     {
-        VL53L1Xloop();
+        ultrasonicLoop();
+        // VL53L1Xloop();
     }
     else
     {
@@ -263,7 +277,7 @@ void loop()
         }
         else
         {
-            DS_pitch_angle = pitch_des; //maybe in the future, have this be a sinusoidal function. because the derivative of the altitude if the altitude is sinusoidal is sinuosidal, and the derivative of the pitch angle is the pitch rate, so the pitch rate should be sinusoidal as well
+            DS_pitch_angle = pitch_des; // maybe in the future, have this be a sinusoidal function. because the derivative of the altitude if the altitude is sinusoidal is sinuosidal, and the derivative of the pitch angle is the pitch rate, so the pitch rate should be sinusoidal as well
         }
 
 #if DS_AUTO_GROUND_AVOIDANCE_TEST == 1
@@ -342,7 +356,7 @@ void loop()
     loopBlink();
     loopRate(2000);
 }
-
+/*
 void estimateAltitude()
 {
 
@@ -360,6 +374,11 @@ void estimateAltitude()
     {                            // if the ToF is out of range or the gimbal is out of range
         estimated_altitude = -1; // to log that it is out of range.
     }
+}*/
+
+//using ultrasonic sensor instead
+void estimateAltitude() {
+    
 }
 void pitotSetup()
 {
@@ -372,7 +391,7 @@ void pitotSetup()
         V = ((PR * 13789.5144) / 1.225);
         airspeed_offset += (sqrt((V)));
         delay(100);
-    } 
+    }
     airspeed_offset = airspeed_offset / 10.0;
 }
 void pitotLoop()
@@ -382,6 +401,7 @@ void pitotLoop()
     airspeed_adjusted_prev = airspeed_adjusted;
     airspeed_adjusted = (airspeed_unadjusted - airspeed_offset) * airspeed_scalar;
 }
+/*
 void VL53L1Xsetup()
 {
     sensor.setTimeout(500);
@@ -392,7 +412,7 @@ void VL53L1Xsetup()
             ;
     }
     sensor.setDistanceMode(VL53L1X::Medium); // short has a range of 1m, medium has a range of 2m, long has a range of 4m
-    sensor.setMeasurementTimingBudget(50000); 
+    sensor.setMeasurementTimingBudget(50000);
     sensor.startContinuous(50);
 }
 void VL53L1Xloop()
@@ -401,7 +421,36 @@ void VL53L1Xloop()
     distance_LP = (1.0 - distance_LP_param) * distancePrev + distance_LP_param * distance;
     distancePrev = distance_LP;
 }
+*/
 
+void ultrasonicLoop()
+{
+    // Check if it's time to take a sensor reading
+    if (millis() - lastMeasureTime >= MEASURE_INTERVAL)
+    {
+        // Reset the last measurement time
+        lastMeasureTime = millis();
+
+        // Trigger a new sensor reading
+        digitalWrite(TRIGGER_PIN, LOW);
+        delayMicroseconds(2);
+        digitalWrite(TRIGGER_PIN, HIGH);
+        delayMicroseconds(10);
+        digitalWrite(TRIGGER_PIN, LOW);
+
+        // Wait for the echo signal
+        long duration = pulseIn(ECHO_PIN, HIGH);
+
+        // Calculate the distance in centimeters
+        ultrasonicDistance = duration / 58;
+        ultrasonicDistance /= 100.0; // convert to meters
+
+        // Print the distance to the serial port
+        Serial.print("Distance: ");
+        Serial.print(distance);
+        Serial.println(" m");
+    }
+}
 void setupSD()
 {
     while (!SD.begin(BUILTIN_SDCARD))
@@ -486,7 +535,7 @@ void logDataToRAM()
 
         // altitude
         dataLogArray[currentRow][14] = estimated_altitude; // altitude in meters
-        dataLogArray[currentRow][15] = 0;                   // not used yet
+        dataLogArray[currentRow][15] = 0;                  // not used yet
 
         currentRow++;
 
