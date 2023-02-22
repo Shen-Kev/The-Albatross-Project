@@ -16,12 +16,20 @@
 #define DS_AUTO_GROUND_AVOIDANCE_TEST 1             // 1 = DS flight mode only avoids the ground
 #define DS_AUTO_CIRCLING_NO_GROUND_AVOIDANCE_TEST 0 // 1 = DS flight mode circles the aircraft with manual pitch control
 
+// Constants for Ultrasonic Sensor
 const int TRIGGER_PIN = 34;                // Trigger pin of the ultrasonic sensor
 const int ECHO_PIN = 35;                   // Echo pin of the ultrasonic sensor
+volatile unsigned long pulseStartTime;     // Time when the ultrasonic pulse is transmitted
+volatile unsigned long pulseEndTime;       // Time when the ultrasonic pulse is received
+volatile boolean pulseInProgress;          // Flag to indicate whether a pulse is in progress
 const unsigned long MEASURE_INTERVAL = 50; // Time between sensor readings (in milliseconds)
-
-unsigned long lastMeasureTime = 0; // Time when the last sensor reading was taken
-long ultrasonicDistance = 0;       // Variable to store the distance measured by the sensor
+unsigned long lastMeasureTime = 0;         // Time when the last sensor reading was taken
+float ultrasonicDistanceCM = 0;             // Variable to store the distance measured by the sensor
+float ultrasonicDistance = 0;               // Variable to store the distance measured by the sensor
+// ultrasonic sensor low pass variables
+const float ultrasonicDistance_LP_param = 0.2; // The low pass filter parameter for ultrasonic sensor (smaller values means a more smooth signal but higher delay time)
+float ultrasonicDistance_prev;                 // The previous reading of the ultrasonic sensor
+float ultrasonicDistance_LP;                   // The low pass filtered ultrasonic sensor reading
 
 // Constants for Gimbal Servo
 const float gimbalServoGain = -1.5;
@@ -112,7 +120,9 @@ void clearDataInRAM();
 void writeDataToSD();
 // void VL53L1Xsetup();
 // void VL53L1Xloop();
+void ultrasonicSetup();
 void ultrasonicLoop();
+void pulseInISR();
 
 float rate_of_climb_LP_param = 0.002;
 float rate_of_climb_prev;
@@ -190,6 +200,7 @@ void setup()
     gimbalRightBoundAngle = (0 - gimbalServoBound) + (gimbalServoTrim / gimbalServoGain);
     gimbalLeftBoundAngle = (0 + gimbalServoBound) + (gimbalServoTrim / gimbalServoGain);
     calibrateAttitude(); // runs IMU for a few seconds to allow it to stabilize
+    ultrasonicSetup();
 }
 void loop()
 {
@@ -376,9 +387,19 @@ void estimateAltitude()
     }
 }*/
 
-//using ultrasonic sensor instead
-void estimateAltitude() {
-    
+// using ultrasonic sensor instead
+void estimateAltitude()
+{
+    if (ultrasonicDistance != -1 && ultrasonicDistance_LP < 2.0)
+    {
+        leftWingtipAltitude = ultrasonicDistance_LP - sin(roll_IMU_rad) * (halfWingspan);
+        rightWingtipAltitude = ultrasonicDistance_LP + sin(roll_IMU_rad) * (halfWingspan);
+        estimated_altitude = leftWingtipAltitude < rightWingtipAltitude ? leftWingtipAltitude : rightWingtipAltitude;
+    }
+    else
+    {
+        estimated_altitude = -1;
+    }
 }
 void pitotSetup()
 {
@@ -423,8 +444,24 @@ void VL53L1Xloop()
 }
 */
 
+void ultrasonicSetup()
+{
+
+    // Initialize the ultrasonic sensor pins
+    pinMode(TRIGGER_PIN, OUTPUT);
+    pinMode(ECHO_PIN, INPUT);
+
+    // Initialize the pulse variables
+    pulseStartTime = 0;
+    pulseEndTime = 0;
+    pulseInProgress = false;
+
+    // Attach an interrupt to the ECHO_PIN to detect the start and end of the ultrasonic pulse
+    attachInterrupt(digitalPinToInterrupt(ECHO_PIN), pulseInISR, CHANGE);
+}
 void ultrasonicLoop()
 {
+
     // Check if it's time to take a sensor reading
     if (millis() - lastMeasureTime >= MEASURE_INTERVAL)
     {
@@ -438,19 +475,57 @@ void ultrasonicLoop()
         delayMicroseconds(10);
         digitalWrite(TRIGGER_PIN, LOW);
 
-        // Wait for the echo signal
-        long duration = pulseIn(ECHO_PIN, HIGH);
+        // Wait for the distance to be calculated by the ISR, but not longer than 50 microseconds
+        unsigned long waitStartTime = micros();
+        while (pulseInProgress && (micros() - waitStartTime <= 50))
+        {
+            // Do nothing while the ultrasonic pulse is in progress or the time limit hasn't been reached
+        }
 
-        // Calculate the distance in centimeters
-        ultrasonicDistance = duration / 58;
-        ultrasonicDistance /= 100.0; // convert to meters
-
-        // Print the distance to the serial port
-        Serial.print("Distance: ");
-        Serial.print(distance);
-        Serial.println(" m");
+        // If the time limit has been reached and the pulse is still in progress, return -1
+        if (pulseInProgress)
+        {
+            ultrasonicDistance = -1;
+        }
+        else
+        {
+            // Calculate the distance in centimeters
+            ultrasonicDistanceCM = (pulseEndTime - pulseStartTime) / 58;
+            ultrasonicDistance = ultrasonicDistanceCM / 100.0;
+            if (ultrasonicDistanceCM < 200)
+            {
+               ultrasonicDistance_LP = (1.0 - ultrasonicDistance_LP_param) * ultrasonicDistance_prev + ultrasonicDistance_LP_param * ultrasonicDistance;
+               ultrasonicDistance_prev = ultrasonicDistance_LP;
+            }
+            else
+            {
+                // do nothing, just a spike
+            }
+            Serial.print(ultrasonicDistanceCM);
+            Serial.print(" ");
+            Serial.print(ultrasonicDistance);
+            Serial.println();
+        }
     }
 }
+
+// Interrupt Service Routine to handle the start and end of the ultrasonic pulse
+void pulseInISR()
+{
+    if (digitalRead(ECHO_PIN) == HIGH)
+    {
+        // The ultrasonic pulse is starting
+        pulseStartTime = micros();
+        pulseInProgress = true;
+    }
+    else
+    {
+        // The ultrasonic pulse is ending
+        pulseEndTime = micros();
+        pulseInProgress = false;
+    }
+}
+
 void setupSD()
 {
     while (!SD.begin(BUILTIN_SDCARD))
@@ -539,7 +614,7 @@ void logDataToRAM()
 
         currentRow++;
 
-        Serial.println(estimated_altitude);
+        //        Serial.println(estimated_altitude);
     }
 }
 

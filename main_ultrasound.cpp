@@ -1,7 +1,7 @@
 #include <Arduino.h>
 
-const int TRIGGER_PIN = 2; // Trigger pin of the ultrasonic sensor
-const int ECHO_PIN = 3;    // Echo pin of the ultrasonic sensor
+const int TRIGGER_PIN = 34; // Trigger pin of the ultrasonic sensor
+const int ECHO_PIN = 35;    // Echo pin of the ultrasonic sensor
 
 volatile unsigned long pulseStartTime; // Time when the ultrasonic pulse is transmitted
 volatile unsigned long pulseEndTime;   // Time when the ultrasonic pulse is received
@@ -56,6 +56,7 @@ void loop() {
       // Calculate the distance in centimeters
       distance = (pulseEndTime - pulseStartTime) / 58;
     }
+    
 
     // Print the distance to the serial port
     Serial.print("Distance: ");
