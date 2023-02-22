@@ -24,12 +24,13 @@ volatile unsigned long pulseEndTime;       // Time when the ultrasonic pulse is 
 volatile boolean pulseInProgress;          // Flag to indicate whether a pulse is in progress
 const unsigned long MEASURE_INTERVAL = 50; // Time between sensor readings (in milliseconds)
 unsigned long lastMeasureTime = 0;         // Time when the last sensor reading was taken
-float ultrasonicDistanceCM = 0;             // Variable to store the distance measured by the sensor
-float ultrasonicDistance = 0;               // Variable to store the distance measured by the sensor
+float ultrasonicDistanceCM = 0;            // Variable to store the distance measured by the sensor
+float ultrasonicDistance = 0;              // Variable to store the distance measured by the sensor
 // ultrasonic sensor low pass variables
 const float ultrasonicDistance_LP_param = 0.2; // The low pass filter parameter for ultrasonic sensor (smaller values means a more smooth signal but higher delay time)
 float ultrasonicDistance_prev;                 // The previous reading of the ultrasonic sensor
 float ultrasonicDistance_LP;                   // The low pass filtered ultrasonic sensor reading
+int ultrasonicLoopCounter = 0;
 
 // Constants for Gimbal Servo
 const float gimbalServoGain = -1.5;
@@ -204,6 +205,9 @@ void setup()
 }
 void loop()
 {
+    // time per loop
+    // printLoopRate();
+
     prev_time = current_time;
     current_time = micros();
     dt = (current_time - prev_time) / 1000000.0;
@@ -223,20 +227,33 @@ void loop()
     gyroData[0] = GyroX * DEG_TO_RAD;
     gyroData[1] = GyroY * DEG_TO_RAD;
     gyroData[2] = GyroZ * DEG_TO_RAD;
-    if (toggle)
+    //  if (toggle)
+    //  {
+    //   ultrasonicLoop();
+    // VL53L1Xloop();
+    //  }
+    // else
+    // {
+    pitotLoop();
+    //}
+
+    // run the ultrasonic loop every 10 loops, and for the other 9 loops get commands
+    if (ultrasonicLoopCounter == 10)
     {
         ultrasonicLoop();
-        // VL53L1Xloop();
+        ultrasonicLoopCounter = 0;
     }
     else
     {
-        pitotLoop();
+        ultrasonicLoopCounter++;
+        getCommands();
+        failSafe();
     }
+
     estimateAltitude();
 
-    toggle = !toggle;
-    getCommands();
-    failSafe();
+    //    toggle = !toggle;
+
     pitch_IMU_rad = pitch_IMU * DEG_TO_RAD;
     roll_IMU_rad = roll_IMU * DEG_TO_RAD;
     yaw_IMU_rad = yaw_IMU * DEG_TO_RAD;
@@ -491,19 +508,21 @@ void ultrasonicLoop()
         {
             // Calculate the distance in centimeters
             ultrasonicDistanceCM = (pulseEndTime - pulseStartTime) / 58;
-            ultrasonicDistance = ultrasonicDistanceCM / 100.0;
-            if (ultrasonicDistanceCM < 200)
+            if (ultrasonicDistanceCM < 200) // if less than 2m
             {
-               ultrasonicDistance_LP = (1.0 - ultrasonicDistance_LP_param) * ultrasonicDistance_prev + ultrasonicDistance_LP_param * ultrasonicDistance;
-               ultrasonicDistance_prev = ultrasonicDistance_LP;
+                ultrasonicDistance = ultrasonicDistanceCM / 100.0; // convert to meters
+                ultrasonicDistance_LP = (1.0 - ultrasonicDistance_LP_param) * ultrasonicDistance_prev + ultrasonicDistance_LP_param * ultrasonicDistance;
+                ultrasonicDistance_prev = ultrasonicDistance_LP;
             }
             else
             {
                 // do nothing, just a spike
             }
-            Serial.print(ultrasonicDistanceCM);
-            Serial.print(" ");
+            // Serial.print(ultrasonicDistanceCM);
+            // Serial.print(" ");
             Serial.print(ultrasonicDistance);
+            Serial.print(" ");
+            Serial.print(ultrasonicDistance_LP);
             Serial.println();
         }
     }
