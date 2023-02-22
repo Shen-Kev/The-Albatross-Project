@@ -1,0 +1,439 @@
+#include <Arduino.h>               // Arduino library
+#include "src_group/dRehmFlight.h" //  Modified and used dRehmFlight: https://github.com/nickrehm/dRehmFlight
+                                   //  Credit to: Nicholas Rehm
+                                   //  Department of Aerospace Engineering
+                                   //  University of Maryland
+                                   //  College Park 20742
+                                   //  Email: nrehm@umd.edu
+
+#include <Wire.h>      // I2C library
+#include "ASPD4525.h"  // Pitot tube library
+#include <SD.h>        // SD card library
+#define MOTOR_ACTIVE 1 // 1 = motor is active, 0 = motor is not active
+
+// Constants and Variables for Airspeed
+const float airspeed_LP_param = 0.02; // The low pass filter parameter for airspeed (smaller values means a more smooth signal but higher delay time)
+const float airspeed_scalar = 1.8;    // The scalar to convert the raw airspeed reading to m/s
+float airspeed_offset = 0;            // The offset for the airspeed sensor
+float airspeed_unadjusted;            /// The raw airspeed reading from the pitot tube (in m/s)
+float airspeed_prev;                  // The previous reading of the airspeed sensor
+float airspeed_adjusted;              // The airspeed reading from the pitot tube, with a low pass filter and offset adjustment applied
+float airspeed_adjusted_prev;         // The previous reading of the airspeed sensor, with a low pass filter and offset adjustment applied
+
+const int datalogRate = 50; // The rate at which data is logged to the SD card (in Hz)
+
+// Constants and Variables for Forwards Acceleration
+float forwardsAcceleration;                  // The acceleration in the forwards direction (in m/s^2)
+float forwardsAcceleration_LP_param = 0.001; // The low pass filter parameter for forwardsAcceleration (smaller values means a more smooth signal but higher delay time)
+float forwardsAcceleration_prev;             // The previous reading of the forwardsAcceleration
+
+// Variables for Flight Control
+float timeInMillis;                             // The time in milliseconds since the flight controller has started
+int loopCounter = 0;                            // The number of times the loop has run
+float pitch_IMU_rad, roll_IMU_rad, yaw_IMU_rad; // The raw pitch, roll, and yaw angles in radians from the IMU
+float accelData[3];                             // The raw accelerometer data from the IMU
+float gyroData[3];                              // The raw gyro data from the IMU
+
+// Dynamic Soaring Variables
+float DS_roll_angle = 30;        // The bank angle for Dynamic Soaring (in degrees) (turning left)
+float DS_yaw_proportion = 0.008; // The proportion of yaw in degrees to roll 0-1 for Dynamic Soaring
+float DS_pitch_max = 30;         // The maximum pitch angle for Dynamic Soaring (in degrees)
+float DS_pitch_exit = 15;
+float DS_throttle_exit = 0.5; // throttle exiting the DS
+boolean DS_turn = false;
+boolean DS_first_activated = false;
+float DS_start_heading;
+float DS_pitch_offset = 10; // at all times the angle with be 10 deg more than just the raw cos wave
+float yaw_commmand_scaled;
+float angle_turned_radians;
+float throttle_scaled;
+
+// Variables for Data Logging
+const int COLUMNS = 13;            // 16 columns of data to be logged to the SD card
+const int ROWS = 7967;             // 7800 rows of data to be logged to the SD card
+float dataLogArray[ROWS][COLUMNS]; // The array that stores the data to be logged to the SD card
+boolean dataLogged = false;        // Used to determine if the data has been logged to the SD card
+boolean toggle = false;            // Used to toggle the LED
+int currentRow = 0;                // The current row of the data log array
+boolean logSuccessful = false;     // Used to determine if the data has been successfully logged to the SD card
+
+// Flight Phases
+float flight_phase; // The current flight phase
+enum flight_phases  // Flight phases for the flight controller
+{
+    manual_flight = 1,
+    stabilized_flight = 2,
+    DS_flight = 3
+};
+
+File dataFile; // File object for SD card
+
+// Functions
+void pitotSetup();
+void pitotLoop();
+void setupSD();
+void logDataToRAM();
+void clearDataInRAM();
+void writeDataToSD();
+
+// Flight Controller Setup
+// This function is run once when the flight controller is turned on
+// It is used to initialize the flight controller and set the initial values of the variables and objects used in the flight controller loop function (loop())
+void setup()
+{
+    // Constants for PID
+    Kp_roll_angle = 1.0;
+    Ki_roll_angle = 0.3;
+    Kd_roll_angle = 0.2;
+    Kp_pitch_angle = 2;
+    Ki_pitch_angle = 0.3;
+    Kd_pitch_angle = 0.5;
+
+    Serial.begin(500000);
+    Serial.println("serial works");
+    Wire.begin();
+    Wire.setClock(1000000);
+    Serial.println("wire works");
+    pinMode(13, OUTPUT);
+
+    ESC.attach(ESCpin, 1100, 2100);
+    aileronServo.attach(aileronServoPin, 900, 2100);
+    elevatorServo.attach(elevatorServoPin, 900, 2100);
+    rudderServo.attach(rudderServoPin, 900, 2100);
+    gimbalServo.attach(gimbal1ServoPin, 900, 2100);
+    Serial.println("passed attach");
+    delay(100);
+    radioSetup();
+    Serial.println("passed radio setup");
+    IMUinit();
+    Serial.println("passed IMU init");
+
+    AccErrorY = 0.04;
+    AccErrorZ = 0.11;
+    GyroErrorX = -3.20;
+    GyroErrorY = -0.14;
+    GyroErrorZ = -1.40;
+    delay(10000);
+    for (int i = 0; i < 1000; i++)
+    {
+        getIMUdata();
+        Madgwick6DOF(GyroX, GyroY, GyroZ, -AccX, AccY, AccZ, dt);
+    }
+    //    VL53L1Xsetup();
+    // Serial.println("passed ToF setup");
+    pitotSetup();
+    Serial.println("passed pitot");
+
+    clearDataInRAM();
+    setupSD();
+    throttle_channel = throttle_fs;
+    roll_channel = roll_fs;
+    pitch_channel = pitch_fs;
+    yaw_channel = yaw_fs;
+    mode1_channel = mode1_fs;
+    mode2_channel = mode2_fs;
+    delay(100);
+    ESC.write(0);
+    aileronServo.write(90);
+    elevatorServo.write(90);
+    rudderServo.write(90);
+    gimbalServo.write(90);
+    delay(100);
+    calibrateAttitude(); // runs IMU for a few seconds to allow it to stabilize
+}
+void loop()
+{
+    // time per loop
+    // printLoopRate();
+
+    prev_time = current_time;
+    current_time = micros();
+    dt = (current_time - prev_time) / 1000000.0;
+    timeInMillis = millis();
+    getIMUdata();
+    Madgwick6DOF(GyroX, GyroY, GyroZ, -AccX, AccY, AccZ, dt);
+
+    // estimate forwards acceleration (in g's) (because the AccX,Y,Z are in g's for easy computing and reasy represtnation)
+    forwardsAcceleration = AccX - 1 * sin(pitch_IMU_rad);
+    // low pass forwards accel
+    forwardsAcceleration = forwardsAcceleration * forwardsAcceleration_LP_param + (forwardsAcceleration_prev * (1 - forwardsAcceleration_LP_param));
+    forwardsAcceleration_prev = forwardsAcceleration;
+
+    accelData[0] = AccX;
+    accelData[1] = AccY;
+    accelData[2] = AccZ;
+    gyroData[0] = GyroX * DEG_TO_RAD;
+    gyroData[1] = GyroY * DEG_TO_RAD;
+    gyroData[2] = GyroZ * DEG_TO_RAD;
+
+    pitotLoop();
+    getCommands();
+    failSafe();
+
+    pitch_IMU_rad = pitch_IMU * DEG_TO_RAD;
+    roll_IMU_rad = roll_IMU * DEG_TO_RAD;
+    yaw_IMU_rad = yaw_IMU * DEG_TO_RAD;
+    getDesState();
+
+    // Flight Modes
+    if (mode1_channel < 1400)
+    {
+        flight_phase = manual_flight;
+        s1_command_scaled = thro_des;
+        s2_command_scaled = roll_passthru;
+        s3_command_scaled = pitch_passthru;
+        s4_command_scaled = yaw_passthru;
+        integral_pitch = 0;
+        integral_roll = 0;
+        roll_PID = 0;
+        pitch_PID = 0;
+    }
+    else if (mode1_channel < 1600)
+    {
+        flight_phase = stabilized_flight;
+        controlANGLE();
+        s1_command_scaled = thro_des;
+        s2_command_scaled = roll_PID;
+        s3_command_scaled = pitch_PID;
+        s4_command_scaled = roll_des * DS_yaw_proportion; // no yaw stick input
+        DS_first_activated = true;
+    }
+    // Dynamic Soaring Flight
+    else
+    {
+        flight_phase = DS_flight;
+        if (DS_first_activated)
+        {
+            DS_start_heading = yaw_IMU;
+            DS_turn = true;
+        }
+        //yaw IMU is the angle in degrees to north. At 180 degrees it loops back to -180 degrees. This code finds the degrees turned from the DS start heading. So even if the DS start is at -170 degrees and the UAV is at 170 degrees, the angle turned is 20 degrees.
+        angle_turned_radians = (yaw_IMU - DS_start_heading) * DEG_TO_RAD;
+        if (angle_turned_radians < 0)
+        {
+            angle_turned_radians = angle_turned_radians + 2 * PI;
+        }
+        
+        // if DS has turned over pi radians, DS turn is over
+        if (DS_turn && angle_turned_radians > PI)
+        {
+            DS_turn = false;
+        }
+
+        if (DS_turn)
+        {
+            roll_des = DS_roll_angle;
+            pitch_des = DS_pitch_max * cos(angle_turned_radians) + DS_pitch_offset;
+            yaw_commmand_scaled = DS_roll_angle * DS_yaw_proportion;
+            throttle_scaled = 0;
+        }
+        else
+        {
+            throttle_scaled = DS_throttle_exit;
+            roll_des = 0;
+            pitch_des = DS_pitch_exit;
+            yaw_commmand_scaled = 0;
+        }
+
+        controlANGLE();                          // run the PID loops for roll and pitch
+        s1_command_scaled = throttle_scaled;     // throttle to 0
+        s2_command_scaled = roll_PID;            // roll to DS roll angle
+        s3_command_scaled = pitch_PID;           // pitch to DS pitch angle
+        s4_command_scaled = yaw_commmand_scaled; // yaw to a proportion of the roll angle
+
+        DS_first_activated = false;
+    }
+
+    // Log data to RAM
+    if (loopCounter > (2000 / datalogRate)) // 2000 is the loop rate in microseconds
+    {
+        logDataToRAM();
+        loopCounter = 0;
+    }
+    else
+    {
+        loopCounter++;
+    }
+
+    // Log data to SD in flight if needed
+    if (currentRow >= ROWS)
+    {
+        writeDataToSD();
+        delay(5);
+        clearDataInRAM();
+    }
+
+    // Log data to SD using switch (for use on the ground only)
+    else if (mode2_channel < 1500)
+    {
+        if (!dataLogged)
+        {
+            writeDataToSD();
+            delay(5);
+            clearDataInRAM();
+            // blink the LED 3 times
+            for (int i = 0; i < 3; i++)
+            {
+                digitalWrite(13, HIGH);
+                delay(100);
+                digitalWrite(13, LOW);
+                delay(100);
+            }
+        }
+        dataLogged = true;
+    }
+    else
+    {
+        dataLogged = false;
+    }
+
+    scaleCommands();
+#if MOTOR_ACTIVE
+    ESC_command_PWM = ESC_command_PWM * 0.861 + 14;
+    ESC.write(ESC_command_PWM);
+#else
+    ESC.write(-100);
+#endif
+    aileronServo.write(aileron_command_PWM);
+    elevatorServo.write(elevator_command_PWM);
+    rudderServo.write(rudder_command_PWM);
+    gimbalServo.write(gimbalServo_command_PWM);
+    loopBlink();
+    loopRate(2000);
+}
+
+void pitotSetup()
+{
+    for (int i = 0; i < 10; i++)
+    {
+        _status = fetch_airspeed(&P_dat);
+        PR = (float)((P_dat - 819.15) / (14744.7));
+        PR = (PR - 0.49060678);
+        PR = abs(PR);
+        V = ((PR * 13789.5144) / 1.225);
+        airspeed_offset += (sqrt((V)));
+        delay(100);
+    }
+    airspeed_offset = airspeed_offset / 10.0;
+}
+void pitotLoop()
+{
+    airspeed_unadjusted = (1.0 - airspeed_LP_param) * airspeed_prev + airspeed_LP_param * fetch_airspeed(&P_dat);
+    airspeed_prev = airspeed_unadjusted;
+    airspeed_adjusted_prev = airspeed_adjusted;
+    airspeed_adjusted = (airspeed_unadjusted - airspeed_offset) * airspeed_scalar;
+}
+
+void setupSD()
+{
+    while (!SD.begin(BUILTIN_SDCARD))
+    {
+        delay(1000);
+    }
+
+    // write a line of sample data to the SD card
+    dataFile = SD.open("flightData.txt", FILE_WRITE);
+    dataFile.print("TEST DATA");
+    dataFile.println();
+    dataFile.close();
+
+    delay(100);
+
+    // read the line of sample data from the SD card, only continue if it the data is correct
+    while (!logSuccessful)
+    {
+        dataFile = SD.open("flightData.txt");
+        if (dataFile)
+        {
+            String dataString = dataFile.readStringUntil('\r'); // read the first line of the file
+            if (dataString == "TEST DATA")
+            {
+                Serial.println("SD card initialized correctly");
+                logSuccessful = true;
+            }
+            else
+            {
+                Serial.println("SD card initialized incorrectly");
+                logSuccessful = false;
+            }
+        }
+        else
+        {
+            Serial.println("SD card failed to open");
+            logSuccessful = false;
+        }
+        dataFile.print(""); // clear dataFile
+        dataFile.close();
+    }
+
+    // blink LED 10 times to indicate SD card is ready
+    for (int i = 0; i < 10; i++)
+    {
+        digitalWrite(13, HIGH);
+        delay(100);
+        digitalWrite(13, LOW);
+        delay(100);
+    }
+}
+
+void logDataToRAM()
+{
+    // log data to RAM
+
+    if (currentRow < ROWS)
+    {
+        // time and fight phase
+        dataLogArray[currentRow][0] = timeInMillis; // time in milliseconds
+        dataLogArray[currentRow][1] = flight_phase; // flight phase
+
+        // roll variables
+        dataLogArray[currentRow][2] = roll_IMU;                 // roll angle from IMU in degrees
+        dataLogArray[currentRow][3] = roll_des;                 // desired roll angle in degrees
+        dataLogArray[currentRow][4] = aileron_command_PWM - 90; // aileron command in degrees (90 is neutral)
+
+        // pitch variables
+        dataLogArray[currentRow][5] = pitch_IMU;                 // pitch angle from IMU in degrees
+        dataLogArray[currentRow][6] = pitch_des;                 // pilot desired pitch angle in degrees
+        dataLogArray[currentRow][7] = elevator_command_PWM - 90; // elevator command in degrees (90 is neutral)
+
+        // yaw
+        dataLogArray[currentRow][8] = yaw_IMU;                 // heading in degrees (summated from gyroZ)
+        dataLogArray[currentRow][9] = rudder_command_PWM - 90; // rudder command in degrees (90 is neutral)
+
+        // speed
+        dataLogArray[currentRow][10] = airspeed_adjusted;    // airspeed in m/s
+        dataLogArray[currentRow][11] = s1_command_scaled;    // throttle command in percent
+        dataLogArray[currentRow][12] = forwardsAcceleration; // acceleration in m/s^2
+
+        currentRow++;
+
+        //        Serial.println(estimated_altitude);
+    }
+}
+
+void writeDataToSD()
+{
+    dataFile = SD.open("flightData.txt", FILE_WRITE);
+    for (int i = 0; i < currentRow; i++)
+    {
+        for (int j = 0; j < COLUMNS; j++)
+        {
+            dataFile.print(dataLogArray[i][j]);
+            dataFile.print(",");
+        }
+        dataFile.println();
+    }
+    dataFile.close();
+}
+
+void clearDataInRAM()
+{
+    for (int i = 0; i < ROWS; i++)
+    {
+        for (int j = 0; j < COLUMNS; j++)
+        {
+            dataLogArray[i][j] = 0.0;
+        }
+    }
+    currentRow = 0;
+}

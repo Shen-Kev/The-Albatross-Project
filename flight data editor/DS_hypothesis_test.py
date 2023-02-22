@@ -140,7 +140,7 @@ estimated_altitude_column = df.iloc[:, estimated_altitude]
 DS_accelValues = []
 for i in range(len(time)):
     # and prob make it so that it only does it when accel in the wind, also like only at low alt
-    if flight_phase_column[i] == 1 and airspeed_adjusted_column[i] > 5.0:
+    if flight_phase_column[i] == 3 and airspeed_adjusted_column[i] > 5.0 and s1_command_scaled_column == 0:
         DS_accelValues.append(forwardsAcceleration_column[i])
 
 # trim the dataset to have 5% trimmed off the top and bottom
