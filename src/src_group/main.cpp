@@ -50,7 +50,7 @@ float throttle_scaled;
 
 // Variables for Data Logging
 const int COLUMNS = 13;            // 16 columns of data to be logged to the SD card
-const int ROWS = 7967;             // 7800 rows of data to be logged to the SD card
+const int ROWS = 7900;             // 7800 rows of data to be logged to the SD card
 float dataLogArray[ROWS][COLUMNS]; // The array that stores the data to be logged to the SD card
 boolean dataLogged = false;        // Used to determine if the data has been logged to the SD card
 boolean toggle = false;            // Used to toggle the LED
@@ -108,11 +108,12 @@ void setup()
     IMUinit();
     Serial.println("passed IMU init");
 
-    AccErrorY = 0.04;
+    AccErrorX = 0.07;
+    AccErrorY = 0.03;
     AccErrorZ = 0.11;
-    GyroErrorX = -3.20;
-    GyroErrorY = -0.14;
-    GyroErrorZ = -1.40;
+    GyroErrorX = -3.59;
+    GyroErrorY = 0.07;
+    GyroErrorZ = 1.26;
     delay(10000);
     for (int i = 0; i < 1000; i++)
     {
@@ -207,13 +208,13 @@ void loop()
             DS_start_heading = yaw_IMU;
             DS_turn = true;
         }
-        //yaw IMU is the angle in degrees to north. At 180 degrees it loops back to -180 degrees. This code finds the degrees turned from the DS start heading. So even if the DS start is at -170 degrees and the UAV is at 170 degrees, the angle turned is 20 degrees.
+        // yaw IMU is the angle in degrees to north. At 180 degrees it loops back to -180 degrees. This code finds the degrees turned from the DS start heading. So even if the DS start is at -170 degrees and the UAV is at 170 degrees, the angle turned is 20 degrees.
         angle_turned_radians = (yaw_IMU - DS_start_heading) * DEG_TO_RAD;
         if (angle_turned_radians < 0)
         {
             angle_turned_radians = angle_turned_radians + 2 * PI;
         }
-        
+
         // if DS has turned over pi radians, DS turn is over
         if (DS_turn && angle_turned_radians > PI)
         {
@@ -407,7 +408,11 @@ void logDataToRAM()
 
         currentRow++;
 
-        //        Serial.println(estimated_altitude);
+        Serial.print(yaw_IMU);
+        Serial.print("\t");
+        Serial.print(DS_start_heading);
+        Serial.print("\t");
+        Serial.println(angle_turned_radians);
     }
 }
 
