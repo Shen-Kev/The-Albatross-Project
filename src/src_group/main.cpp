@@ -201,6 +201,8 @@ void loop()
         totalTurnAngle = 0;
         DS_turn = true;
         DSstartTime = timeInMillis;
+        accelSum = 0;
+        accelNum = 0;
     }
     else if (mode1_channel < 1600)
     {
@@ -214,6 +216,8 @@ void loop()
         totalTurnAngle = 0;
         DS_turn = true;
         DSstartTime = timeInMillis;
+        accelSum = 0;
+        accelNum = 0;
     }
     // Dynamic Soaring Flight
     else
@@ -224,7 +228,7 @@ void loop()
         yaw_IMU_rad_prev = yaw_IMU_rad;
 
         // if DS has turned over pi radians, DS turn is over
-        if (DS_turn && abs(angle_turned_radians) > PI)
+        if (DS_turn && abs(angle_turned_radians) > totalTurnAngleRadians)
         {
             DS_turn = false;
         }
