@@ -239,11 +239,10 @@ void loop()
             pitch_des = DS_pitch_max * cos(angle_turned_radians) + DS_pitch_offset;
             yaw_commmand_scaled = DS_roll_angle * DS_yaw_proportion;
             throttle_scaled = 0;
-            if (abs(pitch_des - pitch_IMU) < 5) // must be within 5 degrees of pitch_des
-            {
-                accelSum += forwardsAcceleration;
-                accelNum++;
-            }
+
+            accelSum += forwardsAcceleration;
+            accelNum++;
+
             needToLogDSdata = true;
         }
         // this code runs only once after DS turn becomes false
@@ -263,8 +262,6 @@ void loop()
                 dataFile.print(timeInMillis); // the end time
                 dataFile.print(",");
                 dataFile.print(accelAvg);
-                dataFile.close();
-                dataFile = SD.open("accelData.txt", FILE_READ);
                 dataFile.close();
             }
             else
