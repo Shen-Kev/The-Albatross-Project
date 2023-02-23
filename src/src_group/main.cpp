@@ -48,7 +48,7 @@ float DS_start_heading;
 float DS_pitch_offset = 10; // at all times the angle with be 10 deg more than just the raw cos wave
 float yaw_commmand_scaled;
 float angle_turned_radians;
-float throttle_scaled; 
+float throttle_scaled;
 
 // Variables for Data Logging
 const int COLUMNS = 13;            // 16 columns of data to be logged to the SD card
@@ -398,7 +398,7 @@ void logDataToRAM()
 
         // yaw
         dataLogArray[currentRow][8] = angle_turned_radians * RAD_TO_DEG; // yaw angle from DS in degrees
-        dataLogArray[currentRow][9] = rudder_command_PWM - 90;           // rudder command in degrees (90 is neutral)
+        dataLogArray[currentRow][9] = 180 - rudder_command_PWM;           // rudder command in degrees (90 is neutral)
 
         // speed
         dataLogArray[currentRow][10] = airspeed_adjusted;    // airspeed in m/s

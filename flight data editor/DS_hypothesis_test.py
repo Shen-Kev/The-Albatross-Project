@@ -21,6 +21,7 @@ from datetime import datetime
 now = datetime.now()  # current date and time
 
 
+
 timeInMillis = 0
 flight_phase = 1
 roll_IMU = 2
@@ -28,14 +29,12 @@ roll_des = 3
 aileron_command_PWM = 4
 pitch_IMU = 5
 pitch_des = 6
-DS_pitch_angle = 7
-elevator_command_PWM = 8
-yaw_IMU = 9
-rudder_command_PWM = 10
-airspeed_adjusted = 11
-s1_command_scaled = 12
-forwardsAcceleration = 13
-estimated_altitude = 14
+elevator_command_PWM = 7
+angle_turned_DS = 8
+rudder_command_PWM = 9
+airspeed_adjusted = 10
+s1_command_scaled = 11
+forwardsAcceleration = 12
 
 # all the flight data (multiple flights) for the forwards acceleration test without DS
 raw_file_notDS = "C:/Users/kshen/OneDrive/Documents/PlatformIO/Projects/The Albatross Project PlatformIO/flight data editor/forwardsAccelDataNotDSraw.csv"
@@ -61,17 +60,14 @@ aileron_command_column = df.iloc[:, aileron_command_PWM]
 
 pitch_IMU_column = df.iloc[:, pitch_IMU]
 pitch_des_column = df.iloc[:, pitch_des]
-DS_pitch_angle_column = df.iloc[:, DS_pitch_angle]
 elevator_command_column = df.iloc[:, elevator_command_PWM]
 
-yaw_IMU_column = df.iloc[:, yaw_IMU]
+angle_turned_DS_column = df.iloc[:, angle_turned_DS]
 rudder_command_column = df.iloc[:, rudder_command_PWM]
 
 airspeed_adjusted_column = df.iloc[:, airspeed_adjusted]
 s1_command_scaled_column = df.iloc[:, s1_command_scaled]
 forwardsAcceleration_column = df.iloc[:, forwardsAcceleration]
-estimated_altitude_column = df.iloc[:, estimated_altitude]
-
 
 notDS_accelValues = []
 for i in range(len(time)):
@@ -87,7 +83,7 @@ notDS_accelValues = notDS_accelValues[int(
 mean_notDS = np.mean(notDS_accelValues)
 std_notDS = np.std(notDS_accelValues)
 
-binsSize = 0.01
+binsSize = 0.02
 range_notDS = max(notDS_accelValues) - min(notDS_accelValues)
 binsNum_notDS = range_notDS / binsSize
 binsNum_notDS = int(abs(binsNum_notDS))
@@ -125,22 +121,20 @@ aileron_command_column = df.iloc[:, aileron_command_PWM]
 
 pitch_IMU_column = df.iloc[:, pitch_IMU]
 pitch_des_column = df.iloc[:, pitch_des]
-DS_pitch_angle_column = df.iloc[:, DS_pitch_angle]
 elevator_command_column = df.iloc[:, elevator_command_PWM]
 
-yaw_IMU_column = df.iloc[:, yaw_IMU]
+angle_turned_DS_column = df.iloc[:, angle_turned_DS]
 rudder_command_column = df.iloc[:, rudder_command_PWM]
 
 airspeed_adjusted_column = df.iloc[:, airspeed_adjusted]
 s1_command_scaled_column = df.iloc[:, s1_command_scaled]
 forwardsAcceleration_column = df.iloc[:, forwardsAcceleration]
-estimated_altitude_column = df.iloc[:, estimated_altitude]
 
 
 DS_accelValues = []
 for i in range(len(time)):
     # and prob make it so that it only does it when accel in the wind, also like only at low alt
-    if flight_phase_column[i] == 3 and airspeed_adjusted_column[i] > 5.0 and s1_command_scaled_column == 0:
+    if flight_phase_column[i] == 3 and airspeed_adjusted_column[i] > 5.0 and s1_command_scaled_column[i] == 0:
         DS_accelValues.append(forwardsAcceleration_column[i])
 
 # trim the dataset to have 5% trimmed off the top and bottom
@@ -152,7 +146,6 @@ DS_accelValues = DS_accelValues[int(
 mean_DS = np.mean(DS_accelValues)
 std_DS = np.std(DS_accelValues)
 
-binsSize = 0.01
 range_DS = max(DS_accelValues) - min(DS_accelValues)
 binsNum_DS = range_DS / binsSize
 binsNum_DS = int(abs(binsNum_DS))

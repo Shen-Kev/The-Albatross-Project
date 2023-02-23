@@ -29,14 +29,12 @@ roll_des = 3
 aileron_command_PWM = 4
 pitch_IMU = 5
 pitch_des = 6
-DS_pitch_angle = 7
-elevator_command_PWM = 8
-yaw_IMU = 9
-rudder_command_PWM = 10
-airspeed_adjusted = 11
-s1_command_scaled = 12
-forwardsAcceleration = 13
-estimated_altitude = 14
+elevator_command_PWM = 7
+angle_turned_DS = 8
+rudder_command_PWM = 9
+airspeed_adjusted = 10
+s1_command_scaled = 11
+forwardsAcceleration = 12
 
 
 raw_file = "C:/Users/kshen/OneDrive/Documents/PlatformIO/Projects/The Albatross Project PlatformIO/flight data editor/flight_data_raw_input.csv"
@@ -94,16 +92,15 @@ aileron_command_column = df.iloc[:, aileron_command_PWM]
 
 pitch_IMU_column = df.iloc[:, pitch_IMU]
 pitch_des_column = df.iloc[:, pitch_des]
-DS_pitch_angle_column = df.iloc[:, DS_pitch_angle]
 elevator_command_column = df.iloc[:, elevator_command_PWM]
 
-yaw_IMU_column = df.iloc[:, yaw_IMU]
+angle_turned_DS_column = df.iloc[:, angle_turned_DS]
 rudder_command_column = df.iloc[:, rudder_command_PWM]
 
 airspeed_adjusted_column = df.iloc[:, airspeed_adjusted]
 s1_command_scaled_column = df.iloc[:, s1_command_scaled]
 forwardsAcceleration_column = df.iloc[:, forwardsAcceleration]
-estimated_altitude_column = df.iloc[:, estimated_altitude]
+
 
 
 fig, ((roll, altitude), (pitch, airspeed), (yaw, state)
@@ -135,13 +132,12 @@ roll.legend()
 
 pitch.plot(time, pitch_IMU_column, label="Pitch IMU", color='red')
 pitch.plot(time, pitch_des_column, label="Pitch setpoint", color='blue')
-pitch.plot(time, DS_pitch_angle_column, label="DS pitch angle", color='orange')
 pitch.plot(time, elevator_command_column,
            label="Elevator output", color='green')
 pitch.set_ylabel("deg")
 pitch.legend()
 
-yaw.plot(time, yaw_IMU_column, label="Yaw IMU", color='red')
+yaw.plot(time, angle_turned_DS_column, label="Yaw IMU", color='red')
 yaw.plot(time, rudder_command_column, label="Rudder output", color='green')
 yaw.set_ylabel("deg")
 yaw.legend()
@@ -162,14 +158,9 @@ airspeed.legend()
 # altitude
 
 ax2 = altitude.twinx()
-altitude.plot(time, estimated_altitude_column, label='Altitude', color='blue')
-altitude.set_ylabel("m", color='blue')
-altitude.tick_params(axis='y', labelcolor='blue')
-
-altitude.plot([], [], label="Forwards Acceleration",
-              color='green')  # to create the label
-ax2.plot(time, forwardsAcceleration_column,
-         label='Forwards Acceleration', color='green')  # this is in m/s^2
+altitude.plot(time, forwardsAcceleration_column, label="Forwards Acceleration", color='green')
+#altitude.set_ylabel("m", color='blue')
+#altitude.tick_params(axis='y', labelcolor='blue')
 ax2.set_ylabel("m/s^2", color='green')
 ax2.tick_params(axis='y', labelcolor='green')
 
