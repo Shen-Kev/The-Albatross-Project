@@ -33,9 +33,11 @@ int loopCounter = 0;                            // The number of times the loop 
 float pitch_IMU_rad, roll_IMU_rad, yaw_IMU_rad; // The raw pitch, roll, and yaw angles in radians from the IMU
 float accelData[3];                             // The raw accelerometer data from the IMU
 float gyroData[3];                              // The raw gyro data from the IMU
+float yaw_IMU_rad_prev;
+float heading_changed_last_loop;
 
 // Dynamic Soaring Variables
-float DS_roll_angle = 30;        // The bank angle for Dynamic Soaring (in degrees) (turning left)
+float DS_roll_angle = 30;        // The bank angle for Dynamic Soaring (in degrees) (turning RIGHT)
 float DS_yaw_proportion = 0.008; // The proportion of yaw in degrees to roll 0-1 for Dynamic Soaring
 float DS_pitch_max = 30;         // The maximum pitch angle for Dynamic Soaring (in degrees)
 float DS_pitch_exit = 15;
@@ -114,7 +116,7 @@ void setup()
     GyroErrorX = -3.59;
     GyroErrorY = 0.07;
     GyroErrorZ = 1.26;
-    delay(10000);
+
     for (int i = 0; i < 1000; i++)
     {
         getIMUdata();
@@ -205,18 +207,15 @@ void loop()
         flight_phase = DS_flight;
         if (DS_first_activated)
         {
-            DS_start_heading = yaw_IMU;
+            angle_turned_radians = 0;
             DS_turn = true;
         }
-        // yaw IMU is the angle in degrees to north. At 180 degrees it loops back to -180 degrees. This code finds the degrees turned from the DS start heading. So even if the DS start is at -170 degrees and the UAV is at 170 degrees, the angle turned is 20 degrees.
-        angle_turned_radians = (yaw_IMU - DS_start_heading) * DEG_TO_RAD;
-        if (angle_turned_radians < 0)
-        {
-            angle_turned_radians = angle_turned_radians + 2 * PI;
-        }
+
+        angle_turned_radians += GyroZ * DEG_TO_RAD * dt;
+        yaw_IMU_rad_prev = yaw_IMU_rad;
 
         // if DS has turned over pi radians, DS turn is over
-        if (DS_turn && angle_turned_radians > PI)
+        if (DS_turn && abs(angle_turned_radians) > PI)
         {
             DS_turn = false;
         }
@@ -398,8 +397,8 @@ void logDataToRAM()
         dataLogArray[currentRow][7] = elevator_command_PWM - 90; // elevator command in degrees (90 is neutral)
 
         // yaw
-        dataLogArray[currentRow][8] = yaw_IMU;                 // heading in degrees (summated from gyroZ)
-        dataLogArray[currentRow][9] = rudder_command_PWM - 90; // rudder command in degrees (90 is neutral)
+        dataLogArray[currentRow][8] = angle_turned_radians * RAD_TO_DEG; // yaw angle from DS in degrees
+        dataLogArray[currentRow][9] = rudder_command_PWM - 90;           // rudder command in degrees (90 is neutral)
 
         // speed
         dataLogArray[currentRow][10] = airspeed_adjusted;    // airspeed in m/s
@@ -407,12 +406,6 @@ void logDataToRAM()
         dataLogArray[currentRow][12] = forwardsAcceleration; // acceleration in m/s^2
 
         currentRow++;
-
-        Serial.print(yaw_IMU);
-        Serial.print("\t");
-        Serial.print(DS_start_heading);
-        Serial.print("\t");
-        Serial.println(angle_turned_radians);
     }
 }
 
