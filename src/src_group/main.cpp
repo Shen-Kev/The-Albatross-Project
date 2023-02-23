@@ -258,6 +258,7 @@ void loop()
             dataFile.print(timeInMillis); // the end time
             dataFile.print(",");
             dataFile.print(accelAvg);
+            dataFile.println();
             dataFile.close();
         }
         else
