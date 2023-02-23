@@ -78,37 +78,9 @@ notDS_accelValues = []
 startIndices = []
 endIndices = []
 
-
-# to find the start and end of the DS cycles
-for i in range(len(time)-10):
-    if flight_phase_column[i+1] == 3 and flight_phase_column[i] != 3 and airspeed_adjusted_column[i+1] > 5.0 and s1_command_scaled_column[i+1] == 0:
-        startIndices.append(i)
-    # to see if the DS cycle ends based on throttle
-    if flight_phase_column[i] == 3 and flight_phase_column[i+1] == 3 and airspeed_adjusted_column[i+1] > 5.0 and s1_command_scaled_column[i] == 0 and s1_command_scaled_column[i+1] > 0:
-        endIndices.append(i)
-  #  elif flight_phase_column[i+1] != 3 and flight_phase_column[i] == 3 and airspeed_adjusted_column[i] > 5.0 and angle_turned_DS_column[i] < 150:
-  #      # remove the corresponding start index if DS doesn't end with a full cycle
-  #      startIndices.pop()
-  #      print("pop")
-
-
-# print the start and end indices
-print("start indices: ", startIndices)
-print("end indices: ", endIndices)
-
-
-# once all the start and end indices are found, then find the average forwards acceleration in each index and store it to notDS_accelValues
-for i in range(len(startIndices)):
-    sum = 0
-    for j in range(startIndices[i], endIndices[i]):
-        sum += forwardsAcceleration_column[j]
-    average = sum / (endIndices[i] - startIndices[i])
-    notDS_accelValues.append(average)
-
-
-# for i in range(len(time)):
-#    if flight_phase_column[i] == 3 and airspeed_adjusted_column[i] > 5.0 and s1_command_scaled_column[i] == 0:
-#        notDS_accelValues.append(forwardsAcceleration_column[i])
+for i in range(len(time)):
+    if flight_phase_column[i] == 3 and airspeed_adjusted_column[i] > 5.0 and s1_command_scaled_column[i] == 0:
+        notDS_accelValues.append(forwardsAcceleration_column[i])
 
 # trim the dataset to have 5% trimmed off the top and bottom
 notDS_accelValues.sort()

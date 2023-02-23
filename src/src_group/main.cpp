@@ -49,7 +49,7 @@ float DS_pitch_offset = 10; // at all times the angle with be 10 deg more than j
 float yaw_commmand_scaled;
 float angle_turned_radians;
 float throttle_scaled;
-float totalTurnAngle = 160; // degrees the UAV should turn 
+float totalTurnAngle = 160; // degrees the UAV should turn
 float totalTurnAngleRadians;
 
 // Variables for Data Logging
@@ -193,6 +193,8 @@ void loop()
         integral_roll = 0;
         roll_PID = 0;
         pitch_PID = 0;
+        totalTurnAngle = 0;
+        DS_turn = true;
     }
     else if (mode1_channel < 1600)
     {
@@ -203,16 +205,13 @@ void loop()
         s3_command_scaled = pitch_PID;
         s4_command_scaled = roll_des * DS_yaw_proportion; // no yaw stick input
         DS_first_activated = true;
+        totalTurnAngle = 0;
+        DS_turn = true;
     }
     // Dynamic Soaring Flight
     else
     {
         flight_phase = DS_flight;
-        if (DS_first_activated)
-        {
-            angle_turned_radians = 0;
-            DS_turn = true;
-        }
 
         angle_turned_radians += GyroZ * DEG_TO_RAD * dt;
         yaw_IMU_rad_prev = yaw_IMU_rad;
@@ -401,7 +400,7 @@ void logDataToRAM()
 
         // yaw
         dataLogArray[currentRow][8] = angle_turned_radians * RAD_TO_DEG; // yaw angle from DS in degrees
-        dataLogArray[currentRow][9] = 180 - rudder_command_PWM;           // rudder command in degrees (90 is neutral)
+        dataLogArray[currentRow][9] = 180 - rudder_command_PWM;          // rudder command in degrees (90 is neutral)
 
         // speed
         dataLogArray[currentRow][10] = airspeed_adjusted;    // airspeed in m/s
