@@ -49,7 +49,7 @@ float DS_pitch_offset = 10; // at all times the angle with be 10 deg more than j
 float yaw_commmand_scaled;
 float angle_turned_radians;
 float throttle_scaled;
-float totalTurnAngle = 120; // degrees the UAV should turn 
+float totalTurnAngle = 160; // degrees the UAV should turn 
 float totalTurnAngleRadians;
 
 // Variables for Data Logging

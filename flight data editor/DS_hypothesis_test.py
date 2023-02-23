@@ -21,7 +21,6 @@ from datetime import datetime
 now = datetime.now()  # current date and time
 
 
-
 timeInMillis = 0
 flight_phase = 1
 roll_IMU = 2
@@ -35,8 +34,6 @@ rudder_command_PWM = 9
 airspeed_adjusted = 10
 s1_command_scaled = 11
 forwardsAcceleration = 12
-
-dynamicSoaringPitchAngle = 25 #degrees. once the pitch angle is greater than this, the UAV is in DS mode and once it is less than this it exist DS mode
 
 # all the flight data (multiple flights) for when doing DS at altitude with little wind
 raw_file_notDS = "C:/Users/kshen/OneDrive/Documents/PlatformIO/Projects/The Albatross Project PlatformIO/flight data editor/forwardsAccelDataNotDSraw.csv"
@@ -72,9 +69,46 @@ s1_command_scaled_column = df.iloc[:, s1_command_scaled]
 forwardsAcceleration_column = df.iloc[:, forwardsAcceleration]
 
 notDS_accelValues = []
-for i in range(len(time)):
-    if flight_phase_column[i] == 3 and airspeed_adjusted_column[i] > 5.0 and s1_command_scaled_column[i] == 0:
-        notDS_accelValues.append(forwardsAcceleration_column[i])
+
+# go through flight data. find the start index and end index of each DS cycle and store it in an array.
+# the start is marked by: the flight phase goes to 3 and the pitch is above 20 degrees
+# the end is marked by: throttle jumps above 0
+# if the flight phase ends but the angle turne is less than 150 degrees, then do not count the start or end of this cycle.
+
+startIndices = []
+endIndices = []
+
+
+# to find the start and end of the DS cycles
+for i in range(len(time)-10):
+    if flight_phase_column[i+1] == 3 and flight_phase_column[i] != 3 and airspeed_adjusted_column[i+1] > 5.0 and s1_command_scaled_column[i+1] == 0:
+        startIndices.append(i)
+    # to see if the DS cycle ends based on throttle
+    if flight_phase_column[i] == 3 and flight_phase_column[i+1] == 3 and airspeed_adjusted_column[i+1] > 5.0 and s1_command_scaled_column[i] == 0 and s1_command_scaled_column[i+1] > 0:
+        endIndices.append(i)
+  #  elif flight_phase_column[i+1] != 3 and flight_phase_column[i] == 3 and airspeed_adjusted_column[i] > 5.0 and angle_turned_DS_column[i] < 150:
+  #      # remove the corresponding start index if DS doesn't end with a full cycle
+  #      startIndices.pop()
+  #      print("pop")
+
+
+# print the start and end indices
+print("start indices: ", startIndices)
+print("end indices: ", endIndices)
+
+
+# once all the start and end indices are found, then find the average forwards acceleration in each index and store it to notDS_accelValues
+for i in range(len(startIndices)):
+    sum = 0
+    for j in range(startIndices[i], endIndices[i]):
+        sum += forwardsAcceleration_column[j]
+    average = sum / (endIndices[i] - startIndices[i])
+    notDS_accelValues.append(average)
+
+
+# for i in range(len(time)):
+#    if flight_phase_column[i] == 3 and airspeed_adjusted_column[i] > 5.0 and s1_command_scaled_column[i] == 0:
+#        notDS_accelValues.append(forwardsAcceleration_column[i])
 
 # trim the dataset to have 5% trimmed off the top and bottom
 notDS_accelValues.sort()
@@ -167,46 +201,52 @@ plt.plot(x_DS, p_DS, 'k', linewidth=2, color='b')
 # DS DATA ANALYSIS ENDS HERE
 
 # two sample t test
-t, p = stats.ttest_ind(DS_accelValues, notDS_accelValues, equal_var=False, nan_policy='omit', alternative='greater')
+t, p = stats.ttest_ind(DS_accelValues, notDS_accelValues,
+                       equal_var=False, nan_policy='omit', alternative='greater')
 print("t = " + str(t))
 print("p = " + str(p))
 
-#determine if the difference is significant with alpha = 0.05
+# determine if the difference is significant with alpha = 0.05
 alpha = 0.05
 if p < alpha:
     print("The difference is significant")
-else: 
+else:
     print("The difference is not significant")
 
-#also plot the difference between the two normal distributions DS and Not DS on the 2,1,2 subplot
+# also plot the difference between the two normal distributions DS and Not DS on the 2,1,2 subplot
 plt.subplot(2, 1, 2)
-#plot the difference between the two normal distributions
+# plot the difference between the two normal distributions
 mean_difference = mean_DS - mean_notDS
-std_difference = np.sqrt(((std_DS**2)/len(DS_accelValues)) + ((std_notDS**2) / len(notDS_accelValues)))
-x_difference = np.linspace(-3*std_difference+mean_difference, 3*std_difference+mean_difference, 100)
+std_difference = np.sqrt(
+    ((std_DS**2)/len(DS_accelValues)) + ((std_notDS**2) / len(notDS_accelValues)))
+x_difference = np.linspace(-3*std_difference+mean_difference,
+                           3*std_difference+mean_difference, 100)
 p_difference = norm.pdf(x_difference, mean_difference, std_difference)
 plt.plot(x_difference, p_difference, 'k', linewidth=2, color='b')
-#fill in the area under the curve to the left of the cutoff
-plt.fill_between(x_difference, p_difference, where=x_difference < -1.96*std_difference+mean_difference, color='r', alpha=1)
+# fill in the area under the curve to the left of the cutoff
+plt.fill_between(x_difference, p_difference, where=x_difference < -
+                 1.96*std_difference+mean_difference, color='r', alpha=1)
 plt.plot(x_difference, p_difference, 'k', linewidth=2, color='r')
 
-#plot the line on the differnce plot to show z score of -1.96
+# plot the line on the differnce plot to show z score of -1.96
 plt.axvline(x=-1.96*std_difference+mean_difference, color='k', linestyle='--')
-#label the line
-plt.text(-1.96*std_difference+mean_difference, 0.1, '  Left Tail Test Cutoff', rotation=90, color = 'k')
-#draw a line at the null hypotehsis for the difference
+# label the line
+plt.text(-1.96*std_difference+mean_difference, 0.1,
+         '  Left Tail Test Cutoff', rotation=90, color='k')
+# draw a line at the null hypotehsis for the difference
 plt.axvline(x=0, color='k', linestyle='--')
-#label the line
-plt.text(0, 0.1, '  Null Hypothesis', rotation=90, color = 'k')
+# label the line
+plt.text(0, 0.1, '  Null Hypothesis', rotation=90, color='k')
 
-#plot axies labels
+# plot axies labels
 plt.xlabel('Difference in Forwards Acceleration (m/s^2)')
 plt.ylabel('Probability Density')
 
 
 # plot the legend for both subplots
 plt.subplot(2, 1, 1)
-plt.legend(["Not DS" + " n = " + str(len(notDS_accelValues)), "DS" + " n = " + str(len(DS_accelValues))])
+plt.legend(["Not DS" + " n = " + str(len(notDS_accelValues)),
+           "DS" + " n = " + str(len(DS_accelValues))])
 
 
 # plot the title
@@ -215,7 +255,7 @@ plt.suptitle(title)
 plt.show()
 
 
-#print all statistical info for all the charts (t value, p value, n, std, mean, df, etc)
+# print all statistical info for all the charts (t value, p value, n, std, mean, df, etc)
 print(" ")
 print("Not DS n = " + str(len(notDS_accelValues)))
 print("Not DS mean = " + str(mean_notDS))

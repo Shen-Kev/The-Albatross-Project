@@ -137,7 +137,7 @@ pitch.plot(time, elevator_command_column,
 pitch.set_ylabel("deg")
 pitch.legend()
 
-yaw.plot(time, angle_turned_DS_column, label="Yaw IMU", color='red')
+yaw.plot(time, angle_turned_DS_column, label="Angle Turned", color='red')
 yaw.plot(time, rudder_command_column, label="Rudder output", color='green')
 yaw.set_ylabel("deg")
 yaw.legend()
