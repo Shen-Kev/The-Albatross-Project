@@ -36,10 +36,12 @@ airspeed_adjusted = 10
 s1_command_scaled = 11
 forwardsAcceleration = 12
 
-# all the flight data (multiple flights) for the forwards acceleration test without DS
+dynamicSoaringPitchAngle = 25 #degrees. once the pitch angle is greater than this, the UAV is in DS mode and once it is less than this it exist DS mode
+
+# all the flight data (multiple flights) for when doing DS at altitude with little wind
 raw_file_notDS = "C:/Users/kshen/OneDrive/Documents/PlatformIO/Projects/The Albatross Project PlatformIO/flight data editor/forwardsAccelDataNotDSraw.csv"
 
-# all the flight data (multiple flights) for the forwards acceleration test with DS
+# all the flight data (multiple flights) for when doing DS through the ground shear layer with wind
 raw_file_DS = "C:/Users/kshen/OneDrive/Documents/PlatformIO/Projects/The Albatross Project PlatformIO/flight data editor/forwardsAccelDataDSraw.csv"
 
 
@@ -71,7 +73,7 @@ forwardsAcceleration_column = df.iloc[:, forwardsAcceleration]
 
 notDS_accelValues = []
 for i in range(len(time)):
-    if s1_command_scaled_column[i] == 0 and flight_phase_column[i] == 2 and roll_des_column[i] < 3 and roll_des_column[i] > -3 and pitch_des_column[i] < 3 and pitch_des_column[i] > -3 and airspeed_adjusted_column[i] > 5:
+    if flight_phase_column[i] == 3 and airspeed_adjusted_column[i] > 5.0 and s1_command_scaled_column[i] == 0:
         notDS_accelValues.append(forwardsAcceleration_column[i])
 
 # trim the dataset to have 5% trimmed off the top and bottom

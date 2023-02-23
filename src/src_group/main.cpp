@@ -39,7 +39,7 @@ float heading_changed_last_loop;
 // Dynamic Soaring Variables
 float DS_roll_angle = 30;        // The bank angle for Dynamic Soaring (in degrees) (turning RIGHT)
 float DS_yaw_proportion = 0.008; // The proportion of yaw in degrees to roll 0-1 for Dynamic Soaring
-float DS_pitch_max = 30;         // The maximum pitch angle for Dynamic Soaring (in degrees)
+float DS_pitch_max = 20;         // The maximum pitch angle for Dynamic Soaring (in degrees)
 float DS_pitch_exit = 15;
 float DS_throttle_exit = 0.5; // throttle exiting the DS
 boolean DS_turn = false;
@@ -49,6 +49,8 @@ float DS_pitch_offset = 10; // at all times the angle with be 10 deg more than j
 float yaw_commmand_scaled;
 float angle_turned_radians;
 float throttle_scaled;
+float totalTurnAngle = 120; // degrees the UAV should turn 
+float totalTurnAngleRadians;
 
 // Variables for Data Logging
 const int COLUMNS = 13;            // 16 columns of data to be logged to the SD card
@@ -143,6 +145,7 @@ void setup()
     gimbalServo.write(90);
     delay(100);
     calibrateAttitude(); // runs IMU for a few seconds to allow it to stabilize
+    totalTurnAngleRadians = totalTurnAngle * DEG_TO_RAD;
 }
 void loop()
 {
