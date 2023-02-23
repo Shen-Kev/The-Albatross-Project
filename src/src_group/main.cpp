@@ -232,7 +232,6 @@ void loop()
         {
             DS_turn = false;
         }
-
         if (DS_turn)
         {
             roll_des = DS_roll_angle;
@@ -253,23 +252,14 @@ void loop()
             accelSum = 0;
             accelNum = 0;
 
-            // check if DS was a good DS, did it complete by checking if the turn angle is greater than DS turn -10 deg
-            if (totalTurnAngle > angle_turned_radians * RAD_TO_DEG - 10)
-            {
-                dataFile = SD.open("accelData.txt", FILE_WRITE);
-                dataFile.print(DSstartTime);
-                dataFile.print(",");
-                dataFile.print(timeInMillis); // the end time
-                dataFile.print(",");
-                dataFile.print(accelAvg);
-                dataFile.close();
-            }
-            else
-            {
-                // don't log this data
-            }
+            dataFile = SD.open("accelData.txt", FILE_WRITE);
+            dataFile.print(DSstartTime);
+            dataFile.print(",");
+            dataFile.print(timeInMillis); // the end time
+            dataFile.print(",");
+            dataFile.print(accelAvg);
+            dataFile.close();
         }
-
         else
         {
             throttle_scaled = DS_throttle_exit;
