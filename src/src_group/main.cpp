@@ -48,7 +48,7 @@ float DS_start_heading;
 float DS_pitch_offset = 10; // at all times the angle with be 10 deg more than just the raw cos wave
 float yaw_commmand_scaled;
 float angle_turned_radians;
-float throttle_scaled;
+float throttle_scaled; 
 
 // Variables for Data Logging
 const int COLUMNS = 13;            // 16 columns of data to be logged to the SD card
