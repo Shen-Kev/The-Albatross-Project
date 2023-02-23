@@ -45,12 +45,14 @@ float DS_throttle_exit = 0.5; // throttle exiting the DS
 boolean DS_turn = false;
 boolean DS_first_activated = false;
 float DS_start_heading;
-float DS_pitch_offset = 10; // at all times the angle with be 10 deg more than just the raw cos wave
+float DS_pitch_offset = 5; // at all times the angle with be 5 deg more than just the raw cos wave
 float yaw_commmand_scaled;
 float angle_turned_radians;
 float throttle_scaled;
 float totalTurnAngle = 160; // degrees the UAV should turn
 float totalTurnAngleRadians;
+float DSstartTime;
+boolean needToLogDSdata = false;
 
 // Variables for Data Logging
 const int COLUMNS = 13;            // 16 columns of data to be logged to the SD card
@@ -60,6 +62,9 @@ boolean dataLogged = false;        // Used to determine if the data has been log
 boolean toggle = false;            // Used to toggle the LED
 int currentRow = 0;                // The current row of the data log array
 boolean logSuccessful = false;     // Used to determine if the data has been successfully logged to the SD card
+float accelSum = 0;                // the sum of the accelerations in a DS cycle
+float accelNum;                    // the number of acceleation values in a DS cycle
+float accelAvg;                    // the average acceleration in a DS cycle
 
 // Flight Phases
 float flight_phase; // The current flight phase
@@ -89,9 +94,9 @@ void setup()
     Kp_roll_angle = 1.0;
     Ki_roll_angle = 0.3;
     Kd_roll_angle = 0.2;
-    Kp_pitch_angle = 2;
+    Kp_pitch_angle = 2.5;
     Ki_pitch_angle = 0.3;
-    Kd_pitch_angle = 0.5;
+    Kd_pitch_angle = 0.8;
 
     Serial.begin(500000);
     Serial.println("serial works");
@@ -195,6 +200,7 @@ void loop()
         pitch_PID = 0;
         totalTurnAngle = 0;
         DS_turn = true;
+        DSstartTime = timeInMillis;
     }
     else if (mode1_channel < 1600)
     {
@@ -207,6 +213,7 @@ void loop()
         DS_first_activated = true;
         totalTurnAngle = 0;
         DS_turn = true;
+        DSstartTime = timeInMillis;
     }
     // Dynamic Soaring Flight
     else
@@ -228,7 +235,40 @@ void loop()
             pitch_des = DS_pitch_max * cos(angle_turned_radians) + DS_pitch_offset;
             yaw_commmand_scaled = DS_roll_angle * DS_yaw_proportion;
             throttle_scaled = 0;
+            if (abs(pitch_des - pitch_IMU) < 5) // must be within 5 degrees of pitch_des
+            {
+                accelSum += forwardsAcceleration;
+                accelNum++;
+            }
+            needToLogDSdata = true;
         }
+        // this code runs only once after DS turn becomes false
+        else if (needToLogDSdata)
+        {
+            needToLogDSdata = false;
+            accelAvg = accelSum / accelNum;
+            accelSum = 0;
+            accelNum = 0;
+
+            // check if DS was a good DS, did it complete by checking if the turn angle is greater than DS turn -10 deg
+            if (totalTurnAngle > angle_turned_radians * RAD_TO_DEG - 10)
+            {
+                dataFile = SD.open("accelData.txt", FILE_WRITE);
+                dataFile.print(DSstartTime);
+                dataFile.print(",");
+                dataFile.print(timeInMillis); // the end time
+                dataFile.print(",");
+                dataFile.print(accelAvg);
+                dataFile.close();
+                dataFile = SD.open("accelData.txt", FILE_READ);
+                dataFile.close();
+            }
+            else
+            {
+                // don't log this data
+            }
+        }
+
         else
         {
             throttle_scaled = DS_throttle_exit;
@@ -334,7 +374,7 @@ void setupSD()
     }
 
     // write a line of sample data to the SD card
-    dataFile = SD.open("flightData.txt", FILE_WRITE);
+    dataFile = SD.open("SDtest.txt", FILE_WRITE);
     dataFile.print("TEST DATA");
     dataFile.println();
     dataFile.close();
@@ -344,7 +384,7 @@ void setupSD()
     // read the line of sample data from the SD card, only continue if it the data is correct
     while (!logSuccessful)
     {
-        dataFile = SD.open("flightData.txt");
+        dataFile = SD.open("SDtest.txt");
         if (dataFile)
         {
             String dataString = dataFile.readStringUntil('\r'); // read the first line of the file
@@ -364,7 +404,6 @@ void setupSD()
             Serial.println("SD card failed to open");
             logSuccessful = false;
         }
-        dataFile.print(""); // clear dataFile
         dataFile.close();
     }
 

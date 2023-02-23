@@ -20,67 +20,19 @@ import time
 from datetime import datetime
 now = datetime.now()  # current date and time
 
-
-timeInMillis = 0
-flight_phase = 1
-roll_IMU = 2
-roll_des = 3
-aileron_command_PWM = 4
-pitch_IMU = 5
-pitch_des = 6
-elevator_command_PWM = 7
-angle_turned_DS = 8
-rudder_command_PWM = 9
-airspeed_adjusted = 10
-s1_command_scaled = 11
-forwardsAcceleration = 12
-
-# all the flight data (multiple flights) for when doing DS at altitude with little wind
+# all the accel data (multiple flights) for when doing DS at altitude with little wind
 raw_file_notDS = "C:/Users/kshen/OneDrive/Documents/PlatformIO/Projects/The Albatross Project PlatformIO/flight data editor/forwardsAccelDataNotDSraw.csv"
 
-# all the flight data (multiple flights) for when doing DS through the ground shear layer with wind
+# all the accel data (multiple flights) for when doing DS through the ground shear layer with wind
 raw_file_DS = "C:/Users/kshen/OneDrive/Documents/PlatformIO/Projects/The Albatross Project PlatformIO/flight data editor/forwardsAccelDataDSraw.csv"
-
 
 # NOT DS DATA ANALYSIS STARTS HERE
 
 # Read the csv file
 df = pd.read_csv(raw_file_notDS)
 
-# Extract the time column
-time = df.iloc[:, timeInMillis]  # in millis for this one
-
-# extract the colunms
-flight_phase_column = df.iloc[:, flight_phase]
-
-roll_IMU_column = df.iloc[:, roll_IMU]
-roll_des_column = df.iloc[:, roll_des]
-aileron_command_column = df.iloc[:, aileron_command_PWM]
-
-pitch_IMU_column = df.iloc[:, pitch_IMU]
-pitch_des_column = df.iloc[:, pitch_des]
-elevator_command_column = df.iloc[:, elevator_command_PWM]
-
-angle_turned_DS_column = df.iloc[:, angle_turned_DS]
-rudder_command_column = df.iloc[:, rudder_command_PWM]
-
-airspeed_adjusted_column = df.iloc[:, airspeed_adjusted]
-s1_command_scaled_column = df.iloc[:, s1_command_scaled]
-forwardsAcceleration_column = df.iloc[:, forwardsAcceleration]
-
-notDS_accelValues = []
-
-# go through flight data. find the start index and end index of each DS cycle and store it in an array.
-# the start is marked by: the flight phase goes to 3 and the pitch is above 20 degrees
-# the end is marked by: throttle jumps above 0
-# if the flight phase ends but the angle turne is less than 150 degrees, then do not count the start or end of this cycle.
-
-startIndices = []
-endIndices = []
-
-for i in range(len(time)):
-    if flight_phase_column[i] == 3 and airspeed_adjusted_column[i] > 5.0 and s1_command_scaled_column[i] == 0:
-        notDS_accelValues.append(forwardsAcceleration_column[i])
+# Extract the average accel column
+notDS_accelValues = df.iloc[:, 2]
 
 # trim the dataset to have 5% trimmed off the top and bottom
 notDS_accelValues.sort()
@@ -96,7 +48,6 @@ range_notDS = max(notDS_accelValues) - min(notDS_accelValues)
 binsNum_notDS = range_notDS / binsSize
 binsNum_notDS = int(abs(binsNum_notDS))
 
-
 # make the histogram for not DS data
 plt.subplot(2, 1, 1)
 
@@ -109,7 +60,6 @@ x_notDS = np.linspace(xmin_notDS, xmax_notDS, 100)
 p_notDS = norm.pdf(x_notDS, mean_notDS, std_notDS)
 plt.plot(x_notDS, p_notDS, 'k', linewidth=2, color='g')
 
-
 # NOT DS DATA ANALYSIS ENDS HERE
 
 # DA DATA ANALYSIS STARTS HERE
@@ -117,33 +67,7 @@ plt.plot(x_notDS, p_notDS, 'k', linewidth=2, color='g')
 # Read the csv file
 df = pd.read_csv(raw_file_DS)
 
-# Extract the time column
-time = df.iloc[:, timeInMillis]  # in millis for this one
-
-# extract the colunms
-flight_phase_column = df.iloc[:, flight_phase]
-
-roll_IMU_column = df.iloc[:, roll_IMU]
-roll_des_column = df.iloc[:, roll_des]
-aileron_command_column = df.iloc[:, aileron_command_PWM]
-
-pitch_IMU_column = df.iloc[:, pitch_IMU]
-pitch_des_column = df.iloc[:, pitch_des]
-elevator_command_column = df.iloc[:, elevator_command_PWM]
-
-angle_turned_DS_column = df.iloc[:, angle_turned_DS]
-rudder_command_column = df.iloc[:, rudder_command_PWM]
-
-airspeed_adjusted_column = df.iloc[:, airspeed_adjusted]
-s1_command_scaled_column = df.iloc[:, s1_command_scaled]
-forwardsAcceleration_column = df.iloc[:, forwardsAcceleration]
-
-
-DS_accelValues = []
-for i in range(len(time)):
-    # and prob make it so that it only does it when accel in the wind, also like only at low alt
-    if flight_phase_column[i] == 3 and airspeed_adjusted_column[i] > 5.0 and s1_command_scaled_column[i] == 0:
-        DS_accelValues.append(forwardsAcceleration_column[i])
+DS_accelValues = df.iloc[:, 2]
 
 # trim the dataset to have 5% trimmed off the top and bottom
 DS_accelValues.sort()
