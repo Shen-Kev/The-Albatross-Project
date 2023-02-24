@@ -198,7 +198,7 @@ void loop()
         integral_roll = 0;
         roll_PID = 0;
         pitch_PID = 0;
-        totalTurnAngle = 0;
+        angle_turned_radians = 0;
         DS_turn = true;
         DSstartTime = timeInMillis;
         accelSum = 0;
@@ -213,7 +213,7 @@ void loop()
         s3_command_scaled = pitch_PID;
         s4_command_scaled = roll_des * DS_yaw_proportion; // no yaw stick input
         DS_first_activated = true;
-        totalTurnAngle = 0;
+        angle_turned_radians = 0;
         DS_turn = true;
         DSstartTime = timeInMillis;
         accelSum = 0;
@@ -334,6 +334,7 @@ void loop()
     gimbalServo.write(gimbalServo_command_PWM);
     loopBlink();
     loopRate(2000);
+    Serial.println(DS_turn);
 }
 
 void pitotSetup()
