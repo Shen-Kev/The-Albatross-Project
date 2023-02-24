@@ -45,11 +45,11 @@ float DS_throttle_exit = 0.5; // throttle exiting the DS
 boolean DS_turn = false;
 boolean DS_first_activated = false;
 float DS_start_heading;
-float DS_pitch_offset = 5; // at all times the angle with be 5 deg more than just the raw cos wave
+float DS_pitch_offset = 1; // at all times the angle with be 5 deg more than just the raw cos wave
 float yaw_commmand_scaled;
 float angle_turned_radians;
 float throttle_scaled;
-float totalTurnAngle = 160; // degrees the UAV should turn
+float totalTurnAngle = 135; // degrees the UAV should turn
 float totalTurnAngleRadians;
 float DSstartTime;
 boolean needToLogDSdata = false;
@@ -94,9 +94,9 @@ void setup()
     Kp_roll_angle = 1.0;
     Ki_roll_angle = 0.3;
     Kd_roll_angle = 0.2;
-    Kp_pitch_angle = 2.5;
+    Kp_pitch_angle = 2.0;
     Ki_pitch_angle = 0.3;
-    Kd_pitch_angle = 0.8;
+    Kd_pitch_angle = 0.5;
 
     Serial.begin(500000);
     Serial.println("serial works");
