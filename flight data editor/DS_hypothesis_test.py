@@ -34,13 +34,21 @@ df = pd.read_csv(raw_file_notDS)
 # Extract the average accel column
 notDS_accelValues = df.iloc[:, 2]
 
-# trim top and bottom 5% of the data
-#notDS_accelValues = notDS_accelValues[notDS_accelValues.between(
-#    notDS_accelValues.quantile(.05), notDS_accelValues.quantile(.95))]
 
-#log trasnform the data
-#notDS_accelValues = np.log(notDS_accelValues)
-#CANT TAKE LOG OF NEGATIVES THOUGH... IDK WHAT TO DO
+
+#make normal probability plot
+stats.probplot(notDS_accelValues, dist="norm", plot=plt)
+plt.title("Normal Probability Plot of not DS data without trimmed data")
+plt.show()
+
+# trim top and bottom 10% of the data
+notDS_accelValues = notDS_accelValues[notDS_accelValues.between(
+    notDS_accelValues.quantile(.1), notDS_accelValues.quantile(.9))]
+
+#make normal probability plot
+stats.probplot(notDS_accelValues, dist="norm", plot=plt)
+plt.title("Normal Probability Plot of not DS data with 10% trimmed data")
+plt.show()
 
 # find the mean, standard deviation of the array
 mean_notDS = np.mean(notDS_accelValues)
@@ -58,7 +66,12 @@ binsNum_notDS = int(abs(binsNum_notDS))
 # Read the csv file
 df = pd.read_csv(raw_file_DS)
 
+# Extract the average accel column
 DS_accelValues = df.iloc[:, 2]
+
+# trim top and bottom 5% of the data
+DS_accelValues = DS_accelValues[DS_accelValues.between(
+    DS_accelValues.quantile(.05), DS_accelValues.quantile(.95))]
 
 # find the mean, standard deviation of the array
 mean_DS = np.mean(DS_accelValues)
