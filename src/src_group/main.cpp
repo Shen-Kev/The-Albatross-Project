@@ -45,7 +45,7 @@ float DS_throttle_exit = 0.5; // throttle exiting the DS
 boolean DS_turn = false;
 boolean DS_first_activated = false;
 float DS_start_heading;
-float DS_pitch_offset = 1; // at all times the angle with be 5 deg more than just the raw cos wave
+float DS_pitch_offset = 5; // at all times the angle with be 5 deg more than just the raw cos wave to account for gravity pulling the UAV down
 float yaw_commmand_scaled;
 float angle_turned_radians;
 float throttle_scaled;
@@ -53,6 +53,8 @@ float totalTurnAngle = 135; // degrees the UAV should turn
 float totalTurnAngleRadians;
 float DSstartTime;
 boolean needToLogDSdata = false;
+boolean rollMetDes = false; //true if the roll has met the desired roll at at least once in the DS cycle
+float rollMetDesTolerance = 5; //degrees
 
 // Variables for Data Logging
 const int COLUMNS = 13;            // 16 columns of data to be logged to the SD card
@@ -95,7 +97,7 @@ void setup()
     Ki_roll_angle = 0.3;
     Kd_roll_angle = 0.2;
     Kp_pitch_angle = 2.0;
-    Ki_pitch_angle = 0.3;
+    Ki_pitch_angle = 0.5;
     Kd_pitch_angle = 0.5;
 
     Serial.begin(500000);
@@ -200,6 +202,7 @@ void loop()
         pitch_PID = 0;
         angle_turned_radians = 0;
         DS_turn = true;
+        rollMetDes = false;
         DSstartTime = timeInMillis;
         accelSum = 0;
         accelNum = 0;
@@ -215,6 +218,7 @@ void loop()
         DS_first_activated = true;
         angle_turned_radians = 0;
         DS_turn = true;
+        rollMetDes = false;
         DSstartTime = timeInMillis;
         accelSum = 0;
         accelNum = 0;
@@ -234,8 +238,15 @@ void loop()
         }
         if (DS_turn)
         {
+            if (abs(roll_IMU-roll_des) < rollMetDesTolerance)
+            {
+                rollMetDes = true;
+            }
             roll_des = DS_roll_angle;
-            pitch_des = DS_pitch_max * cos(angle_turned_radians) + DS_pitch_offset;
+            if (rollMetDes)
+            {
+                pitch_des = DS_pitch_max * cos(angle_turned_radians) + DS_pitch_offset;
+            }
             yaw_commmand_scaled = DS_roll_angle * DS_yaw_proportion;
             throttle_scaled = 0;
 

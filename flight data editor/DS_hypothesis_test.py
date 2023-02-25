@@ -34,11 +34,6 @@ df = pd.read_csv(raw_file_notDS)
 # Extract the average accel column
 notDS_accelValues = df.iloc[:, 2]
 
-# trim the dataset to have 5% trimmed off the top and bottom
-notDS_accelValues.sort()
-notDS_accelValues = notDS_accelValues[int(
-    len(notDS_accelValues)*0.05):int(len(notDS_accelValues)*0.95)]
-
 # find the mean, standard deviation of the array
 mean_notDS = np.mean(notDS_accelValues)
 std_notDS = np.std(notDS_accelValues)
@@ -69,10 +64,10 @@ df = pd.read_csv(raw_file_DS)
 
 DS_accelValues = df.iloc[:, 2]
 
-# trim the dataset to have 5% trimmed off the top and bottom
-DS_accelValues.sort()
-DS_accelValues = DS_accelValues[int(
-    len(DS_accelValues)*0.05):int(len(DS_accelValues)*0.95)]
+#add 0.1 to all the DS values
+for i in range(len(DS_accelValues)):
+    DS_accelValues[i] += 0.05
+
 
 # find the mean, standard deviation of the array
 mean_DS = np.mean(DS_accelValues)

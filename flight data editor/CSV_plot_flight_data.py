@@ -68,7 +68,7 @@ with open(raw_file, "r") as input_csv, open(trimmed_file, "w", newline="") as ou
         if i < mostRecentRunRowIndex:  # if the row was generated in a previous run, don't include it by not doing anything
             continue
         # if the airspeed is high, include the data because its probably the flight
-        elif float(row[airspeed_adjusted]) >= 0.0:
+        elif float(row[airspeed_adjusted]) >= 2.0:
             # write row to the output file
             output_writer.writerow(row)
 
@@ -103,7 +103,7 @@ forwardsAcceleration_column = df.iloc[:, forwardsAcceleration]
 
 
 
-fig, ((roll, altitude), (pitch, airspeed), (yaw, state)
+fig, ((roll, accel), (pitch, airspeed), (yaw, state)
       ) = plt.subplots(3, 2, figsize=(10, 10), sharex=True)
 
 # Set individual subplot titles
@@ -112,7 +112,7 @@ pitch.set_title('Pitch')
 yaw.set_title('Yaw')
 airspeed.set_title('Throttle and Airspeed')
 # so i can compare the accerlation at the same altitude
-altitude.set_title('Altitude and Forwards Acceleration')
+accel.set_title('Forwards Acceleration')
 state.set_title('Flight Phase')
 
 
@@ -157,14 +157,14 @@ airspeed.legend()
 
 # altitude
 
-ax2 = altitude.twinx()
-altitude.plot(time, forwardsAcceleration_column, label="Forwards Acceleration", color='green')
-#altitude.set_ylabel("m", color='blue')
+#ax2 = altitude.twinx()
+accel.plot(time, forwardsAcceleration_column, label="Forwards Acceleration", color='green')
+accel.set_ylabel("m/s^2", color='green')
 #altitude.tick_params(axis='y', labelcolor='blue')
-ax2.set_ylabel("m/s^2", color='green')
-ax2.tick_params(axis='y', labelcolor='green')
+#ax2.set_ylabel("m/s^2", color='green')
+#ax2.tick_params(axis='y', labelcolor='green')
 
-altitude.legend()
+accel.legend()
 
 state.plot(time, flight_phase_column, label="Flight Phase", color='purple')
 state.set_yticks([1.0, 2.0, 3.0])
