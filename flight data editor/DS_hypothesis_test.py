@@ -26,7 +26,7 @@ raw_file_notDS = "C:/Users/kshen/OneDrive/Documents/PlatformIO/Projects/The Alba
 # all the accel data (multiple flights) for when doing DS through the ground shear layer with wind
 raw_file_DS = "C:/Users/kshen/OneDrive/Documents/PlatformIO/Projects/The Albatross Project PlatformIO/flight data editor/forwardsAccelDataDSraw.csv"
 
-# NOT DS DATA ANALYSIS STARTS HERE
+# NOT DS DATA ANALYSIS STARTS HERE=========================================================================
 
 # Read the csv file
 df = pd.read_csv(raw_file_notDS)
@@ -51,21 +51,9 @@ range_notDS = max(notDS_accelValues) - min(notDS_accelValues)
 binsNum_notDS = range_notDS / binsSize
 binsNum_notDS = int(abs(binsNum_notDS))
 
-# make the histogram for not DS data
-plt.subplot(2, 1, 1)
+# NOT DS DATA ANALYSIS ENDS HERE=============================================================================
 
-plt.hist(notDS_accelValues, bins=binsNum_notDS,
-         density=True, alpha=0.6, color='g')
-xmin_notDS, xmax_notDS = plt.xlim()
-xmin_notDS -= 0.1
-xmax_notDS += 0.1
-x_notDS = np.linspace(xmin_notDS, xmax_notDS, 100)
-p_notDS = norm.pdf(x_notDS, mean_notDS, std_notDS)
-plt.plot(x_notDS, p_notDS, 'k', linewidth=2, color='g')
-
-# NOT DS DATA ANALYSIS ENDS HERE
-
-# DA DATA ANALYSIS STARTS HERE
+# DA DATA ANALYSIS STARTS HERE===============================================================================
 
 # Read the csv file
 df = pd.read_csv(raw_file_DS)
@@ -80,20 +68,10 @@ range_DS = max(DS_accelValues) - min(DS_accelValues)
 binsNum_DS = range_DS / binsSize
 binsNum_DS = int(abs(binsNum_DS))
 
-plt.subplot(2, 1, 1)
-plt.xlabel('Forwards Acceleration (m/s^2)')
-plt.ylabel('Probability Density')
-plt.hist(DS_accelValues, bins=binsNum_DS,
-         density=True, alpha=0.6, color='b')
-xmin_DS, xmax_DS = plt.xlim()
-xmin_DS -= 0.1
-xmax_DS += 0.1
-x_DS = np.linspace(xmin_DS, xmax_DS, 100)
-p_DS = norm.pdf(x_DS, mean_DS, std_DS)
-plt.plot(x_DS, p_DS, 'k', linewidth=2, color='b')
+# DS DATA ANALYSIS ENDS HERE=================================================================================
 
-# DS DATA ANALYSIS ENDS HERE
 
+#T TEST STARTS HERE======================================================================================
 # two sample t test
 t, p = stats.ttest_ind(DS_accelValues, notDS_accelValues,
                        equal_var=False, nan_policy='omit', alternative='greater')
@@ -106,6 +84,36 @@ if p < alpha:
     print("The difference is significant")
 else:
     print("The difference is not significant")
+
+#T TEST ENDS HERE========================================================================================
+
+#MAKE HISTOGRAMS AND GRAPH STARTS HERE=====================================================================
+
+# make the histogram for not DS data
+plt.subplot(2, 1, 1)
+
+plt.hist(notDS_accelValues, bins=binsNum_notDS,
+         density=True, alpha=0.6, color='g')
+xmin_notDS, xmax_notDS = plt.xlim()
+xmin_notDS -= 0.1
+xmax_notDS += 0.1
+x_notDS = np.linspace(xmin_notDS, xmax_notDS, 100)
+p_notDS = norm.pdf(x_notDS, mean_notDS, std_notDS)
+plt.plot(x_notDS, p_notDS, 'k', linewidth=2, color='g')
+
+
+plt.subplot(2, 1, 1)
+plt.xlabel('Forwards Acceleration (m/s^2)')
+plt.ylabel('Probability Density')
+plt.hist(DS_accelValues, bins=binsNum_DS,
+         density=True, alpha=0.6, color='b')
+xmin_DS, xmax_DS = plt.xlim()
+xmin_DS -= 0.1
+xmax_DS += 0.1
+x_DS = np.linspace(xmin_DS, xmax_DS, 100)
+p_DS = norm.pdf(x_DS, mean_DS, std_DS)
+plt.plot(x_DS, p_DS, 'k', linewidth=2, color='b')
+
 
 # also plot the difference between the two normal distributions DS and Not DS on the 2,1,2 subplot
 plt.subplot(2, 1, 2)
@@ -142,11 +150,11 @@ plt.subplot(2, 1, 1)
 plt.legend(["Not DS" + " n = " + str(len(notDS_accelValues)),
            "DS" + " n = " + str(len(DS_accelValues))])
 
-
 # plot the title
 title = "Dynamic Soaring Two Sample T Test"
 plt.suptitle(title)
 plt.show()
+#MAKE HISTOGRAMS AND GRAPH ENDS HERE=======================================================================
 
 
 # print all statistical info for all the charts (t value, p value, n, std, mean, df, etc)
