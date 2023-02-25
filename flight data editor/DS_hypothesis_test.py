@@ -34,16 +34,10 @@ df = pd.read_csv(raw_file_notDS)
 # Extract the average accel column
 notDS_accelValues = df.iloc[:, 2]
 
-
-
 #make normal probability plot
 stats.probplot(notDS_accelValues, dist="norm", plot=plt)
 plt.title("Normal Probability Plot of not DS data without trimmed data")
 plt.show()
-
-# trim top and bottom 10% of the data
-#notDS_accelValues = notDS_accelValues[notDS_accelValues.between(
-#    notDS_accelValues.quantile(.1), notDS_accelValues.quantile(.9))]
 
 #remove outliers based on how far away it is from the mean
 notDS_accelValues = notDS_accelValues[abs(notDS_accelValues - notDS_accelValues.mean()) <= (2*notDS_accelValues.std())]
@@ -52,8 +46,6 @@ notDS_accelValues = notDS_accelValues[abs(notDS_accelValues - notDS_accelValues.
 stats.probplot(notDS_accelValues, dist="norm", plot=plt)
 plt.title("Normal Probability Plot of not DS data with 2 standard deviation trimmed data")
 plt.show()
-
-
 
 # find the mean, standard deviation of the array
 mean_notDS = np.mean(notDS_accelValues)
@@ -74,9 +66,18 @@ df = pd.read_csv(raw_file_DS)
 # Extract the average accel column
 DS_accelValues = df.iloc[:, 2]
 
-# trim top and bottom 5% of the data
-DS_accelValues = DS_accelValues[DS_accelValues.between(
-    DS_accelValues.quantile(.05), DS_accelValues.quantile(.95))]
+#make normal probability plot
+stats.probplot(DS_accelValues, dist="norm", plot=plt)
+plt.title("Normal Probability Plot of DS data without trimmed data")
+plt.show()
+
+#remove outliers based on how far away it is from the mean
+DS_accelValues = DS_accelValues[abs(DS_accelValues - DS_accelValues.mean()) <= (2*DS_accelValues.std())]
+
+#make normal probability plot
+stats.probplot(DS_accelValues, dist="norm", plot=plt)
+plt.title("Normal Probability Plot of DS data with 2 standard deviation trimmed data")
+plt.show()
 
 # find the mean, standard deviation of the array
 mean_DS = np.mean(DS_accelValues)
