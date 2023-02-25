@@ -72,9 +72,9 @@ df = pd.read_csv(raw_file_DS)
 
 DS_accelValues = df.iloc[:, 2]
 
-# add 0.1 to all the DS values
+# add 0.1 to all the DS values to see what is needed to be significant
 for i in range(len(DS_accelValues)):
-    DS_accelValues[i] += 0.05
+    DS_accelValues[i] += 0.013
 
 
 # find the mean, standard deviation of the array
@@ -124,13 +124,13 @@ p_difference = norm.pdf(x_difference, mean_difference, std_difference)
 plt.plot(x_difference, p_difference, 'k', linewidth=2, color='b')
 # fill in the area under the curve to the left of the cutoff
 plt.fill_between(x_difference, p_difference, where=x_difference < -
-                 1.96*std_difference+mean_difference, color='r', alpha=1)
+                 1.645*std_difference+mean_difference, color='r', alpha=1)
 plt.plot(x_difference, p_difference, 'k', linewidth=2, color='r')
 
-# plot the line on the differnce plot to show z score of -1.96
-plt.axvline(x=-1.96*std_difference+mean_difference, color='k', linestyle='--')
+# plot the line on the differnce plot to show z score of -1.645
+plt.axvline(x=-1.645*std_difference+mean_difference, color='k', linestyle='--')
 # label the line
-plt.text(-1.96*std_difference+mean_difference, 0.1,
+plt.text(-1.645*std_difference+mean_difference, 0.1,
          '  Left Tail Test Cutoff', rotation=90, color='k')
 # draw a line at the null hypotehsis for the difference
 plt.axvline(x=0, color='k', linestyle='--')
@@ -168,4 +168,4 @@ print("alpha = " + str(alpha))
 print("df = " + str(len(notDS_accelValues) + len(DS_accelValues) - 2))
 print("mean difference = " + str(mean_difference))
 print("std difference = " + str(std_difference))
-print("t critical = " + str(-1.96))
+print("t critical = " + str(-1.645))
