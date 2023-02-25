@@ -35,9 +35,12 @@ df = pd.read_csv(raw_file_notDS)
 notDS_accelValues = df.iloc[:, 2]
 
 # trim top and bottom 5% of the data
-notDS_accelValues = notDS_accelValues[notDS_accelValues.between(
-    notDS_accelValues.quantile(.05), notDS_accelValues.quantile(.95))]
+#notDS_accelValues = notDS_accelValues[notDS_accelValues.between(
+#    notDS_accelValues.quantile(.05), notDS_accelValues.quantile(.95))]
 
+#log trasnform the data
+#notDS_accelValues = np.log(notDS_accelValues)
+#CANT TAKE LOG OF NEGATIVES THOUGH... IDK WHAT TO DO
 
 # find the mean, standard deviation of the array
 mean_notDS = np.mean(notDS_accelValues)
