@@ -72,11 +72,6 @@ df = pd.read_csv(raw_file_DS)
 
 DS_accelValues = df.iloc[:, 2]
 
-# add 0.1 to all the DS values to see what is needed to be significant
-for i in range(len(DS_accelValues)):
-    DS_accelValues[i] += 0.013
-
-
 # find the mean, standard deviation of the array
 mean_DS = np.mean(DS_accelValues)
 std_DS = np.std(DS_accelValues)
