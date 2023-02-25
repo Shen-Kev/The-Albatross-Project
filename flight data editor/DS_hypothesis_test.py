@@ -34,11 +34,16 @@ df = pd.read_csv(raw_file_notDS)
 # Extract the average accel column
 notDS_accelValues = df.iloc[:, 2]
 
+# trim top and bottom 5% of the data
+notDS_accelValues = notDS_accelValues[notDS_accelValues.between(
+    notDS_accelValues.quantile(.05), notDS_accelValues.quantile(.95))]
+
+
 # find the mean, standard deviation of the array
 mean_notDS = np.mean(notDS_accelValues)
 std_notDS = np.std(notDS_accelValues)
 
-binsSize = 0.02
+binsSize = 0.01
 range_notDS = max(notDS_accelValues) - min(notDS_accelValues)
 binsNum_notDS = range_notDS / binsSize
 binsNum_notDS = int(abs(binsNum_notDS))
@@ -64,7 +69,7 @@ df = pd.read_csv(raw_file_DS)
 
 DS_accelValues = df.iloc[:, 2]
 
-#add 0.1 to all the DS values
+# add 0.1 to all the DS values
 for i in range(len(DS_accelValues)):
     DS_accelValues[i] += 0.05
 
