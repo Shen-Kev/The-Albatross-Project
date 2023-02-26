@@ -51,7 +51,7 @@ float DS_pitch_offset = 5; // at all times the angle with be 5 deg more than jus
 float yaw_commmand_scaled;
 float angle_turned_radians;
 float throttle_scaled;
-float totalTurnAngle = 135; // degrees the UAV should turn
+float totalTurnAngle = 180; // degrees the UAV should turn
 float totalTurnAngleRadians;
 float DSstartTime;
 boolean needToLogDSdata = false;
@@ -299,10 +299,10 @@ void loop()
             Serial.println("BEFORE TURN");
             //BEFORE DS TURN.
             //set motor to 80% power, pitch and roll to 0
-            s1_command_scaled = 0.8;
-            s2_command_scaled = 0;
-            s3_command_scaled = 0;
-            s4_command_scaled = 0;
+            throttle_scaled = 0.8;
+            roll_PID = 0;
+            pitch_PID = 0;
+            yaw_commmand_scaled = 0;
         }
 
         controlANGLE();                          // run the PID loops for roll and pitch
