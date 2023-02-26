@@ -45,7 +45,7 @@ float DS_throttle_exit = 0.5; // throttle exiting the DS
 boolean DS_turn = false;
 boolean DS_first_activated = false;
 boolean DS_speed_met = false;
-float DS_speed = 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000; // m/s EDIT THIS LATER LOL
+float DS_speed = 13; // m/s EDIT THIS LATER LOL
 float DS_start_heading;
 float DS_pitch_offset = 5; // at all times the angle with be 5 deg more than just the raw cos wave to account for gravity pulling the UAV down
 float yaw_commmand_scaled;
