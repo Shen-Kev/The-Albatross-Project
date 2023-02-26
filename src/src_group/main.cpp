@@ -260,9 +260,11 @@ void loop()
             if (rollMetDes)
             {
                 pitch_des = DS_pitch_max * cos(angle_turned_radians) + DS_pitch_offset;
+                Serial.println("ROLL MET");
             }
             else
             {
+                Serial.println("ROLL NOT MET");
                 pitch_des = DS_pitch_offset;
             }
             yaw_commmand_scaled = DS_roll_angle * DS_yaw_proportion;
