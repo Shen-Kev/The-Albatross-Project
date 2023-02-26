@@ -6,6 +6,9 @@
 # TO USE THIS CODE: put all the flight data into the input file, one after the other
 
 
+#NOTE THERE IS AN ISSUE WITH SIGFIGS, IF THERE ARE TRAILING 0 IT WONT SHOW IT, SO BE CAREFUL.
+
+
 import scipy.stats as stats
 import statistics
 import math
@@ -129,8 +132,6 @@ mean_notDS_2sf = round(mean_notDS, -int(math.floor(math.log10(abs(mean_notDS))) 
 std_notDS_2sf = round(std_notDS, -int(math.floor(math.log10(abs(std_notDS))) - 1))
 
 plt.text(0.5, 0.95, "n = " + str(len(notDS_accelValues)) + " mean = " + str(mean_notDS_2sf) + " std = " + str(std_notDS_2sf),  horizontalalignment='center', verticalalignment='baseline', transform=plt.gca().transAxes)
-
-
 
 plt.subplot(1, 3, 2)
 plt.title('Dynamic Soaring')
