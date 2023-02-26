@@ -249,6 +249,7 @@ void loop()
 
         if (DS_turn && DS_speed_met)
         {
+            Serial.println("TURN");
             //DS TURN
             if (abs(roll_IMU - roll_des) < rollMetDesTolerance)
             {
@@ -269,6 +270,7 @@ void loop()
         }
         else if (needToLogDSdata && !DS_turn)
         {
+            Serial.println("LOGGING");
             //RUNS ONCE AFTER DS TURN
             needToLogDSdata = false;
             accelAvg = accelSum / accelNum;
@@ -286,6 +288,7 @@ void loop()
         }
         else if(!DS_turn)
         {
+            Serial.println("AFTER TURN");
             //AFTER DS TURN.
             throttle_scaled = DS_throttle_exit;
             roll_des = 0;
@@ -293,6 +296,7 @@ void loop()
             yaw_commmand_scaled = 0;
         }
         else {
+            Serial.println("BEFORE TURN");
             //BEFORE DS TURN.
             //set motor to 80% power, pitch and roll to 0
             s1_command_scaled = 0.8;
@@ -370,7 +374,6 @@ void loop()
     gimbalServo.write(gimbalServo_command_PWM);
     loopBlink();
     loopRate(2000);
-    Serial.println(DS_turn);
 }
 
 void pitotSetup()
