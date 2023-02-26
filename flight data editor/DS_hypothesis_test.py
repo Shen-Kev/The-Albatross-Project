@@ -121,8 +121,15 @@ xmax_notDS += 0.1
 x_notDS = np.linspace(xmin_notDS, xmax_notDS, 100)
 p_notDS = norm.pdf(x_notDS, mean_notDS, std_notDS)
 plt.plot(x_notDS, p_notDS, 'k', linewidth=2, color='g')
-#plot n, std, mean underneath this subplot
-plt.text(0.5, 0.95, "n = " + str(len(notDS_accelValues)) + " mean = " + str(round(mean_notDS, 3)) + " std = " + str(round(std_notDS, 3)),  horizontalalignment='center', verticalalignment='baseline', transform=plt.gca().transAxes)
+#plot n, std, mean underneath this subplot.
+
+#mean with 2 significant figures
+mean_notDS_2sf = round(mean_notDS, -int(math.floor(math.log10(abs(mean_notDS))) - 1))
+#std with 2 significant figures
+std_notDS_2sf = round(std_notDS, -int(math.floor(math.log10(abs(std_notDS))) - 1))
+
+plt.text(0.5, 0.95, "n = " + str(len(notDS_accelValues)) + " mean = " + str(mean_notDS_2sf) + " std = " + str(std_notDS_2sf),  horizontalalignment='center', verticalalignment='baseline', transform=plt.gca().transAxes)
+
 
 
 plt.subplot(1, 3, 2)
@@ -137,8 +144,14 @@ xmax_DS += 0.1
 x_DS = np.linspace(xmin_DS, xmax_DS, 100)
 p_DS = norm.pdf(x_DS, mean_DS, std_DS)
 plt.plot(x_DS, p_DS, 'k', linewidth=2, color='b')
-#plot n, std, mean underneath this subplot
-plt.text(0.5, 0.95, "n = " + str(len(DS_accelValues)) + " mean = " + str(round(mean_DS, 3)) + " std = " + str(round(std_DS, 3)),  horizontalalignment='center', verticalalignment='baseline', transform=plt.gca().transAxes)
+#plot n, std, mean underneath this subplot.
+
+#mean with 2 significant figures
+mean_DS_2sf = round(mean_DS, -int(math.floor(math.log10(abs(mean_DS))) - 1))
+#std with 2 significant figures
+std_DS_2sf = round(std_DS, -int(math.floor(math.log10(abs(std_DS))) - 1))
+
+plt.text(0.5, 0.95, "n = " + str(len(DS_accelValues)) + " mean = " + str(mean_DS_2sf) + " std = " + str(std_DS_2sf),  horizontalalignment='center', verticalalignment='baseline', transform=plt.gca().transAxes)
 
 # also plot the difference between the two normal distributions DS and Not DS on the 2,1,2 subplot
 plt.subplot(1, 3, 3)
@@ -155,8 +168,14 @@ plt.plot(x_difference, p_difference, 'k', linewidth=2, color='b')
 plt.fill_between(x_difference, p_difference, where=x_difference < -
                  1.645*std_difference+mean_difference, color='r', alpha=1)
 plt.plot(x_difference, p_difference, 'k', linewidth=2, color='r')
-#plot n, std, mean underneath this subplot
-plt.text(0.5, 0.95, "mean = " + str(round(mean_difference, 3)) + " std = " + str(round(std_difference, 3)),  horizontalalignment='center', verticalalignment='baseline', transform=plt.gca().transAxes)
+#plot n, std, mean underneath this subplot.
+
+#mean with 2 significant figures
+mean_difference_2sf = round(mean_difference, -int(math.floor(math.log10(abs(mean_difference))) - 1)) #NOTE: ONLY WORKS FOR NON ZERO NUMBERS
+#std with 2 significant figures
+std_difference_2sf = round(std_difference, -int(math.floor(math.log10(abs(std_difference))) - 1))
+
+plt.text(0.5, 0.95, "mean = " + str(mean_difference_2sf) + " std = " + str(std_difference_2sf),  horizontalalignment='center', verticalalignment='baseline', transform=plt.gca().transAxes)
 
 # plot the line on the differnce plot to show z score of -1.645
 plt.axvline(x=-1.645*std_difference+mean_difference, color='k', linestyle='--')
