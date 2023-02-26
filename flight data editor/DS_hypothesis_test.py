@@ -40,7 +40,8 @@ notDS_accelValues = degrees_of_freedom.iloc[:, 2]
 
 #make normal probability plot
 stats.probplot(notDS_accelValues, dist="norm", plot=plt)
-plt.title("Normal Probability Plot of not DS data without trimmed data")
+plt.title("Normal Probability Plot of Control Data Without Trimming")
+plt.legend(['Data Points', 'Normal Distribution With Mean and Std of Data'])
 plt.show()
 
 #remove outliers based on how far away it is from the mean
@@ -48,7 +49,8 @@ notDS_accelValues = notDS_accelValues[abs(notDS_accelValues - notDS_accelValues.
 
 #make normal probability plot
 stats.probplot(notDS_accelValues, dist="norm", plot=plt)
-plt.title("Normal Probability Plot of not DS data with 2 standard deviation trimmed data")
+plt.title("Normal Probability Plot of Control Data With 2 Standard Deviation Trimmed")
+plt.legend(['Data Points', 'Normal Distribution With Mean and Std of Data'])
 plt.show()
 
 # find the mean, standard deviation of the array
@@ -72,7 +74,8 @@ DS_accelValues = degrees_of_freedom.iloc[:, 2]
 
 #make normal probability plot
 stats.probplot(DS_accelValues, dist="norm", plot=plt)
-plt.title("Normal Probability Plot of DS data without trimmed data")
+plt.title("Normal Probability Plot of DS data Without Trimming")
+plt.legend(['Data Points', 'Normal Distribution With Mean and Std of Data'])
 plt.show()
 
 #remove outliers based on how far away it is from the mean
@@ -80,7 +83,8 @@ DS_accelValues = DS_accelValues[abs(DS_accelValues - DS_accelValues.mean()) <= (
 
 #make normal probability plot
 stats.probplot(DS_accelValues, dist="norm", plot=plt)
-plt.title("Normal Probability Plot of DS data with 2 standard deviation trimmed data")
+plt.title("Normal Probability Plot of DS data With 2 Standard Deviation Trimmed")
+plt.legend(['Data Points', 'Normal Distribution With Mean and Std of Data'])
 plt.show()
 
 # find the mean, standard deviation of the array
@@ -209,13 +213,13 @@ plt.show()
 # print the statistical information
 pd.set_option('display.max_rows', None)# set the maximum number of rows to display
 print(" ")
-print("Dynamic Soaring Dataset:")
+print("Dynamic Soaring Dataset (each datapoint is one dynamic soaring cycle):")
 print("Index, Value")
 print(DS_accelValues.to_string(name=False))
 print(" ")
 pd.set_option('display.max_rows', None)# set the maximum number of rows to display
-print("Control Dataset:")
-print("Index, Value")
+print("Control Dataset (each datapoint is one circle with no wind):")
+print("Index, Value (mean m/s^2 forwards)")
 print(notDS_accelValues.to_string(name=False))
 print(" ")
 print("Unfiltered Statistical Information:")
@@ -235,5 +239,8 @@ print("type 1 error = " + str(type1error))
 print("type 2 error = " + str(type2error))
 print("beta = " + str(beta))
 print("power = " + str(power))
+print(" ")
+print(" ")
+print(" ")
 
 
