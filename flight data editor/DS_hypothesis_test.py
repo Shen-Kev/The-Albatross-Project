@@ -109,8 +109,10 @@ else:
 #MAKE HISTOGRAMS AND GRAPH STARTS HERE=====================================================================
 
 # make the histogram for not DS data
-plt.subplot(2, 1, 1)
-
+plt.subplot(1, 3, 1)
+plt.title('Control (No Wind)')
+plt.xlabel('Forwards Acceleration (m/s^2)')
+plt.ylabel('Probability Density') 
 plt.hist(notDS_accelValues, bins=binsNum_notDS,
          density=True, alpha=0.6, color='g')
 xmin_notDS, xmax_notDS = plt.xlim()
@@ -119,9 +121,12 @@ xmax_notDS += 0.1
 x_notDS = np.linspace(xmin_notDS, xmax_notDS, 100)
 p_notDS = norm.pdf(x_notDS, mean_notDS, std_notDS)
 plt.plot(x_notDS, p_notDS, 'k', linewidth=2, color='g')
+#plot n, std, mean underneath this subplot
+plt.text(0.5, 0.95, "n = " + str(len(notDS_accelValues)) + " mean = " + str(round(mean_notDS, 3)) + " std = " + str(round(std_notDS, 3)),  horizontalalignment='center', verticalalignment='baseline', transform=plt.gca().transAxes)
 
 
-plt.subplot(2, 1, 1)
+plt.subplot(1, 3, 2)
+plt.title('Dynamic Soaring')
 plt.xlabel('Forwards Acceleration (m/s^2)')
 plt.ylabel('Probability Density')
 plt.hist(DS_accelValues, bins=binsNum_DS,
@@ -132,10 +137,12 @@ xmax_DS += 0.1
 x_DS = np.linspace(xmin_DS, xmax_DS, 100)
 p_DS = norm.pdf(x_DS, mean_DS, std_DS)
 plt.plot(x_DS, p_DS, 'k', linewidth=2, color='b')
-
+#plot n, std, mean underneath this subplot
+plt.text(0.5, 0.95, "n = " + str(len(DS_accelValues)) + " mean = " + str(round(mean_DS, 3)) + " std = " + str(round(std_DS, 3)),  horizontalalignment='center', verticalalignment='baseline', transform=plt.gca().transAxes)
 
 # also plot the difference between the two normal distributions DS and Not DS on the 2,1,2 subplot
-plt.subplot(2, 1, 2)
+plt.subplot(1, 3, 3)
+plt.title("Difference between Dynamic Soaring and Control")
 # plot the difference between the two normal distributions
 mean_difference = mean_DS - mean_notDS
 std_difference = np.sqrt(
@@ -148,6 +155,8 @@ plt.plot(x_difference, p_difference, 'k', linewidth=2, color='b')
 plt.fill_between(x_difference, p_difference, where=x_difference < -
                  1.645*std_difference+mean_difference, color='r', alpha=1)
 plt.plot(x_difference, p_difference, 'k', linewidth=2, color='r')
+#plot n, std, mean underneath this subplot
+plt.text(0.5, 0.95, "mean = " + str(round(mean_difference, 3)) + " std = " + str(round(std_difference, 3)),  horizontalalignment='center', verticalalignment='baseline', transform=plt.gca().transAxes)
 
 # plot the line on the differnce plot to show z score of -1.645
 plt.axvline(x=-1.645*std_difference+mean_difference, color='k', linestyle='--')
@@ -163,16 +172,11 @@ plt.text(0, 0.1, '  Null Hypothesis', rotation=90, color='k')
 plt.xlabel('Difference in Forwards Acceleration (m/s^2)')
 plt.ylabel('Probability Density')
 
-
-# plot the legend for both subplots
-plt.subplot(2, 1, 1)
-plt.legend(["Not DS" + " n = " + str(len(notDS_accelValues)),
-           "DS" + " n = " + str(len(DS_accelValues))])
-
 # plot the title
 title = "Dynamic Soaring Two Sample T Test"
 plt.suptitle(title)
 plt.show()
+
 #MAKE HISTOGRAMS AND GRAPH ENDS HERE=======================================================================
 
 
