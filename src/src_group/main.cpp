@@ -45,13 +45,13 @@ float DS_throttle_exit = 0.5; // throttle exiting the DS
 boolean DS_turn = false;
 boolean DS_first_activated = false;
 boolean DS_speed_met = false;
-float DS_speed = 13; // m/s EDIT THIS LATER LOL
+float DS_speed = 10; // m/s EDIT THIS LATER LOL
 float DS_start_heading;
 float DS_pitch_offset = 5; // at all times the angle with be 5 deg more than just the raw cos wave to account for gravity pulling the UAV down
 float yaw_commmand_scaled;
 float angle_turned_radians;
 float throttle_scaled;
-float totalTurnAngle = 180; // degrees the UAV should turn
+float totalTurnAngle = 160; // degrees the UAV should turn
 float totalTurnAngleRadians;
 float DSstartTime;
 boolean needToLogDSdata = false;
@@ -100,7 +100,7 @@ void setup()
     Kd_roll_angle = 0.2;
     Kp_pitch_angle = 2.0;
     Ki_pitch_angle = 0.5;
-    Kd_pitch_angle = 0.5;
+    Kd_pitch_angle = 0.4;
 
     Serial.begin(500000);
     Serial.println("serial works");
@@ -242,15 +242,16 @@ void loop()
         {
             DS_turn = false;
         }
-        //Don't start DS until airspeed is met (going too fast not a problem, too slow and it will stall)
-        if(airspeed_adjusted > DS_speed) {
-            DS_speed_met = true; //only should change once per cycle, from false to true
-        }  
+        // Don't start DS until airspeed is met (going too fast not a problem, too slow and it will stall)
+        if (airspeed_adjusted > DS_speed)
+        {
+            DS_speed_met = true; // only should change once per cycle, from false to true
+        }
 
         if (DS_turn && DS_speed_met)
         {
             Serial.println("TURN");
-            //DS TURN
+            // DS TURN
             if (abs(roll_IMU - roll_des) < rollMetDesTolerance)
             {
                 rollMetDes = true;
@@ -260,18 +261,20 @@ void loop()
             {
                 pitch_des = DS_pitch_max * cos(angle_turned_radians) + DS_pitch_offset;
             }
+            else
+            {
+                pitch_des = DS_pitch_offset;
+            }
             yaw_commmand_scaled = DS_roll_angle * DS_yaw_proportion;
             throttle_scaled = 0;
-
             accelSum += forwardsAcceleration;
             accelNum++;
-
             needToLogDSdata = true;
         }
         else if (needToLogDSdata && !DS_turn)
         {
             Serial.println("LOGGING");
-            //RUNS ONCE AFTER DS TURN
+            // RUNS ONCE AFTER DS TURN
             needToLogDSdata = false;
             accelAvg = accelSum / accelNum;
             accelSum = 0;
@@ -286,19 +289,20 @@ void loop()
             dataFile.println();
             dataFile.close();
         }
-        else if(!DS_turn)
+        else if (!DS_turn)
         {
             Serial.println("AFTER TURN");
-            //AFTER DS TURN.
+            // AFTER DS TURN.
             throttle_scaled = DS_throttle_exit;
             roll_des = 0;
             pitch_des = DS_pitch_exit;
             yaw_commmand_scaled = 0;
         }
-        else {
+        else
+        {
             Serial.println("BEFORE TURN");
-            //BEFORE DS TURN.
-            //set motor to 80% power, pitch and roll to 0
+            // BEFORE DS TURN.
+            // set motor to 80% power, pitch and roll to 0
             throttle_scaled = 0.8;
             roll_PID = 0;
             pitch_PID = 0;
