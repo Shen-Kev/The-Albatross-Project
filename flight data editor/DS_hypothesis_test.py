@@ -15,6 +15,7 @@ import math
 from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,
                                AutoMinorLocator)
 from scipy.stats import norm
+from scipy.stats import t
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -32,10 +33,10 @@ raw_file_DS = "C:/Users/kshen/OneDrive/Documents/PlatformIO/Projects/The Albatro
 # NOT DS DATA ANALYSIS STARTS HERE=========================================================================
 
 # Read the csv file
-df = pd.read_csv(raw_file_notDS)
+degrees_of_freedom = pd.read_csv(raw_file_notDS)
 
 # Extract the average accel column
-notDS_accelValues = df.iloc[:, 2]
+notDS_accelValues = degrees_of_freedom.iloc[:, 2]
 
 #make normal probability plot
 stats.probplot(notDS_accelValues, dist="norm", plot=plt)
@@ -64,10 +65,10 @@ binsNum_notDS = int(abs(binsNum_notDS))
 # DA DATA ANALYSIS STARTS HERE===============================================================================
 
 # Read the csv file
-df = pd.read_csv(raw_file_DS)
+degrees_of_freedom = pd.read_csv(raw_file_DS)
 
 # Extract the average accel column
-DS_accelValues = df.iloc[:, 2]
+DS_accelValues = degrees_of_freedom.iloc[:, 2]
 
 #make normal probability plot
 stats.probplot(DS_accelValues, dist="norm", plot=plt)
@@ -95,17 +96,23 @@ binsNum_DS = int(abs(binsNum_DS))
 
 #T TEST STARTS HERE======================================================================================
 # two sample t test
-t, p = stats.ttest_ind(DS_accelValues, notDS_accelValues,
-                       equal_var=False, nan_policy='omit', alternative='greater')
-print("t = " + str(t))
-print("p = " + str(p))
-
-# determine if the difference is significant with alpha = 0.05
+t, p = stats.ttest_ind(notDS_accelValues, DS_accelValues,
+                       equal_var=False, nan_policy='omit', alternative='less')
 alpha = 0.05
-if p < alpha:
-    print("The difference is significant")
-else:
-    print("The difference is not significant")
+t_critical = -1.645
+
+degrees_of_freedom = len(DS_accelValues) + len(notDS_accelValues) - 2
+
+cohens_d = abs(np.mean(DS_accelValues) - np.mean(notDS_accelValues)) / np.sqrt(((len(DS_accelValues)-1)*np.var(DS_accelValues, ddof=1) + (len(notDS_accelValues)-1)*np.var(notDS_accelValues, ddof=1)) / degrees_of_freedom)
+alpha = 0.05
+nobs1 = len(DS_accelValues)
+nobs2 = len(notDS_accelValues)
+ratio = nobs2 / nobs1
+noncen = cohens_d * np.sqrt(nobs1*nobs2 / (nobs1 + nobs2))
+power = 1 - stats.nct.cdf(stats.t.ppf(1-alpha, df=degrees_of_freedom), df=degrees_of_freedom, nc=noncen)
+type1error = alpha
+type2error = 1 - power
+beta = 1 - power
 
 #T TEST ENDS HERE========================================================================================
 
@@ -123,7 +130,7 @@ xmin_notDS -= 0.1
 xmax_notDS += 0.1
 x_notDS = np.linspace(xmin_notDS, xmax_notDS, 100)
 p_notDS = norm.pdf(x_notDS, mean_notDS, std_notDS)
-plt.plot(x_notDS, p_notDS, 'k', linewidth=2, color='g')
+plt.plot(x_notDS, p_notDS, linewidth=2, color='g')
 #plot n, std, mean underneath this subplot.
 
 #mean with 2 significant figures
@@ -144,7 +151,7 @@ xmin_DS -= 0.1
 xmax_DS += 0.1
 x_DS = np.linspace(xmin_DS, xmax_DS, 100)
 p_DS = norm.pdf(x_DS, mean_DS, std_DS)
-plt.plot(x_DS, p_DS, 'k', linewidth=2, color='b')
+plt.plot(x_DS, p_DS, linewidth=2, color='b')
 #plot n, std, mean underneath this subplot.
 
 #mean with 2 significant figures
@@ -164,11 +171,11 @@ std_difference = np.sqrt(
 x_difference = np.linspace(-3*std_difference+mean_difference,
                            3*std_difference+mean_difference, 100)
 p_difference = norm.pdf(x_difference, mean_difference, std_difference)
-plt.plot(x_difference, p_difference, 'k', linewidth=2, color='b')
+plt.plot(x_difference, p_difference, linewidth=2, color='b')
 # fill in the area under the curve to the left of the cutoff
 plt.fill_between(x_difference, p_difference, where=x_difference < -
                  1.645*std_difference+mean_difference, color='r', alpha=1)
-plt.plot(x_difference, p_difference, 'k', linewidth=2, color='r')
+plt.plot(x_difference, p_difference, linewidth=2, color='r')
 #plot n, std, mean underneath this subplot.
 
 #mean with 2 significant figures
@@ -178,10 +185,10 @@ std_difference_2sf = round(std_difference, -int(math.floor(math.log10(abs(std_di
 
 plt.text(0.5, 0.95, "mean = " + str(mean_difference_2sf) + " std = " + str(std_difference_2sf),  horizontalalignment='center', verticalalignment='baseline', transform=plt.gca().transAxes)
 
-# plot the line on the differnce plot to show z score of -1.645
-plt.axvline(x=-1.645*std_difference+mean_difference, color='k', linestyle='--')
+# plot the line on the differnce plot to show z score of t_critical
+plt.axvline(x=t_critical*std_difference+mean_difference, color='k', linestyle='--')
 # label the line
-plt.text(-1.645*std_difference+mean_difference, 0.1,
+plt.text(t_critical*std_difference+mean_difference, 0.1,
          '  Left Tail Test Cutoff', rotation=90, color='k')
 # draw a line at the null hypotehsis for the difference
 plt.axvline(x=0, color='k', linestyle='--')
@@ -199,19 +206,34 @@ plt.show()
 
 #MAKE HISTOGRAMS AND GRAPH ENDS HERE=======================================================================
 
-
-# print all statistical info for all the charts (t value, p value, n, std, mean, df, etc)
+# print the statistical information
+pd.set_option('display.max_rows', None)# set the maximum number of rows to display
 print(" ")
-print("Not DS n = " + str(len(notDS_accelValues)))
-print("Not DS mean = " + str(mean_notDS))
-print("Not DS std = " + str(std_notDS))
-print("DS n = " + str(len(DS_accelValues)))
-print("DS mean = " + str(mean_DS))
-print("DS std = " + str(std_DS))
+print("Dynamic Soaring Dataset:")
+print("Index, Value")
+print(DS_accelValues.to_string(name=False))
+print(" ")
+pd.set_option('display.max_rows', None)# set the maximum number of rows to display
+print("Control Dataset:")
+print("Index, Value")
+print(notDS_accelValues.to_string(name=False))
+print(" ")
+print("Unfiltered Statistical Information:")
+print(" ")
+print("mean not DS (not rounded to sig fig) = " + str(mean_notDS))
+print("std not DS (not rounded to sig fig) = " + str(std_notDS))
+print("mean DS(not rounded to sig fig) = " + str(mean_DS))
+print("std DS (not rounded to sig fig) = " + str(std_DS))
+print("mean difference (not rounded to sig fig) = " + str(mean_difference))
+print("std difference (not rounded to sig fig) = " + str(std_difference))
 print("t = " + str(t))
-print("p = " + str(p))
+print("t critical = " + str(t_critical))
+print("df = " + str(degrees_of_freedom))
+print("P-value = " + str(p))
 print("alpha = " + str(alpha))
-print("df = " + str(len(notDS_accelValues) + len(DS_accelValues) - 2))
-print("mean difference = " + str(mean_difference))
-print("std difference = " + str(std_difference))
-print("t critical = " + str(-1.645))
+print("type 1 error = " + str(type1error))
+print("type 2 error = " + str(type2error))
+print("beta = " + str(beta))
+print("power = " + str(power))
+
+
