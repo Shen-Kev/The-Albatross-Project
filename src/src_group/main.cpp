@@ -67,7 +67,7 @@ boolean toggle = false;            // Used to toggle the LED
 int currentRow = 0;                // The current row of the data log array
 boolean logSuccessful = false;     // Used to determine if the data has been successfully logged to the SD card
 float accelSum = 0;                // the sum of the accelerations in a DS cycle
-float accelNum;                    // the number of acceleation values in a DS cycle
+int accelNum;                      // the number of acceleation values in a DS cycle
 float accelAvg;                    // the average acceleration in a DS cycle
 
 // Flight Phases
@@ -237,7 +237,7 @@ void loop()
         angle_turned_radians += GyroZ * DEG_TO_RAD * dt;
         yaw_IMU_rad_prev = yaw_IMU_rad;
 
-        // if DS has turned over pi radians, DS turn is over
+        // if DS has turned enough, DS turn is over
         if (DS_turn && abs(angle_turned_radians) > totalTurnAngleRadians)
         {
             DS_turn = false;
@@ -260,6 +260,7 @@ void loop()
             if (rollMetDes)
             {
                 pitch_des = DS_pitch_max * cos(angle_turned_radians) + DS_pitch_offset;
+
                 Serial.println("ROLL MET");
             }
             else
@@ -278,7 +279,7 @@ void loop()
             Serial.println("LOGGING");
             // RUNS ONCE AFTER DS TURN
             needToLogDSdata = false;
-            accelAvg = accelSum / accelNum;
+            accelAvg = accelSum / float(accelNum);
             accelSum = 0;
             accelNum = 0;
 
@@ -310,6 +311,9 @@ void loop()
             pitch_PID = 0;
             yaw_commmand_scaled = 0;
         }
+
+        // add pilot input to pitch_des to give pilot some control to avoid crashes
+        pitch_des += pitch_passthru;
 
         controlANGLE();                          // run the PID loops for roll and pitch
         s1_command_scaled = throttle_scaled;     // throttle to 0
