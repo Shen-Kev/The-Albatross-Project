@@ -44,6 +44,8 @@ float DS_pitch_exit = 15;
 float DS_throttle_exit = 0.5; // throttle exiting the DS
 boolean DS_turn = false;
 boolean DS_first_activated = false;
+boolean DS_speed_met = false;
+float DS_speed = 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000; // m/s EDIT THIS LATER LOL
 float DS_start_heading;
 float DS_pitch_offset = 5; // at all times the angle with be 5 deg more than just the raw cos wave to account for gravity pulling the UAV down
 float yaw_commmand_scaled;
@@ -53,8 +55,8 @@ float totalTurnAngle = 135; // degrees the UAV should turn
 float totalTurnAngleRadians;
 float DSstartTime;
 boolean needToLogDSdata = false;
-boolean rollMetDes = false; //true if the roll has met the desired roll at at least once in the DS cycle
-float rollMetDesTolerance = 5; //degrees
+boolean rollMetDes = false;    // true if the roll has met the desired roll at at least once in the DS cycle
+float rollMetDesTolerance = 5; // degrees
 
 // Variables for Data Logging
 const int COLUMNS = 13;            // 16 columns of data to be logged to the SD card
@@ -203,6 +205,7 @@ void loop()
         angle_turned_radians = 0;
         DS_turn = true;
         rollMetDes = false;
+        DS_speed_met = false;
         DSstartTime = timeInMillis;
         accelSum = 0;
         accelNum = 0;
@@ -219,6 +222,7 @@ void loop()
         angle_turned_radians = 0;
         DS_turn = true;
         rollMetDes = false;
+        DS_speed_met = false;
         DSstartTime = timeInMillis;
         accelSum = 0;
         accelNum = 0;
@@ -238,9 +242,15 @@ void loop()
         {
             DS_turn = false;
         }
-        if (DS_turn)
+        //Don't start DS until airspeed is met (going too fast not a problem, too slow and it will stall)
+        if(airspeed_adjusted > DS_speed) {
+            DS_speed_met = true; //only should change once per cycle, from false to true
+        }  
+
+        if (DS_turn && DS_speed_met)
         {
-            if (abs(roll_IMU-roll_des) < rollMetDesTolerance)
+            //DS TURN
+            if (abs(roll_IMU - roll_des) < rollMetDesTolerance)
             {
                 rollMetDes = true;
             }
@@ -257,9 +267,9 @@ void loop()
 
             needToLogDSdata = true;
         }
-        // this code runs only once after DS turn becomes false
-        else if (needToLogDSdata)
+        else if (needToLogDSdata && !DS_turn)
         {
+            //RUNS ONCE AFTER DS TURN
             needToLogDSdata = false;
             accelAvg = accelSum / accelNum;
             accelSum = 0;
@@ -274,12 +284,21 @@ void loop()
             dataFile.println();
             dataFile.close();
         }
-        else
+        else if(!DS_turn)
         {
+            //AFTER DS TURN.
             throttle_scaled = DS_throttle_exit;
             roll_des = 0;
             pitch_des = DS_pitch_exit;
             yaw_commmand_scaled = 0;
+        }
+        else {
+            //BEFORE DS TURN.
+            //set motor to 80% power, pitch and roll to 0
+            s1_command_scaled = 0.8;
+            s2_command_scaled = 0;
+            s3_command_scaled = 0;
+            s4_command_scaled = 0;
         }
 
         controlANGLE();                          // run the PID loops for roll and pitch
@@ -289,9 +308,9 @@ void loop()
         s4_command_scaled = yaw_commmand_scaled; // yaw to a proportion of the roll angle
 
         DS_first_activated = false;
-        
+
         //================================================================================================================================
-        //Dynamic Soaring Flight End =====================================================================================================
+        // Dynamic Soaring Flight End =====================================================================================================
         //================================================================================================================================
     }
 
