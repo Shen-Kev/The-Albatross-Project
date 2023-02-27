@@ -38,7 +38,7 @@ float heading_changed_last_loop;
 
 // Dynamic Soaring Variables
 float DS_roll_angle = 30;        // The bank angle for Dynamic Soaring (in degrees) (turning RIGHT)
-float DS_yaw_proportion = 0.008; // The proportion of yaw in degrees to roll 0-1 for Dynamic Soaring
+float DS_yaw_proportion = 0.015; // The proportion of yaw in degrees to roll 0-1 for Dynamic Soaring
 float DS_pitch_max = 20;         // The maximum pitch angle for Dynamic Soaring (in degrees)
 float DS_pitch_exit = 15;
 float DS_throttle_exit = 0.5; // throttle exiting the DS
