@@ -250,9 +250,10 @@ void loop()
 
         if (DS_turn && DS_speed_met)
         {
-            Serial.println("TURN");
+            Serial.println(pitch_passthru);
+
             // DS TURN
-            if (abs(roll_IMU - roll_des) < rollMetDesTolerance)
+            if (abs(roll_IMU - DS_roll_angle) < rollMetDesTolerance)
             {
                 rollMetDes = true;
             }
@@ -260,12 +261,9 @@ void loop()
             if (rollMetDes)
             {
                 pitch_des = DS_pitch_max * cos(angle_turned_radians) + DS_pitch_offset;
-
-                Serial.println("ROLL MET");
             }
             else
             {
-                Serial.println("ROLL NOT MET");
                 pitch_des = DS_pitch_offset;
             }
             yaw_commmand_scaled = DS_roll_angle * DS_yaw_proportion;
@@ -276,7 +274,6 @@ void loop()
         }
         else if (needToLogDSdata && !DS_turn)
         {
-            Serial.println("LOGGING");
             // RUNS ONCE AFTER DS TURN
             needToLogDSdata = false;
             accelAvg = accelSum / float(accelNum);
@@ -294,7 +291,6 @@ void loop()
         }
         else if (!DS_turn)
         {
-            Serial.println("AFTER TURN");
             // AFTER DS TURN.
             throttle_scaled = DS_throttle_exit;
             roll_des = 0;
@@ -303,7 +299,6 @@ void loop()
         }
         else
         {
-            Serial.println("BEFORE TURN");
             // BEFORE DS TURN.
             // set motor to 80% power, pitch and roll to 0
             throttle_scaled = 0.8;
@@ -311,10 +306,7 @@ void loop()
             pitch_PID = 0;
             yaw_commmand_scaled = 0;
         }
-
-        // add pilot input to pitch_des to give pilot some control to avoid crashes
-        pitch_des += pitch_passthru;
-
+        pitch_des += pitch_passthru * 60; // add in pitch stick input, goes from -0.5 to 0.5, so multiply by 60 to get to -30 to 30
         controlANGLE();                          // run the PID loops for roll and pitch
         s1_command_scaled = throttle_scaled;     // throttle to 0
         s2_command_scaled = roll_PID;            // roll to DS roll angle
