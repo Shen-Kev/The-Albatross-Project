@@ -6,7 +6,6 @@
 # TO ADD:
 # matplotlib to calculate and draw the stats, like the airspeed difference, the histograms or correlation chats, and infer information like shape of flight path, make animation of the plane tilting up and down in time, multiple charts on the same screen,
 
-
 # THE FILE FOR DOING DS ANALYSIS WILL BE ADDED LATER. RIGHT NOW ITS JUST SHOWING THE DATA
 
 # setting all the vals UPDATED VERSION HERE.
