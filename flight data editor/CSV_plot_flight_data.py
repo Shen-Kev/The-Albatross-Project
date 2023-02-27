@@ -167,7 +167,7 @@ accel.legend()
 
 state.plot(time, flight_phase_column, label="Flight Phase", color='purple')
 state.set_yticks([1.0, 2.0, 3.0])
-state.set_yticklabels(["Manual", "Stabilized", "Dynamic Soaring"])
+state.set_yticklabels(["Manual", "Stabilized", "Dynamic Soaring", "Control Test"])
 state.set_xlabel("time(s)")
 state.legend()
 

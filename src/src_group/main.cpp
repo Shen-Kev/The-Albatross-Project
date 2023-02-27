@@ -10,6 +10,7 @@
 #include "ASPD4525.h"  // Pitot tube library
 #include <SD.h>        // SD card library
 #define MOTOR_ACTIVE 1 // 1 = motor is active, 0 = motor is not active
+#define CONTROL_TEST 1 // 1 = control test, 0 = DS test
 
 // Constants and Variables for Airspeed
 const float airspeed_LP_param = 0.02; // The low pass filter parameter for airspeed (smaller values means a more smooth signal but higher delay time)
@@ -45,7 +46,7 @@ float DS_throttle_exit = 0.5; // throttle exiting the DS
 boolean DS_turn = false;
 boolean DS_first_activated = false;
 boolean DS_speed_met = false;
-float DS_speed = 10; // m/s EDIT THIS LATER LOL
+float DS_speed = 10; // m/s
 float DS_start_heading;
 float DS_pitch_offset = 5; // at all times the angle with be 5 deg more than just the raw cos wave to account for gravity pulling the UAV down
 float yaw_commmand_scaled;
@@ -76,7 +77,8 @@ enum flight_phases  // Flight phases for the flight controller
 {
     manual_flight = 1,
     stabilized_flight = 2,
-    DS_flight = 3
+    DS_flight = 3,
+    control_flight = 4
 };
 
 File dataFile; // File object for SD card
@@ -227,6 +229,92 @@ void loop()
         accelSum = 0;
         accelNum = 0;
     }
+
+#if CONTROL_TEST == 1
+    //================================================================================================================================
+    // Control Flight Start ==================================================================================================
+    //================================================================================================================================
+
+    else
+    {
+        flight_phase = control_flight;
+        // fly in a turn which pitches up to maintain altitude. Every totalTurnAngle, log accel data, then accelerate back up to 10m/s
+
+        angle_turned_radians += GyroZ * DEG_TO_RAD * dt;
+        yaw_IMU_rad_prev = yaw_IMU_rad;
+
+        // if DS has turned enough, DS turn is over
+        if (DS_turn && abs(angle_turned_radians) > totalTurnAngleRadians)
+        {
+            DS_turn = false;
+        }
+        // Don't start DS until airspeed is met (going too fast not a problem, too slow and it will stall)
+        if (airspeed_adjusted > DS_speed)
+        {
+            DS_speed_met = true; // only should change once per cycle, from false to true
+        }
+
+        if (DS_turn && DS_speed_met)
+        {
+
+            pitch_des = 15; // to maintain alt
+            roll_des = DS_roll_angle; //DS turn essentially 
+            yaw_commmand_scaled = DS_roll_angle * DS_yaw_proportion;
+            throttle_scaled = 0;
+            accelSum += forwardsAcceleration;
+            accelNum++;
+            needToLogDSdata = true;
+        }
+        else if (needToLogDSdata && !DS_turn)
+        {
+            // RUNS ONCE AFTER DS TURN
+            needToLogDSdata = false;
+            accelAvg = accelSum / float(accelNum);
+            accelSum = 0;
+            accelNum = 0;
+
+            dataFile = SD.open("accelData.txt", FILE_WRITE);
+            dataFile.print(DSstartTime);
+            dataFile.print(",");
+            dataFile.print(timeInMillis); // the end time
+            dataFile.print(",");
+            dataFile.print(accelAvg);
+            dataFile.println();
+            dataFile.close();
+        }
+        else if (!DS_turn)
+        {
+            //restart cycle, so these tests can be done quickly and repeatedly
+            angle_turned_radians = 0;
+            DS_turn = true;
+            DS_speed_met = false;
+            DSstartTime = timeInMillis;
+            accelSum = 0;
+            accelNum = 0;  
+        }
+        else
+        {
+            // BEFORE DS TURN.
+            // set motor to 80% power, pitch and roll to 0
+            throttle_scaled = 0.8;
+            roll_PID = 0;
+            pitch_PID = 0;
+            yaw_commmand_scaled = 0;
+        }
+        pitch_des += pitch_passthru * 60;        // add in pitch stick input, goes from -0.5 to 0.5, so multiply by 60 to get to -30 to 30 (to avoid crashes)
+        controlANGLE();                          // run the PID loops for roll and pitch
+        s1_command_scaled = throttle_scaled;     // throttle to 0
+        s2_command_scaled = roll_PID;            // roll to DS roll angle
+        s3_command_scaled = pitch_PID;           // pitch to DS pitch angle
+        s4_command_scaled = yaw_commmand_scaled; // yaw to a proportion of the roll angle
+
+        DS_first_activated = false;
+    }
+    //================================================================================================================================
+    // Control Flight End ==================================================================================================
+    //================================================================================================================================
+
+#elif
     //================================================================================================================================
     // Dynamic Soaring Flight Start ==================================================================================================
     //================================================================================================================================
@@ -306,7 +394,7 @@ void loop()
             pitch_PID = 0;
             yaw_commmand_scaled = 0;
         }
-        pitch_des += pitch_passthru * 60; // add in pitch stick input, goes from -0.5 to 0.5, so multiply by 60 to get to -30 to 30
+        pitch_des += pitch_passthru * 60;        // add in pitch stick input, goes from -0.5 to 0.5, so multiply by 60 to get to -30 to 30
         controlANGLE();                          // run the PID loops for roll and pitch
         s1_command_scaled = throttle_scaled;     // throttle to 0
         s2_command_scaled = roll_PID;            // roll to DS roll angle
@@ -319,7 +407,7 @@ void loop()
         // Dynamic Soaring Flight End =====================================================================================================
         //================================================================================================================================
     }
-
+#endif
     // Log data to RAM
     if (loopCounter > (2000 / datalogRate)) // 2000 is the loop rate in microseconds
     {
