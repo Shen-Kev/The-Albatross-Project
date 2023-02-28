@@ -52,7 +52,7 @@ float DS_pitch_offset = 5; // at all times the angle with be 5 deg more than jus
 float yaw_commmand_scaled;
 float angle_turned_radians;
 float throttle_scaled;
-float totalTurnAngle = 160; // degrees the UAV should turn
+float totalTurnAngle = 135; // degrees the UAV should turn
 float totalTurnAngleRadians;
 float DSstartTime;
 boolean needToLogDSdata = false;
