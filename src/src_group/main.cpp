@@ -46,7 +46,7 @@ float DS_throttle_exit = 0.5; // throttle exiting the DS
 boolean DS_turn = false;
 boolean DS_first_activated = false;
 boolean DS_speed_met = false;
-float DS_speed = 10; // m/s
+float DS_speed = 18; // m/s
 float DS_start_heading;
 float DS_pitch_offset = 5; // at all times the angle with be 5 deg more than just the raw cos wave to account for gravity pulling the UAV down
 float yaw_commmand_scaled;
@@ -256,8 +256,7 @@ void loop()
 
         if (DS_turn && DS_speed_met)
         {
-
-            pitch_des = 15; // to maintain alt
+            pitch_des = 20; // to maintain alt
             roll_des = DS_roll_angle; //DS turn essentially 
             yaw_commmand_scaled = DS_roll_angle * DS_yaw_proportion;
             throttle_scaled = 0;
@@ -298,7 +297,7 @@ void loop()
             // set motor to 80% power, pitch and roll to 0
             throttle_scaled = 0.8;
             roll_PID = 0;
-            pitch_PID = 0;
+            pitch_PID = -5;
             yaw_commmand_scaled = 0;
         }
         pitch_des += pitch_passthru * 60;        // add in pitch stick input, goes from -0.5 to 0.5, so multiply by 60 to get to -30 to 30 (to avoid crashes)
