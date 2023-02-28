@@ -273,7 +273,7 @@ void loop()
             accelSum = 0;
             accelNum = 0;
 
-            dataFile = SD.open("accelData.txt", FILE_WRITE);
+            dataFile = SD.open("accelDataControl.txt", FILE_WRITE);
             dataFile.print(DSstartTime);
             dataFile.print(",");
             dataFile.print(timeInMillis); // the end time
