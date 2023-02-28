@@ -169,6 +169,19 @@ plt.text(0.5, 0.95, "n = " + str(len(DS_accelValues)) + " mean = " + str(mean_DS
          str(std_DS_2sf),  horizontalalignment='center', verticalalignment='baseline', transform=plt.gca().transAxes)
 plt.show()
 
+#plot both the DS and not DS histograms on the same graph
+plt.title('Control (No Wind) and Dynamic Soaring')
+plt.xlabel('Forwards Acceleration (m/s^2)')
+plt.ylabel('Probability Density')
+plt.hist(notDS_accelValues, bins=binsNum_notDS,
+            density=True, alpha=0.6, color='g')
+plt.hist(DS_accelValues, bins=binsNum_DS,
+            density=True, alpha=0.6, color='b')
+plt.plot(x_notDS, p_notDS, linewidth=2, color='g')
+plt.plot(x_DS, p_DS, linewidth=2, color='b')
+plt.show()
+
+
 
 # also plot the difference between the two normal distributions DS and Not DS on the 2,1,2 subplot
 plt.title("Difference between Dynamic Soaring and Control")
