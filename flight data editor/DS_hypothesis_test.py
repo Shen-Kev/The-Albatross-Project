@@ -102,13 +102,13 @@ binsNum_DS = int(abs(binsNum_DS))
 # two sample t test
 t, p = stats.ttest_ind(notDS_accelValues, DS_accelValues,
                        equal_var=False, nan_policy='omit', alternative='less')
-alpha = 0.05
+alpha = 0.01
 t_critical = -1.645
 
 degrees_of_freedom = len(DS_accelValues) + len(notDS_accelValues) - 2
 
 cohens_d = abs(np.mean(DS_accelValues) - np.mean(notDS_accelValues)) / np.sqrt(((len(DS_accelValues)-1)*np.var(DS_accelValues, ddof=1) + (len(notDS_accelValues)-1)*np.var(notDS_accelValues, ddof=1)) / degrees_of_freedom)
-alpha = 0.05
+alpha = 0.01
 nobs1 = len(DS_accelValues)
 nobs2 = len(notDS_accelValues)
 ratio = nobs2 / nobs1
