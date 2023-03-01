@@ -52,7 +52,7 @@ with open(raw_file, "r") as input_csv, open(trimmed_file, "w", newline="") as ou
         row[timeInMillis] = float(row[timeInMillis]) / 1000.0
 
         # deciding which rows to keep and which to throw away
-        if float(row[airspeed_adjusted]) >= 6.0 and float(row[flight_phase]) == 3:
+        if float(row[airspeed_adjusted]) >= 6.0 and float(row[flight_phase]) == 3 and float(row[s1_command_scaled]) == 0.0:
             # write row to the output file
             output_writer.writerow(row)
 
@@ -129,7 +129,6 @@ upper_bound_pitch_error = q3_pitch_error + (1.5 * iqr_pitch_error)
 #remove outliers
 pitch_error = pitch_error[pitch_error.between(lower_bound_pitch_error, upper_bound_pitch_error, inclusive=True)]
 
-
 #plot the pitch data in a histogram, and draw the 95% confidence interval over it. label graph.
 plt.hist(pitch_error, bins=100, density=True, alpha=0.6, color='g')
 xmin, xmax = plt.xlim()
@@ -155,6 +154,8 @@ plt.title("Roll Error Histogram")
 plt.xlabel("Error (degrees)")
 plt.ylabel("Frequency")
 plt.show()
+
+
 
 
 #print statistical information
