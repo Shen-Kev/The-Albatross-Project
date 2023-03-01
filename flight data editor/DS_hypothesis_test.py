@@ -40,17 +40,26 @@ notDS_accelValues = degrees_of_freedom.iloc[:, 2]
 
 # make normal probability plot
 stats.probplot(notDS_accelValues, dist="norm", plot=plt)
-plt.title("Normal Probability Plot of Control Data Without Trimming")
+plt.title("Normal Probability Plot of Control Data With Outliers")
 plt.legend(['Data Points', 'Normal Distribution With Mean and Std of Data'])
 plt.show()
 
-# remove outliers based on how far away it is from the mean
-notDS_accelValues = notDS_accelValues[abs(
-    notDS_accelValues - notDS_accelValues.mean()) <= (2*notDS_accelValues.std())]
+#remove outliers using IQR method where an outlier is defined as a value that is more than 1.5 times the IQR away from the median
+#find the median
+median_notDS = np.median(notDS_accelValues)
+#find the first and third quartiles
+q1_notDS, q3_notDS = np.percentile(notDS_accelValues, [25, 75])
+#find the interquartile range
+iqr_notDS = q3_notDS - q1_notDS
+#find the upper and lower bounds
+lower_bound_notDS = q1_notDS - (1.5 * iqr_notDS)
+upper_bound_notDS = q3_notDS + (1.5 * iqr_notDS)
+#remove outliers
+notDS_accelValues = notDS_accelValues[notDS_accelValues.between(lower_bound_notDS, upper_bound_notDS, inclusive=True)]
 
 # make normal probability plot
 stats.probplot(notDS_accelValues, dist="norm", plot=plt)
-plt.title("Normal Probability Plot of Control Data With 2 Standard Deviation Trimmed")
+plt.title("Normal Probability Plot of Control Data With Outliers Removed")
 plt.legend(['Data Points', 'Normal Distribution With Mean and Std of Data'])
 plt.show()
 
@@ -75,17 +84,26 @@ DS_accelValues = degrees_of_freedom.iloc[:, 2]
 
 # make normal probability plot
 stats.probplot(DS_accelValues, dist="norm", plot=plt)
-plt.title("Normal Probability Plot of DS data Without Trimming")
+plt.title("Normal Probability Plot of DS data With Outliers")
 plt.legend(['Data Points', 'Normal Distribution With Mean and Std of Data'])
 plt.show()
 
-# remove outliers based on how far away it is from the mean
-DS_accelValues = DS_accelValues[abs(
-    DS_accelValues - DS_accelValues.mean()) <= (2*DS_accelValues.std())]
+#remove outliers using IQR method where an outlier is defined as a value that is more than 1.5 times the IQR away from the median
+#find the median
+median_DS = np.median(DS_accelValues)
+#find the first and third quartiles
+q1_DS, q3_DS = np.percentile(DS_accelValues, [25, 75])
+#find the interquartile range
+iqr_DS = q3_DS - q1_DS
+#find the upper and lower bounds
+lower_bound_DS = q1_DS - (1.5 * iqr_DS)
+upper_bound_DS = q3_DS + (1.5 * iqr_DS)
+#remove outliers
+DS_accelValues = DS_accelValues[DS_accelValues.between(lower_bound_DS, upper_bound_DS, inclusive=True)]
 
 # make normal probability plot
 stats.probplot(DS_accelValues, dist="norm", plot=plt)
-plt.title("Normal Probability Plot of DS data With 2 Standard Deviation Trimmed")
+plt.title("Normal Probability Plot of DS data With Outliers Removed")
 plt.legend(['Data Points', 'Normal Distribution With Mean and Std of Data'])
 plt.show()
 
