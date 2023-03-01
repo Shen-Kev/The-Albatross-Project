@@ -138,3 +138,63 @@ fig.tight_layout()
 plt.subplots_adjust(top=0.9)
 plt.show()
 
+
+# calculate the error of the PID loops. Each value is paired with the value in the same row of the other column
+roll_error = roll_IMU_column - roll_des_column
+pitch_error = pitch_IMU_column - pitch_des_column
+
+
+#remove outliers using IQR method where an outlier is defined as a value that is more than 1.5 times the IQR away from the median
+#find the median
+median_roll_error = np.median(roll_error)
+#find the first and third quartiles
+q1_roll_error, q3_roll_error = np.percentile(roll_error, [25, 75])
+#find the interquartile range
+iqr_roll_error = q3_roll_error - q1_roll_error
+#find the upper and lower bounds
+lower_bound_roll_error = q1_roll_error - (1.5 * iqr_roll_error)
+upper_bound_roll_error = q3_roll_error + (1.5 * iqr_roll_error)
+#remove outliers
+roll_error = roll_error[roll_error.between(lower_bound_roll_error, upper_bound_roll_error, inclusive=True)]
+
+#remove outliers using IQR method where an outlier is defined as a value that is more than 1.5 times the IQR away from the median
+#find the median
+median_pitch_error = np.median(pitch_error)
+#find the first and third quartiles
+q1_pitch_error, q3_pitch_error = np.percentile(pitch_error, [25, 75])
+#find the interquartile range
+iqr_pitch_error = q3_pitch_error - q1_pitch_error
+#find the upper and lower bounds
+lower_bound_pitch_error = q1_pitch_error - (1.5 * iqr_pitch_error)
+upper_bound_pitch_error = q3_pitch_error + (1.5 * iqr_pitch_error)
+#remove outliers
+pitch_error = pitch_error[pitch_error.between(lower_bound_pitch_error, upper_bound_pitch_error, inclusive=True)]
+
+
+
+
+#plot when the pitch error is within 10 deg of the setpoints. make the plot so that each datapoint is represented by a bar that sticks up or down from 0 depending on the error. if it is within 10, make the bar green, and if its outside, make the bar red.
+deg_tolerance = 10
+plt.bar(pitch_error.index, pitch_error, color=pitch_error.apply(lambda x: 'g' if x < deg_tolerance and x > -deg_tolerance else 'r'))
+plt.title("Pitch Error")
+plt.xlabel("Time (s)")
+plt.ylabel("Error (degrees)")
+plt.show()
+
+#calculate what percent of the time the pitch error is within 5 deg of the setpoint
+pitch_error_within_tolerance = pitch_error[(pitch_error < deg_tolerance) & (pitch_error > -deg_tolerance)]
+pitch_error_within_tolerance = len(pitch_error_within_tolerance)/len(pitch_error)
+print("Percent of time pitch error is within 10 deg of setpoint: " + str(pitch_error_within_tolerance))
+
+#same for roll
+deg_tolerance = 10
+plt.bar(roll_error.index, roll_error, color=roll_error.apply(lambda x: 'g' if x < deg_tolerance and x > -deg_tolerance else 'r'))
+plt.title("Roll Error")
+plt.xlabel("Time (s)")
+plt.ylabel("Error (degrees)")
+plt.show()
+
+#calculate what percent of the time the roll error is within 5 deg of the setpoint
+roll_error_within_tolerance = roll_error[(roll_error < deg_tolerance) & (roll_error > -deg_tolerance)]
+roll_error_within_tolerance = len(roll_error_within_tolerance)/len(roll_error)
+print("Percent of time roll error is within 10 deg of setpoint: " + str(roll_error_within_tolerance))
