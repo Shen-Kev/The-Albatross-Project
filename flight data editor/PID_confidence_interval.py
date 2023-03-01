@@ -1,3 +1,5 @@
+#PROBABLY NOT GOING TO USE THIS PROGRAM, BUT KEEPING IT HERE JUST IN CASE
+
 #this program extracts informaion from the CSV file just like CSV_plot_flight_data.py.
 #then it calculates the error of the pitch and roll PID loops by finding the difference between the desired and actual pitch and roll.
 #then it calculates the 95% confidence interval of the error
