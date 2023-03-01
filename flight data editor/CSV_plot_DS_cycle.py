@@ -175,5 +175,12 @@ fig.tight_layout()
 plt.subplots_adjust(top=0.9)
 plt.show()
 
+#print the proportion of the time the roll and pitch error less thatn 10 degrees
+print(" ")
+print("Proportion of time roll error less than 10 degrees: {}".format(len(roll_column_low_error[~np.isnan(roll_column_low_error)])/len(roll_column_low_error)))
+print("Proportion of time pitch error less than 10 degrees: {}".format(len(pitch_column_low_error[~np.isnan(pitch_column_low_error)])/len(pitch_column_low_error)))
+
+
+
 
 
