@@ -54,6 +54,10 @@ iqr_notDS = q3_notDS - q1_notDS
 #find the upper and lower bounds
 lower_bound_notDS = q1_notDS - (1.5 * iqr_notDS)
 upper_bound_notDS = q3_notDS + (1.5 * iqr_notDS)
+
+#find number of outliers to remove
+num_outliers_notDS = notDS_accelValues[(notDS_accelValues < lower_bound_notDS) | (notDS_accelValues > upper_bound_notDS)]
+
 #remove outliers
 notDS_accelValues = notDS_accelValues[notDS_accelValues.between(lower_bound_notDS, upper_bound_notDS, inclusive=True)]
 
@@ -98,6 +102,10 @@ iqr_DS = q3_DS - q1_DS
 #find the upper and lower bounds
 lower_bound_DS = q1_DS - (1.5 * iqr_DS)
 upper_bound_DS = q3_DS + (1.5 * iqr_DS)
+
+#find number of outliers to remove
+num_outliers_DS = DS_accelValues[(DS_accelValues < lower_bound_DS) | (DS_accelValues > upper_bound_DS)]
+
 #remove outliers
 DS_accelValues = DS_accelValues[DS_accelValues.between(lower_bound_DS, upper_bound_DS, inclusive=True)]
 
@@ -277,6 +285,30 @@ print("type 1 error = " + str(type1error))
 print("type 2 error = " + str(type2error))
 print("beta = " + str(beta))
 print("power = " + str(power))
+#print IQR, Q1, Q3, median, oulier bounds, number of datapoints removed for control and for DS. Use variables already generated in this script
+print("IQR not DS = " + str(iqr_notDS))
+print("Q1 not DS = " + str(q1_notDS))
+print("Q3 not DS = " + str(q3_notDS))
+print("median not DS = " + str(median_notDS))
+print("lower outlier bound not DS = " + str(lower_bound_notDS))
+print("upper outlier bound not DS = " + str(upper_bound_notDS))
+print("number of outliers not DS = " + str(num_outliers_notDS))
+print("IQR DS = " + str(iqr_DS))
+print("Q1 DS = " + str(q1_DS))
+print("Q3 DS = " + str(q3_DS))
+print("median DS = " + str(median_DS))
+print("lower outlier bound DS = " + str(lower_bound_DS))
+print("upper outlier bound DS = " + str(upper_bound_DS))
+print("number of outliers DS = " + str(num_outliers_DS))
+
+#make boxplot of the two datasets
+plt.title("Boxplot of Dynamic Soaring and Control")
+plt.ylabel('Forwards Acceleration (m/s^2)')
+plt.boxplot([DS_accelValues, notDS_accelValues], labels=['Dynamic Soaring', 'Control'], widths=(0.7, 0.7))
+plt.show()
+
+
+
 print(" ")
 print(" ")
 print(" ")
