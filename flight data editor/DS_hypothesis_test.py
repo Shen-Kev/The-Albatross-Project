@@ -188,7 +188,7 @@ plt.text(0.5, 0.95, "n = " + str(len(DS_accelValues)) + " mean = " + str(mean_DS
 plt.show()
 
 #plot both the DS and not DS histograms on the same graph
-plt.title('Control (No Wind) and Dynamic Soaring')
+plt.title('Histogram of Control and Dynamic Soaring Data')
 plt.xlabel('Forwards Acceleration (m/s^2)')
 plt.ylabel('Probability Density')
 plt.hist(notDS_accelValues, bins=binsNum_notDS,
@@ -197,6 +197,8 @@ plt.hist(DS_accelValues, bins=binsNum_DS,
             density=True, alpha=0.6, color='b')
 plt.plot(x_notDS, p_notDS, linewidth=2, color='g')
 plt.plot(x_DS, p_DS, linewidth=2, color='b')
+#create legend
+plt.legend(['Control', 'Dynamic Soaring'])
 plt.show()
 
 

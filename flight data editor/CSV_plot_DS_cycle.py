@@ -167,6 +167,8 @@ yaw.legend()
 accel.plot(time, forwardsAcceleration_column, label="Forwards Acceleration", color='purple')
 accel.set_ylabel("m/s^2")
 accel.legend()
+#label time as x axis
+plt.xlabel("Time (s)")
 
 # Adjust the space between the two charts
 fig.tight_layout()
