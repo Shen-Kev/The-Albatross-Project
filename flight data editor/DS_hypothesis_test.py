@@ -40,7 +40,7 @@ notDS_accelValues = df.iloc[:, 2]
 
 # make normal probability plot
 stats.probplot(notDS_accelValues, dist="norm", plot=plt)
-plt.title("Normal Probability Plot of Control Data With Outliers")
+plt.title("Normal Probability Plot of Control Data")
 plt.legend(['Data Points', 'Normal Distribution With Mean and Std of Data'])
 plt.show()
 
@@ -59,7 +59,7 @@ upper_bound_notDS = q3_notDS + (1.5 * iqr_notDS)
 num_outliers_notDS = notDS_accelValues[(notDS_accelValues < lower_bound_notDS) | (notDS_accelValues > upper_bound_notDS)]
 
 #remove outliers
-notDS_accelValues = notDS_accelValues[notDS_accelValues.between(lower_bound_notDS, upper_bound_notDS, inclusive=True)]
+#notDS_accelValues = notDS_accelValues[notDS_accelValues.between(lower_bound_notDS, upper_bound_notDS, inclusive=True)]
 
 # make normal probability plot
 stats.probplot(notDS_accelValues, dist="norm", plot=plt)
@@ -88,7 +88,7 @@ DS_accelValues = df.iloc[:, 2]
 
 # make normal probability plot
 stats.probplot(DS_accelValues, dist="norm", plot=plt)
-plt.title("Normal Probability Plot of DS data With Outliers")
+plt.title("Normal Probability Plot of Dynamic Soaring Data")
 plt.legend(['Data Points', 'Normal Distribution With Mean and Std of Data'])
 plt.show()
 
@@ -107,7 +107,7 @@ upper_bound_DS = q3_DS + (1.5 * iqr_DS)
 num_outliers_DS = DS_accelValues[(DS_accelValues < lower_bound_DS) | (DS_accelValues > upper_bound_DS)]
 
 #remove outliers
-DS_accelValues = DS_accelValues[DS_accelValues.between(lower_bound_DS, upper_bound_DS, inclusive=True)]
+#DS_accelValues = DS_accelValues[DS_accelValues.between(lower_bound_DS, upper_bound_DS, inclusive=True)]
 
 # make normal probability plot
 stats.probplot(DS_accelValues, dist="norm", plot=plt)
