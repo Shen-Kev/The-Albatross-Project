@@ -33,10 +33,10 @@ raw_file_DS = "C:/Users/kshen/OneDrive/Documents/PlatformIO/Projects/The Albatro
 # NOT DS DATA ANALYSIS STARTS HERE=========================================================================
 
 # Read the csv file
-degrees_of_freedom = pd.read_csv(raw_file_notDS)
+df = pd.read_csv(raw_file_notDS)
 
 # Extract the average accel column
-notDS_accelValues = degrees_of_freedom.iloc[:, 2]
+notDS_accelValues = df.iloc[:, 2]
 
 # make normal probability plot
 stats.probplot(notDS_accelValues, dist="norm", plot=plt)
@@ -81,10 +81,10 @@ binsNum_notDS = int(abs(binsNum_notDS))
 # DA DATA ANALYSIS STARTS HERE===============================================================================
 
 # Read the csv file
-degrees_of_freedom = pd.read_csv(raw_file_DS)
+df = pd.read_csv(raw_file_DS)
 
 # Extract the average accel column
-DS_accelValues = degrees_of_freedom.iloc[:, 2]
+DS_accelValues = df.iloc[:, 2]
 
 # make normal probability plot
 stats.probplot(DS_accelValues, dist="norm", plot=plt)
@@ -131,22 +131,21 @@ binsNum_DS = int(abs(binsNum_DS))
 t, p = stats.ttest_ind(notDS_accelValues, DS_accelValues,
                        equal_var=False, nan_policy='omit', alternative='less')
 alpha = 0.01
-t_critical = -2.38  # for alpha = 0.01, df  of 71, and 1 tail test
+t_critical = -2.39  # for alpha = 0.01, df  of 60
 
-degrees_of_freedom = len(DS_accelValues) + len(notDS_accelValues) - 2
+#degrees_of_freedom = len(DS_accelValues) + len(notDS_accelValues) - 2
 
-cohens_d = abs(np.mean(DS_accelValues) - np.mean(notDS_accelValues)) / np.sqrt(((len(DS_accelValues)-1)*np.var(
-    DS_accelValues, ddof=1) + (len(notDS_accelValues)-1)*np.var(notDS_accelValues, ddof=1)) / degrees_of_freedom)
-alpha = 0.01
-nobs1 = len(DS_accelValues)
-nobs2 = len(notDS_accelValues)
-ratio = nobs2 / nobs1
-noncen = cohens_d * np.sqrt(nobs1*nobs2 / (nobs1 + nobs2))
-power = 1 - stats.nct.cdf(stats.t.ppf(1-alpha,
-                          df=degrees_of_freedom), df=degrees_of_freedom, nc=noncen)
-type1error = alpha
-type2error = 1 - power
-beta = 1 - power
+#degrees of freedom equal to the lesser of the two sample sizes minus 1
+#degrees_of_freedom = min(len(DS_accelValues), len(notDS_accelValues)) - 1
+
+
+#degrees of freedom
+#df = (VDS + VC)2/(VDS/(nDS-1) + 
+#VC/(nC-1)) 
+#where VDS = sDS / nDS 
+#and VC = sC / nC
+
+degrees_of_freedom = (std_DS**2 / len(DS_accelValues) + std_notDS**2 / len(notDS_accelValues))**2 / ((std_DS**2 / len(DS_accelValues))**2 / (len(DS_accelValues) - 1) + (std_notDS**2 / len(notDS_accelValues))**2 / (len(notDS_accelValues) - 1))
 
 # T TEST ENDS HERE========================================================================================
 
@@ -279,12 +278,7 @@ print("size of DS array = " + str(len(DS_accelValues)))
 print("t = " + str(t))
 print("t critical = " + str(t_critical))
 print("df = " + str(degrees_of_freedom))
-print("P-value = " + str(p))
-print("alpha = " + str(alpha))
-print("type 1 error = " + str(type1error))
-print("type 2 error = " + str(type2error))
-print("beta = " + str(beta))
-print("power = " + str(power))
+print("p val = " + str(p))
 #print IQR, Q1, Q3, median, oulier bounds, number of datapoints removed for control and for DS. Use variables already generated in this script
 print("IQR not DS = " + str(iqr_notDS))
 print("Q1 not DS = " + str(q1_notDS))
