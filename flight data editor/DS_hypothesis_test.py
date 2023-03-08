@@ -38,6 +38,14 @@ df = pd.read_csv(raw_file_notDS)
 # Extract the average accel column
 notDS_accelValues = df.iloc[:, 2]
 
+#find n
+n_notDS = len(notDS_accelValues) + 1
+
+#print the entire dataset one by one
+for i in range(len(notDS_accelValues)):
+    #print column number, then the value
+    print(i, notDS_accelValues[i])
+    
 # make normal probability plot
 stats.probplot(notDS_accelValues, dist="norm", plot=plt)
 plt.title("Normal Probability Plot of Control Data")
@@ -56,7 +64,7 @@ lower_bound_notDS = q1_notDS - (1.5 * iqr_notDS)
 upper_bound_notDS = q3_notDS + (1.5 * iqr_notDS)
 
 #find number of outliers to remove
-num_outliers_notDS = notDS_accelValues[(notDS_accelValues < lower_bound_notDS) | (notDS_accelValues > upper_bound_notDS)]
+#num_outliers_notDS = notDS_accelValues[(notDS_accelValues < lower_bound_notDS) | (notDS_accelValues > upper_bound_notDS)]
 
 #remove outliers
 #notDS_accelValues = notDS_accelValues[notDS_accelValues.between(lower_bound_notDS, upper_bound_notDS, inclusive=True)]
@@ -86,6 +94,14 @@ df = pd.read_csv(raw_file_DS)
 # Extract the average accel column
 DS_accelValues = df.iloc[:, 2]
 
+#find n
+n_DS = len(DS_accelValues) + 1
+
+#print the entire dataset one by one
+for i in range(len(DS_accelValues)):
+    #print column number, then the value
+    print(i, DS_accelValues[i]) 
+
 # make normal probability plot
 stats.probplot(DS_accelValues, dist="norm", plot=plt)
 plt.title("Normal Probability Plot of Dynamic Soaring Data")
@@ -104,7 +120,7 @@ lower_bound_DS = q1_DS - (1.5 * iqr_DS)
 upper_bound_DS = q3_DS + (1.5 * iqr_DS)
 
 #find number of outliers to remove
-num_outliers_DS = DS_accelValues[(DS_accelValues < lower_bound_DS) | (DS_accelValues > upper_bound_DS)]
+#num_outliers_DS = DS_accelValues[(DS_accelValues < lower_bound_DS) | (DS_accelValues > upper_bound_DS)]
 
 #remove outliers
 #DS_accelValues = DS_accelValues[DS_accelValues.between(lower_bound_DS, upper_bound_DS, inclusive=True)]
@@ -133,10 +149,10 @@ t, p = stats.ttest_ind(notDS_accelValues, DS_accelValues,
 alpha = 0.01
 t_critical = -2.39  # for alpha = 0.01, df  of 60
 
-#degrees_of_freedom = len(DS_accelValues) + len(notDS_accelValues) - 2
+#degrees_of_freedom = n_DS + n_notDS - 2
 
 #degrees of freedom equal to the lesser of the two sample sizes minus 1
-#degrees_of_freedom = min(len(DS_accelValues), len(notDS_accelValues)) - 1
+#degrees_of_freedom = min(n_DS, n_notDS) - 1
 
 
 #degrees of freedom
@@ -145,7 +161,7 @@ t_critical = -2.39  # for alpha = 0.01, df  of 60
 #where VDS = sDS / nDS 
 #and VC = sC / nC
 
-degrees_of_freedom = (std_DS**2 / len(DS_accelValues) + std_notDS**2 / len(notDS_accelValues))**2 / ((std_DS**2 / len(DS_accelValues))**2 / (len(DS_accelValues) - 1) + (std_notDS**2 / len(notDS_accelValues))**2 / (len(notDS_accelValues) - 1))
+degrees_of_freedom = (std_DS**2 / n_DS + std_notDS**2 / n_notDS)**2 / ((std_DS**2 / n_DS)**2 / (n_DS - 1) + (std_notDS**2 / n_notDS)**2 / (n_notDS - 1))
 
 # T TEST ENDS HERE========================================================================================
 
@@ -169,7 +185,7 @@ mean_notDS_2sf = round(
 # std with 2 significant figures
 std_notDS_2sf = round(
     std_notDS, -int(math.floor(math.log10(abs(std_notDS))) - 1))
-plt.text(0.5, 0.95, "n = " + str(len(notDS_accelValues)) + " mean = " + str(mean_notDS_2sf) + " std = " +
+plt.text(0.5, 0.95, "n = " + str(n_notDS) + " mean = " + str(mean_notDS_2sf) + " std = " +
          str(std_notDS_2sf),  horizontalalignment='center', verticalalignment='baseline', transform=plt.gca().transAxes)
 plt.show()
 
@@ -190,7 +206,7 @@ plt.plot(x_DS, p_DS, linewidth=2, color='b')
 mean_DS_2sf = round(mean_DS, -int(math.floor(math.log10(abs(mean_DS))) - 1))
 # std with 2 significant figures
 std_DS_2sf = round(std_DS, -int(math.floor(math.log10(abs(std_DS))) - 1))
-plt.text(0.5, 0.95, "n = " + str(len(DS_accelValues)) + " mean = " + str(mean_DS_2sf) + " std = " +
+plt.text(0.5, 0.95, "n = " + str(n_DS) + " mean = " + str(mean_DS_2sf) + " std = " +
          str(std_DS_2sf),  horizontalalignment='center', verticalalignment='baseline', transform=plt.gca().transAxes)
 plt.show()
 
@@ -215,7 +231,7 @@ plt.title("Difference between Dynamic Soaring and Control")
 # plot the difference between the two normal distributions
 mean_difference = mean_DS - mean_notDS
 std_difference = np.sqrt(
-    ((std_DS**2)/len(DS_accelValues)) + ((std_notDS**2) / len(notDS_accelValues)))
+    ((std_DS**2)/n_DS) + ((std_notDS**2) / n_notDS))
 x_difference = np.linspace(-20*std_difference+mean_difference,
                            3*std_difference+mean_difference, 500)
 p_difference = norm.pdf(x_difference, mean_difference, std_difference)
@@ -273,8 +289,8 @@ print("mean DS(not rounded to sig fig) = " + str(mean_DS))
 print("std DS (not rounded to sig fig) = " + str(std_DS))
 print("mean difference (not rounded to sig fig) = " + str(mean_difference))
 print("std difference (not rounded to sig fig) = " + str(std_difference))
-print("size of not DS array = " + str(len(notDS_accelValues)))
-print("size of DS array = " + str(len(DS_accelValues)))
+print("size of not DS array = " + str(n_notDS))
+print("size of DS array = " + str(n_DS))
 print("t = " + str(t))
 print("t critical = " + str(t_critical))
 print("df = " + str(degrees_of_freedom))
@@ -286,14 +302,12 @@ print("Q3 not DS = " + str(q3_notDS))
 print("median not DS = " + str(median_notDS))
 print("lower outlier bound not DS = " + str(lower_bound_notDS))
 print("upper outlier bound not DS = " + str(upper_bound_notDS))
-print("number of outliers not DS = " + str(num_outliers_notDS))
 print("IQR DS = " + str(iqr_DS))
 print("Q1 DS = " + str(q1_DS))
 print("Q3 DS = " + str(q3_DS))
 print("median DS = " + str(median_DS))
 print("lower outlier bound DS = " + str(lower_bound_DS))
 print("upper outlier bound DS = " + str(upper_bound_DS))
-print("number of outliers DS = " + str(num_outliers_DS))
 
 #make boxplot of the two datasets
 plt.title("Boxplot of Dynamic Soaring and Control")
