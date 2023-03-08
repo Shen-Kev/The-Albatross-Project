@@ -71,9 +71,13 @@ upper_bound_notDS = q3_notDS + (1.5 * iqr_notDS)
 
 # make normal probability plot
 stats.probplot(notDS_accelValues, dist="norm", plot=plt)
-plt.title("Normal Probability Plot of Control Data With Outliers Removed")
+plt.title("Normal Probability Plot of Control Data")
+#label x and y axes
+plt.xlabel("Z-Score")
+plt.ylabel("Forward Acceleration (m/s^2)")
 plt.legend(['Data Points', 'Normal Distribution With Mean and Std of Data'])
 plt.show()
+
 
 # find the mean, standard deviation of the array
 mean_notDS = np.mean(notDS_accelValues)
@@ -127,7 +131,10 @@ upper_bound_DS = q3_DS + (1.5 * iqr_DS)
 
 # make normal probability plot
 stats.probplot(DS_accelValues, dist="norm", plot=plt)
-plt.title("Normal Probability Plot of DS data With Outliers Removed")
+plt.title("Normal Probability Plot of Dynamic Soaring Data")
+#label x and y axes
+plt.xlabel("Z-Score")
+plt.ylabel("Forward Acceleration (m/s^2)")
 plt.legend(['Data Points', 'Normal Distribution With Mean and Std of Data'])
 plt.show()
 

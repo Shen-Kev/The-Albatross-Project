@@ -111,9 +111,9 @@ fig, ((roll), (pitch), (yaw), (accel)
 # Set individual subplot titles to the left of the plot
 roll.set_title('Roll')
 pitch.set_title('Pitch')
-yaw.set_title('Yaw')
+yaw.set_title('Yaw (Angle Turned Since Cycle Start)')
 # so i can compare the accerlation at the same altitude
-accel.set_title('Forwards Acceleration')
+accel.set_title('Forward Acceleration')
 
 title = "Dynamic Soaring Flight Data"
 
@@ -160,11 +160,11 @@ pitch.plot(time, pitch_des_column, label="Pitch Desired", color='orange')
 pitch.set_ylabel("deg")
 pitch.legend()
 
-yaw.plot(time, angle_turned_DS_column, label="Angle Turned", color='blue')
+yaw.plot(time, angle_turned_DS_column, color='blue')
 yaw.set_ylabel("deg")
 yaw.legend()
 
-accel.plot(time, forwardsAcceleration_column, label="Forwards Acceleration", color='purple')
+accel.plot(time, forwardsAcceleration_column, color='purple')
 accel.set_ylabel("m/s^2")
 accel.legend()
 #label time as x axis
@@ -181,8 +181,4 @@ plt.show()
 print(" ")
 print("Proportion of time roll error less than 10 degrees: {}".format(len(roll_column_low_error[~np.isnan(roll_column_low_error)])/len(roll_column_low_error)))
 print("Proportion of time pitch error less than 10 degrees: {}".format(len(pitch_column_low_error[~np.isnan(pitch_column_low_error)])/len(pitch_column_low_error)))
-
-
-
-
 
