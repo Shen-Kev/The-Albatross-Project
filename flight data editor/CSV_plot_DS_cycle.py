@@ -132,10 +132,10 @@ for i in range(len(time)):
     else:
         roll_column_low_error[i] = roll_IMU_column[i]
 
-roll.plot(time, roll_column_high_error, label="Abs. Error > 10 deg", color='red')
-roll.plot(time, roll_column_low_error, label="Abs. Error < 10 deg", color='green')
+roll.plot(time, roll_column_high_error, label="Roll Measured (Abs. Error > 10 deg)", color='red')
+roll.plot(time, roll_column_low_error, label="Roll Measured (Abs. Error < 10 deg)", color='green')
 #roll.plot(time, roll_IMU_column, label="Roll IMU", color='blue')
-roll.plot(time, roll_des_column, label="Roll Desired", color='orange')
+roll.plot(time, roll_des_column, label="Roll Setpoint", color='orange')
 #roll.plot(time, roll_error_column, label="Roll Error", color='purple')
 
 roll.set_ylabel("deg")
@@ -151,10 +151,10 @@ for i in range(len(time)):
     else:
         pitch_column_low_error[i] = pitch_IMU_column[i]
 
-pitch.plot(time, pitch_column_high_error, label="Abs. Error > 10 deg", color='red')
-pitch.plot(time, pitch_column_low_error, label="Abs. Error < 10 deg", color='green')
+pitch.plot(time, pitch_column_high_error, label="Pitch Measured (Abs. Error > 10 deg)", color='red')
+pitch.plot(time, pitch_column_low_error, label="Pitch Measured (Abs. Error < 10 deg)", color='green')
 #pitch.plot(time, pitch_IMU_column, label="Pitch IMU", color='blue')
-pitch.plot(time, pitch_des_column, label="Pitch Desired", color='orange')
+pitch.plot(time, pitch_des_column, label="Pitch Setpoint", color='orange')
 #pitch.plot(time, pitch_error_column, label="Pitch Error", color='purple')
 
 pitch.set_ylabel("deg")
