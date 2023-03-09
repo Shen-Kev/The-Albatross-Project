@@ -25,10 +25,10 @@ from datetime import datetime
 now = datetime.now()  # current date and time
 
 # all the accel data (multiple flights) for when doing DS at altitude with little wind
-raw_file_notDS = "C:/Users/kshen/OneDrive/Documents/PlatformIO/Projects/The Albatross Project PlatformIO/flight data editor/forwardsAccelDataNotDSraw.csv"
+raw_file_notDS = "C:/Users/kshen/OneDrive/Documents/PlatformIO/Projects/The Albatross Project PlatformIO/flight data editor/forwardAccelDataNotDSraw.csv"
 
 # all the accel data (multiple flights) for when doing DS through the ground shear layer with wind
-raw_file_DS = "C:/Users/kshen/OneDrive/Documents/PlatformIO/Projects/The Albatross Project PlatformIO/flight data editor/forwardsAccelDataDSraw.csv"
+raw_file_DS = "C:/Users/kshen/OneDrive/Documents/PlatformIO/Projects/The Albatross Project PlatformIO/flight data editor/forwardAccelDataDSraw.csv"
 
 # NOT DS DATA ANALYSIS STARTS HERE=========================================================================
 
@@ -175,7 +175,7 @@ degrees_of_freedom = (std_DS**2 / n_DS + std_notDS**2 / n_notDS)**2 / ((std_DS**
 # MAKE HISTOGRAMS AND GRAPH STARTS HERE=====================================================================
 
 plt.title('Control (No Wind)')
-plt.xlabel('Forwards Acceleration (m/s^2)')
+plt.xlabel('Forward Acceleration (m/s^2)')
 plt.ylabel('Probability Density')
 plt.hist(notDS_accelValues, bins=binsNum_notDS,
          density=True, alpha=0.6, color='g')
@@ -198,7 +198,7 @@ plt.show()
 
 
 plt.title('Dynamic Soaring')
-plt.xlabel('Forwards Acceleration (m/s^2)')
+plt.xlabel('Forward Acceleration (m/s^2)')
 plt.ylabel('Probability Density')
 plt.hist(DS_accelValues, bins=binsNum_DS,
          density=True, alpha=0.6, color='b')
@@ -219,7 +219,7 @@ plt.show()
 
 #plot both the DS and not DS histograms on the same graph
 plt.title('Histogram of Control and Dynamic Soaring Data')
-plt.xlabel('Forwards Acceleration (m/s^2)')
+plt.xlabel('Forward Acceleration (m/s^2)')
 plt.ylabel('Probability Density')
 plt.hist(notDS_accelValues, bins=binsNum_notDS,
             density=True, alpha=0.6, color='g')
@@ -268,7 +268,7 @@ plt.axvline(x=0, color='k', linestyle='--')
 # label the line
 plt.text(0, 0.1, '  Null Hypothesis', rotation=90, color='k')
 # plot axies labels
-plt.xlabel('Difference in Forwards Acceleration (m/s^2)')
+plt.xlabel('Difference in Forward Acceleration (m/s^2)')
 plt.ylabel('Probability Density')
 plt.show()
 
@@ -285,7 +285,7 @@ print(" ")
 # set the maximum number of rows to display
 pd.set_option('display.max_rows', None)
 print("Control Dataset (each datapoint is one circle with no wind):")
-print("Index, Value (mean m/s^2 forwards)")
+print("Index, Value (mean m/s^2 forward)")
 print(notDS_accelValues.to_string(name=False))
 print(" ")
 print("Unfiltered Statistical Information:")
@@ -318,7 +318,7 @@ print("upper outlier bound DS = " + str(upper_bound_DS))
 
 #make boxplot of the two datasets
 plt.title("Boxplot of Dynamic Soaring and Control")
-plt.ylabel('Forwards Acceleration (m/s^2)')
+plt.ylabel('Forward Acceleration (m/s^2)')
 plt.boxplot([DS_accelValues, notDS_accelValues], labels=['Dynamic Soaring', 'Control'], widths=(0.7, 0.7))
 plt.show()
 
