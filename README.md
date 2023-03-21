@@ -1,5 +1,4 @@
 # Wind Powered Flight: Exploring the Potential of Dynamic Soaring for Unmanned Aerial Vehicles
-# Research Project by Kevin Shen
 
 This Github repository is to provide an overview of the project and store all the software written and used in this project. 
 This project was submitted to the 2023 Regeneron International Science and Engineering Fair.
