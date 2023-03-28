@@ -138,15 +138,15 @@ for i in range(len(time)):
     else:
         roll_column_low_error[i] = roll_IMU_column[i]
 
-roll.plot(time, roll_column_high_error, label="Roll Measured (Abs. Error > 10 deg)", color='red')
-roll.plot(time, roll_column_low_error, label="Roll Measured (Abs. Error < 10 deg)", color='green')
+roll.plot(time, roll_column_high_error, color='red')
+roll.plot(time, roll_column_low_error, color='green')
 #roll.plot(time, roll_IMU_column, label="Roll IMU", color='blue')
-roll.plot(time, roll_des_column, label="Roll Setpoint", color='orange')
+roll.plot(time, roll_des_column, color='orange')
 #roll.plot(time, roll_error_column, label="Roll Error", color='purple')
 
 
 roll.set_ylabel("Roll (deg)")
-roll.yaxis.set_major_locator(plt.MultipleLocator(5))
+roll.yaxis.set_major_locator(plt.MultipleLocator(10))
 roll.legend()
 
 #same for pitch
@@ -159,22 +159,22 @@ for i in range(len(time)):
     else:
         pitch_column_low_error[i] = pitch_IMU_column[i]
 
-pitch.plot(time, pitch_column_high_error, label="Pitch Measured (Abs. Error > 10 deg)", color='red')
-pitch.plot(time, pitch_column_low_error, label="Pitch Measured (Abs. Error < 10 deg)", color='green')
+pitch.plot(time, pitch_column_high_error, color='red')
+pitch.plot(time, pitch_column_low_error, color='green')
 #pitch.plot(time, pitch_IMU_column, label="Pitch IMU", color='blue')
-pitch.plot(time, pitch_des_column, label="Pitch Setpoint", color='orange')
+pitch.plot(time, pitch_des_column, color='orange')
 #pitch.plot(time, pitch_error_column, label="Pitch Error", color='purple')
 
 
 
 pitch.set_ylabel("Pitch (deg)")
-pitch.yaxis.set_major_locator(plt.MultipleLocator(5))
+pitch.yaxis.set_major_locator(plt.MultipleLocator(10))
 
 pitch.legend()
 
 yaw.plot(time, angle_turned_DS_column, color='blue')
 yaw.set_ylabel("Yaw (deg)")
-yaw.yaxis.set_major_locator(plt.MultipleLocator(20))
+yaw.yaxis.set_major_locator(plt.MultipleLocator(45))
 yaw.legend()
 
 accel.plot(time, forwardsAcceleration_column, color='purple')
