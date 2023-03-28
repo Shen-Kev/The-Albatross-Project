@@ -109,13 +109,19 @@ fig, ((roll), (pitch), (yaw), (accel)
       ) = plt.subplots(4, 1, figsize=(10, 10), sharex=True)
 
 # Set individual subplot titles to the left of the plot
-roll.set_title('Roll')
-pitch.set_title('Pitch')
-yaw.set_title('Yaw (Angle Turned Since Cycle Start)')
+#roll.set_title('Roll')
+#pitch.set_title('Pitch')
+#yaw.set_title('Yaw (Angle Turned Since Cycle Start)')
 # so i can compare the accerlation at the same altitude
-accel.set_title('Forward Acceleration')
+#accel.set_title('Forward Acceleration')
 
-title = "Dynamic Soaring Flight Data"
+#make subplot titles smaller
+#roll.title.set_size(8)
+#pitch.title.set_size(8)
+#yaw.title.set_size(8)
+#accel.title.set_size(8)
+
+title = "Flight Data Over a Typical Dynamic Soaring Cycle"
 
 fig.suptitle(title, y=0.95)
 
@@ -138,7 +144,9 @@ roll.plot(time, roll_column_low_error, label="Roll Measured (Abs. Error < 10 deg
 roll.plot(time, roll_des_column, label="Roll Setpoint", color='orange')
 #roll.plot(time, roll_error_column, label="Roll Error", color='purple')
 
-roll.set_ylabel("deg")
+
+roll.set_ylabel("Roll (deg)")
+roll.yaxis.set_major_locator(plt.MultipleLocator(5))
 roll.legend()
 
 #same for pitch
@@ -157,22 +165,28 @@ pitch.plot(time, pitch_column_low_error, label="Pitch Measured (Abs. Error < 10 
 pitch.plot(time, pitch_des_column, label="Pitch Setpoint", color='orange')
 #pitch.plot(time, pitch_error_column, label="Pitch Error", color='purple')
 
-pitch.set_ylabel("deg")
+
+
+pitch.set_ylabel("Pitch (deg)")
+pitch.yaxis.set_major_locator(plt.MultipleLocator(5))
+
 pitch.legend()
 
 yaw.plot(time, angle_turned_DS_column, color='blue')
-yaw.set_ylabel("deg")
+yaw.set_ylabel("Yaw (deg)")
+yaw.yaxis.set_major_locator(plt.MultipleLocator(20))
 yaw.legend()
 
 accel.plot(time, forwardsAcceleration_column, color='purple')
-accel.set_ylabel("m/s^2")
+accel.set_ylabel("Forward accel (m/s^2)")
 accel.legend()
-#label time as x axis
-plt.xlabel("Time (s)")
+
+
 
 # Adjust the space between the two charts
 fig.tight_layout()
-
+#time
+plt.xlabel("Time (s)")
 # Display the plot
 plt.subplots_adjust(top=0.9)
 plt.show()
@@ -182,3 +196,79 @@ print(" ")
 print("Proportion of time roll error less than 10 degrees: {}".format(len(roll_column_low_error[~np.isnan(roll_column_low_error)])/len(roll_column_low_error)))
 print("Proportion of time pitch error less than 10 degrees: {}".format(len(pitch_column_low_error[~np.isnan(pitch_column_low_error)])/len(pitch_column_low_error)))
 
+
+'''
+
+#same as the commented out code above, but make each plot a separarte figure
+# for roll, if the roll error at this time is greater than 10 degrees, then plot the roll error in red, otherwise plot it in green
+roll_column_high_error = np.full(len(time), np.nan)
+roll_column_low_error = np.full(len(time), np.nan)
+
+for i in range(len(time)):
+    if abs(roll_error_column[i]) > 10:
+        roll_column_high_error[i] = roll_IMU_column[i]
+    else:
+        roll_column_low_error[i] = roll_IMU_column[i]
+
+fig, (roll) = plt.subplots(1, 1, figsize=(10, 10), sharex=True)
+roll.set_title('Roll Data Over a Typical Dynamic Soaring Cycle')
+roll.plot(time, roll_column_high_error, label="Roll Measured (Abs. Error > 10 deg)", color='red')
+roll.plot(time, roll_column_low_error, label="Roll Measured (Abs. Error < 10 deg)", color='green')
+#roll.plot(time, roll_IMU_column, label="Roll IMU", color='blue')
+roll.plot(time, roll_des_column, label="Roll Setpoint", color='orange')
+#roll.plot(time, roll_error_column, label="Roll Error", color='purple')
+
+roll.set_ylabel("deg")
+roll.legend()
+plt.xlabel("Time (s)")
+plt.subplots_adjust(top=0.9)
+plt.show()
+
+#same for pitch
+pitch_column_high_error = np.full(len(time), np.nan)
+pitch_column_low_error = np.full(len(time), np.nan)
+
+for i in range(len(time)):
+    if abs(pitch_error_column[i]) > 10:
+        pitch_column_high_error[i] = pitch_IMU_column[i]
+    else:
+        pitch_column_low_error[i] = pitch_IMU_column[i]
+
+fig, (pitch) = plt.subplots(1, 1, figsize=(10, 10), sharex=True)
+pitch.set_title('Pitch Data Over a Typical Dynamic Soaring Cycle')
+pitch.plot(time, pitch_column_high_error, label="Pitch Measured (Abs. Error > 10 deg)", color='red')
+pitch.plot(time, pitch_column_low_error, label="Pitch Measured (Abs. Error < 10 deg)", color='green')
+#pitch.plot(time, pitch_IMU_column, label="Pitch IMU", color='blue')
+pitch.plot(time, pitch_des_column, label="Pitch Setpoint", color='orange')
+#pitch.plot(time, pitch_error_column, label="Pitch Error", color='purple')
+
+pitch.set_ylabel("deg")
+pitch.legend()
+plt.xlabel("Time (s)")
+plt.subplots_adjust(top=0.9)
+plt.show()
+
+fig, (yaw) = plt.subplots(1, 1, figsize=(10, 10), sharex=True)
+yaw.set_title('Yaw Data Over a Typical Dynamic Soaring Cycle')
+yaw.plot(time, angle_turned_DS_column, color='blue')
+yaw.set_ylabel("deg")
+yaw.legend()
+plt.xlabel("Time (s)")
+plt.subplots_adjust(top=0.9)
+plt.show()
+
+fig, (accel) = plt.subplots(1, 1, figsize=(10, 10), sharex=True)
+accel.set_title('Forward Acceleration Over a Typical Dynamic Soaring Cycle')
+accel.plot(time, forwardsAcceleration_column, color='purple')
+accel.set_ylabel("m/s^2")
+accel.legend()
+plt.xlabel("Time (s)")
+plt.subplots_adjust(top=0.9)
+plt.show()
+
+#print the proportion of the time the roll and pitch error less thatn 10 degrees
+print(" ")
+print("Proportion of time roll error less than 10 degrees: {}".format(len(roll_column_low_error[~np.isnan(roll_column_low_error)])/len(roll_column_low_error)))
+print("Proportion of time pitch error less than 10 degrees: {}".format(len(pitch_column_low_error[~np.isnan(pitch_column_low_error)])/len(pitch_column_low_error)))
+
+'''

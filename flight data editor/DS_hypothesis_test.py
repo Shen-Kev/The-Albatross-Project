@@ -25,11 +25,11 @@ from datetime import datetime
 now = datetime.now()  # current date and time
 
 # all the accel data (multiple flights) for when doing DS at altitude with little wind
-raw_file_notDS = "C:/Users/kshen/OneDrive/Documents/PlatformIO/Projects/The Albatross Project PlatformIO/flight data editor/forwardAccelDataNotDSraw.csv"
-
+#raw_file_notDS = "C:/Users/kshen/OneDrive/Documents/PlatformIO/Projects/The Albatross Project PlatformIO/flight data editor/forwardAccelDataNotDSraw.csv"
+raw_file_notDS = "flight data editor/forwardsAccelDataNotDSraw.csv"
 # all the accel data (multiple flights) for when doing DS through the ground shear layer with wind
-raw_file_DS = "C:/Users/kshen/OneDrive/Documents/PlatformIO/Projects/The Albatross Project PlatformIO/flight data editor/forwardAccelDataDSraw.csv"
-
+#raw_file_DS = "C:/Users/kshen/OneDrive/Documents/PlatformIO/Projects/The Albatross Project PlatformIO/flight data editor/forwardAccelDataDSraw.csv"
+raw_file_DS = "flight data editor/forwardsAccelDataDSraw.csv"
 # NOT DS DATA ANALYSIS STARTS HERE=========================================================================
 
 # Read the csv file
@@ -50,6 +50,7 @@ for i in range(len(notDS_accelValues)):
 stats.probplot(notDS_accelValues, dist="norm", plot=plt)
 plt.title("Normal Probability Plot of Control Data")
 plt.legend(['Data Points', 'Normal Distribution With Mean and Std of Data'])
+#
 plt.show()
 
 #remove outliers using IQR method where an outlier is defined as a value that is more than 1.5 times the IQR away from the median
