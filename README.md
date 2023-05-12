@@ -25,4 +25,4 @@ Dynamic soaring is a flight technique used by seabirds like the Wandering Albatr
 # Presentation Materials
 ## [Project Slides.pdf](https://github.com/Shen-Kev/The-Albatross-Project/files/11025521/Project.Slides.Continued.Work.After.Submission.1.pdf)
 ## [Research Report.pdf](https://github.com/Shen-Kev/The-Albatross-Project/files/11025516/Research.Report.pdf)
-### More presentation material coming, or different format with the presentation material embedded in this file.
+[ISEF Poster FINAL Kevin Shen.pdf](https://github.com/Shen-Kev/The-Albatross-Project/files/11468309/ISEF.Poster.FINAL.Kevin.Shen.pdf)
